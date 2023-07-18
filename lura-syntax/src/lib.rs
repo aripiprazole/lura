@@ -15,6 +15,7 @@ pub use generated::lura::*;
 #[cfg(test)]
 mod tests {
     use tree_sitter::Parser;
+    use type_sitter_lib::NodeResultExtraOrExt;
 
     use crate::SourceFile;
 
@@ -31,7 +32,14 @@ mod tests {
 
         let source_file = SourceFile::try_from(tree.root_node()).unwrap();
         for decl in source_file.decls(&mut tree.walk()) {
-            let decl = decl.unwrap().unwrap().child().unwrap();
+            let decl = decl.unwrap().unwrap();
+            decl.data_decl()
+                .unwrap()
+                .clause_types(&mut tree.walk())
+                .next()
+                .unwrap()
+                .unwrap2()
+                .f_32();
 
             println!("{decl:?}");
         }
