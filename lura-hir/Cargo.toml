@@ -4,6 +4,7 @@ name = "lura-hir"
 version = "0.0.1"
 
 [dependencies]
+lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
 lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
 
 salsa-2022 = {git = "https://github.com/aripiprazole/salsa.git"}
@@ -11,3 +12,5 @@ salsa-2022 = {git = "https://github.com/aripiprazole/salsa.git"}
 tree-sitter = "~0.20.10"
 tree-sitter-lura = "0.0.9"
 type-sitter-lib = {git = "https://github.com/Jakobeha/type-sitter.git"}
+
+eyre = "0.6.8"

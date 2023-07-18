@@ -3,4 +3,6 @@ members = [
   "lura-syntax",
   "lura-hir",
   "lura-driver",
+  "lura-diagnostic",
+  "lura-vfs",
 ]

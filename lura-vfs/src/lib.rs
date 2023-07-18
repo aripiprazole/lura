@@ -1,0 +1,20 @@
+use salsa::DbWithJar;
+use std::path::PathBuf;
+
+extern crate salsa_2022 as salsa;
+
+#[salsa::input]
+pub struct SourceFile {
+    #[return_ref]
+    pub file_path: PathBuf,
+
+    #[return_ref]
+    pub source_text: String,
+}
+
+#[salsa::jar(db = VfsDb)]
+pub struct Jar(crate::SourceFile);
+
+pub trait VfsDb: DbWithJar<Jar> {
+    fn input(&self, path: PathBuf) -> eyre::Result<SourceFile>;
+}
