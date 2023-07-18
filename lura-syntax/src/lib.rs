@@ -11,3 +11,29 @@ pub mod generated {
 }
 
 pub use generated::lura::*;
+
+#[cfg(test)]
+mod tests {
+    use tree_sitter::Parser;
+
+    use crate::SourceFile;
+
+    #[test]
+    fn test() {
+        let mut parser = Parser::new();
+        parser
+            .set_language(tree_sitter_lura::language())
+            .expect("Error loading lura language");
+
+        let tree = parser
+            .parse("Main { IO.println \"Hello, world\" }", None)
+            .unwrap();
+
+        let source_file = SourceFile::try_from(tree.root_node()).unwrap();
+        for decl in source_file.decls(&mut tree.walk()) {
+            let decl = decl.unwrap().unwrap().child().unwrap();
+
+            println!("{decl:?}");
+        }
+    }
+}

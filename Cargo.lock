@@ -21,6 +21,8 @@ checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
 name = "lura-syntax"
 version = "0.0.1"
 dependencies = [
+ "tree-sitter",
+ "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -82,10 +84,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "type-sitter-lib"
-version = "0.2.0"
+name = "tree-sitter-lura"
+version = "0.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1f89059660599fc4195d34fdf0a441ad0013c6659571b0c168600a74e42a96b"
+checksum = "9e875605a414069e370b08938837125e329512b2c8b6687717fa6b8c923bf90c"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "type-sitter-lib"
+version = "0.3.0"
+source = "git+https://github.com/Jakobeha/type-sitter.git#9ce5e377709f94a885963ed7542f000454bde70c"
 dependencies = [
  "once_cell",
  "streaming-iterator",

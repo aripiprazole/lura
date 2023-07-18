@@ -8,4 +8,6 @@ include = [
 ]
 
 [dependencies]
-type-sitter-lib = "0.2.0"
+tree-sitter = "~0.20.10"
+tree-sitter-lura = "0.0.7"
+type-sitter-lib = {git = "https://github.com/Jakobeha/type-sitter.git"}
