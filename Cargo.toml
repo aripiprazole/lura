@@ -1,4 +1,6 @@
 [workspace]
 members = [
   "lura-syntax",
+  "lura-hir",
+  "lura-driver",
 ]
