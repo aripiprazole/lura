@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "lura-syntax"
+version = "0.0.1"
+
+include = [
+  "generated_src/*",
+]
+
+[dependencies]
+type-sitter-lib = "0.2.0"
