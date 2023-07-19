@@ -4,9 +4,15 @@ use std::{collections::HashSet, path::PathBuf};
 
 use lura_syntax::Source;
 
+use crate::package::Package;
+
 pub trait HirElement {
     /// The range of the element in the source file.
-    fn location(&self) -> TextRange;
+    fn location(&self) -> Location;
+}
+
+pub trait HirAnchor: HirElement {
+    fn anchor(&self, db: &dyn crate::HirDb) -> Location;
 }
 
 #[salsa::tracked]
@@ -19,6 +25,8 @@ pub struct HirSource {
     #[id]
     pub id: HirSourceId,
     pub source: Source,
+    pub anchor: Location,
+    pub package: Package,
 
     #[return_ref]
     pub contents: Vec<top_level::TopLevel>,
@@ -36,8 +44,80 @@ pub struct QualifiedPath {}
 #[salsa::tracked]
 pub struct Identifier {}
 
+/// Represents a specific location into the source string
+/// as a utf-8 offset.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Location(usize);
+
+/// Represents an offset in the source program relative to some anchor.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Offset(usize);
+
+impl Offset {
+    pub fn location(self, anchor: Location) -> Location {
+        Location(self.0 + anchor.0)
+    }
+}
+
+impl Location {
+    pub fn as_usize(self) -> usize {
+        self.0
+    }
+
+    pub fn start() -> Self {
+        Self(0)
+    }
+}
+
+impl std::ops::Add<Offset> for Location {
+    type Output = Location;
+
+    fn add(self, rhs: Offset) -> Self::Output {
+        Location(self.0 + rhs.0)
+    }
+}
+
+impl std::ops::Add<usize> for Location {
+    type Output = Location;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Location(self.0 + rhs)
+    }
+}
+
+impl std::ops::AddAssign<usize> for Location {
+    fn add_assign(&mut self, rhs: usize) {
+        *self = *self + rhs
+    }
+}
+
+impl std::ops::Sub<Location> for Location {
+    type Output = Offset;
+
+    fn sub(self, rhs: Location) -> Self::Output {
+        Offset(self.0 - rhs.0)
+    }
+}
+
+/// Stores the location of a piece of IR within the source text.
+/// Spans are not stored as absolute values but rather relative to some enclosing anchor
+/// (some struct that implements the `HirAnchor` trait).
+/// This way, although the location of the anchor may change, the spans themselves rarely do.
+/// So long as a function doesn't convert the span into its absolute form,
+/// and thus read the anchor's precise location, it won't need to re-execute, even if the anchor
+/// has moved about in the file.
+///
+/// **NB:** It is your job, when converting the span into relative positions,
+/// to supply the correct anchor! For example, the anchor for the expressions
+/// within a function body is the function itself.
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct TextRange {}
+pub struct TextRange {
+    /// Start of the span, relative to the anchor.
+    pub start: Offset,
+
+    /// End of the span, relative to the anchor.
+    pub end: Offset,
+}
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Spanned<T> {

@@ -5,7 +5,7 @@ use lura_syntax::{generated::lura::SourceFile, Source};
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::ExtraOr;
 
-use crate::source::{top_level::TopLevel, HirSource, HirSourceId};
+use crate::source::{top_level::TopLevel, HirSource, HirSourceId, Location};
 
 #[salsa::tracked]
 pub fn hir_lower(db: &dyn crate::HirDb, source: Source) -> HirSource {
@@ -57,7 +57,17 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             })
             .collect();
 
-        HirSource::new(self.db, self.source_id, self.source, decls)
+        let location = Location::start();
+        let package = todo!();
+
+        HirSource::new(
+            self.db,
+            self.source_id,
+            self.source,
+            location,
+            package,
+            decls,
+        )
     }
 
     pub fn hir_decl(&self, decl: concrete::Decl) -> TopLevel {

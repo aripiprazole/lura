@@ -7,6 +7,7 @@ use std::{
 use crossbeam_channel::Sender;
 use dashmap::{mapref::entry::Entry, DashMap};
 use eyre::Context;
+use lura_hir::package::HasManifest;
 use notify_debouncer_mini::{
     new_debouncer,
     notify::{RecommendedWatcher, RecursiveMode},
@@ -48,6 +49,12 @@ impl RootDb {
                 new_debouncer(Duration::from_secs(1), None, tx).unwrap(),
             )),
         }
+    }
+}
+
+impl HasManifest for RootDb {
+    fn all_packages(&self) -> &[lura_hir::package::Package] {
+        todo!()
     }
 }
 
@@ -112,6 +119,8 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
+    use lura_hir::package::{Package, PackageKind, Version};
+    use lura_syntax::Source;
     use lura_vfs::SourceFile;
     use salsa_2022::DebugWithDb;
 
@@ -130,8 +139,21 @@ mod tests {
 
         let file = SourceFile::new(&db, PathBuf::from("repl"), EXAMPLE.into());
         let source = lura_syntax::parse(&db, file);
+
+        let local = create_package(&db, source, "local");
         let hir = lura_hir::lower::hir_lower(&db, source);
 
         println!("{:#?}", hir.debug_all(&db));
+    }
+
+    fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
+        Package::new(
+            db,
+            name.into(),
+            (0, 0, 1).into(),
+            source,
+            PackageKind::Binary,
+            vec![],
+        )
     }
 }

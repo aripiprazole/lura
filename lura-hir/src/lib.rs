@@ -2,12 +2,18 @@
 
 use lura_diagnostic::DiagnosticDb;
 use lura_syntax::ParseDb;
+use package::HasManifest;
 use salsa::DbWithJar;
 
 extern crate salsa_2022 as salsa;
 
 #[salsa::jar(db = HirDb)]
 pub struct Jar(
+    crate::package::Package,
+    crate::package::all_package_files,
+    crate::resolve::find_constructor,
+    crate::resolve::find_function,
+    crate::resolve::find_type,
     crate::source::HirSource,
     crate::source::HirSourceId,
     crate::source::HirError,
@@ -31,9 +37,11 @@ pub struct Jar(
     crate::lower::hir_lower,
 );
 
-pub trait HirDb: ParseDb + DiagnosticDb + DbWithJar<Jar> {}
+pub trait HirDb: HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 
-impl<DB> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}
+impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}
 
 pub mod lower;
+pub mod package;
+pub mod resolve;
 pub mod source;
