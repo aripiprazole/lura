@@ -18,7 +18,7 @@ pub struct Jar(
     crate::source::HirSource,
     crate::source::HirSourceId,
     crate::source::HirError,
-    crate::source::QualifiedPath,
+    crate::source::HirPath,
     crate::source::Identifier,
     crate::source::top_level::Clause,
     crate::source::top_level::Signature,

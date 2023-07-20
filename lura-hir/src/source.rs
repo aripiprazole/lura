@@ -40,15 +40,19 @@ pub struct HirSourceId {
 }
 
 #[salsa::input]
-pub struct QualifiedPath {
-    pub location: Location,
+pub struct HirPath {
+    pub location: TextRange,
 
     #[return_ref]
     pub segments: Vec<Identifier>,
 }
 
 #[salsa::tracked]
-pub struct Identifier {}
+pub struct Identifier {
+    pub contents: String,
+    pub refers_symbol: bool,
+    pub location: TextRange,
+}
 
 /// Represents a specific location into the source string
 /// as a utf-8 offset.
@@ -56,7 +60,7 @@ pub struct Identifier {}
 pub struct Location(usize);
 
 /// Represents an offset in the source program relative to some anchor.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Offset(pub usize);
 
 impl Offset {
@@ -116,7 +120,7 @@ impl std::ops::Sub<Location> for Location {
 /// **NB:** It is your job, when converting the span into relative positions,
 /// to supply the correct anchor! For example, the anchor for the expressions
 /// within a function body is the function itself.
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct TextRange {
     /// Start of the span, relative to the anchor.
     pub start: Offset,
@@ -138,14 +142,14 @@ pub mod declaration {
         fn attributes(&self) -> HashSet<Attribute>;
         fn visibility(&self) -> Visibility;
         fn docs(&self) -> Vec<DocString>;
-        fn name(&self) -> QualifiedPath;
+        fn name(&self) -> HirPath;
         fn parameters(&self) -> Vec<Parameter>;
         fn type_rep(&self) -> Option<type_rep::TypeRep>;
     }
 
     #[salsa::tracked]
     pub struct Attribute {
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub arguments: Vec<expr::Expr>,
         pub location: TextRange,
     }
@@ -183,17 +187,16 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
-        pub body: Option<stmt::Block>,
         pub location: TextRange,
     }
 
     #[salsa::tracked]
     pub struct Clause {
         pub attributes: HashSet<declaration::Attribute>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub arguments: Vec<pattern::Pattern>,
         pub value: expr::Expr,
         pub location: TextRange,
@@ -207,13 +210,15 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct Using {
-        pub path: QualifiedPath,
+        pub path: HirPath,
+        pub location: TextRange,
     }
 
     #[salsa::tracked]
     pub struct Command {
-        pub path: QualifiedPath,
+        pub path: HirPath,
         pub arguments: Vec<expr::Expr>,
+        pub location: TextRange,
     }
 
     #[salsa::tracked]
@@ -221,7 +226,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub fields: Vec<Signature>,
@@ -234,7 +239,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub methods: Vec<Signature>,
@@ -246,7 +251,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub variants: Vec<Constructor>,
@@ -260,7 +265,7 @@ pub mod top_level {
         pub attributes: Vec<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: QualifiedPath,
+        pub name: HirPath,
         pub return_type: type_rep::TypeRep,
         pub location: TextRange,
     }
@@ -297,7 +302,7 @@ pub mod pattern {
         Array,
         Tuple,
         Unit,
-        Path(QualifiedPath),
+        Path(HirPath),
     }
 
     #[salsa::tracked]
@@ -419,7 +424,7 @@ pub mod expr {
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Expr {
         Error(HirError),
-        Path(QualifiedPath),
+        Path(HirPath),
         Call(CallExpr),
         Ann(AnnExpr),
         Abs(AbsExpr),
@@ -434,7 +439,7 @@ pub mod type_rep {
     #[salsa::tracked]
     pub struct QPath {
         /// Usually a trait type path with associated type bindings, like `Foo.Bar.Baz`.
-        pub qualifier: QualifiedPath,
+        pub qualifier: HirPath,
         pub name: Identifier,
         pub location: TextRange,
     }
@@ -442,7 +447,7 @@ pub mod type_rep {
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TypeRep {
         Error(HirError),
-        Path(QualifiedPath),
+        Path(HirPath),
         QPath(QPath),
         Downgrade(Box<expr::Expr>),
     }

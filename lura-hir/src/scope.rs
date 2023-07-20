@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     resolve::{Definition, DefinitionKind},
-    source::{HirSource, QualifiedPath},
+    source::{HirPath, HirSource},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,7 +22,7 @@ pub enum ScopeKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Import {
     pub file: HirSource,
-    pub name: Option<QualifiedPath>,
+    pub name: Option<HirPath>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,9 +32,9 @@ pub struct Scope {
 
     pub imports: HashSet<Import>,
 
-    pub constructors: HashMap<QualifiedPath, Definition>,
-    pub values: HashMap<QualifiedPath, Definition>,
-    pub types: HashMap<QualifiedPath, Definition>,
+    pub constructors: HashMap<HirPath, Definition>,
+    pub values: HashMap<HirPath, Definition>,
+    pub types: HashMap<HirPath, Definition>,
 }
 
 impl Scope {
@@ -60,7 +60,7 @@ impl Scope {
         }
     }
 
-    pub fn search(&self, name: QualifiedPath, kind: DefinitionKind) -> Option<Definition> {
+    pub fn search(&self, name: HirPath, kind: DefinitionKind) -> Option<Definition> {
         match kind {
             DefinitionKind::Function => todo!(),
             DefinitionKind::Constructor => todo!(),
