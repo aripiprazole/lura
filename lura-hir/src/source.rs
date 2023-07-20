@@ -136,13 +136,15 @@ pub struct Spanned<T> {
 }
 
 pub mod declaration {
+    use crate::resolve::Definition;
+
     use super::*;
 
     pub trait Declaration: HirElement {
         fn attributes(&self) -> HashSet<Attribute>;
         fn visibility(&self) -> Visibility;
         fn docs(&self) -> Vec<DocString>;
-        fn name(&self) -> HirPath;
+        fn name(&self) -> Definition;
         fn parameters(&self) -> Vec<Parameter>;
         fn type_rep(&self) -> Option<type_rep::TypeRep>;
     }
@@ -180,6 +182,8 @@ pub mod declaration {
 }
 
 pub mod top_level {
+    use crate::resolve::Definition;
+
     use super::*;
 
     #[salsa::tracked]
@@ -187,7 +191,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: HirPath,
+        pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub location: TextRange,
@@ -196,7 +200,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct Clause {
         pub attributes: HashSet<declaration::Attribute>,
-        pub name: HirPath,
+        pub name: Definition,
         pub arguments: Vec<pattern::Pattern>,
         pub value: expr::Expr,
         pub location: TextRange,
@@ -210,7 +214,7 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct Using {
-        pub path: HirPath,
+        pub path: Definition,
         pub location: TextRange,
     }
 
@@ -226,7 +230,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: HirPath,
+        pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub fields: Vec<Signature>,
@@ -239,7 +243,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: HirPath,
+        pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub methods: Vec<Signature>,
@@ -251,7 +255,7 @@ pub mod top_level {
         pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: HirPath,
+        pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub variants: Vec<Constructor>,
@@ -265,7 +269,7 @@ pub mod top_level {
         pub attributes: Vec<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
-        pub name: HirPath,
+        pub name: Definition,
         pub return_type: type_rep::TypeRep,
         pub location: TextRange,
     }
@@ -295,6 +299,8 @@ pub mod top_level {
 }
 
 pub mod pattern {
+    use crate::resolve::Definition;
+
     use super::*;
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -302,7 +308,7 @@ pub mod pattern {
         Array,
         Tuple,
         Unit,
-        Path(HirPath),
+        Path(Definition),
     }
 
     #[salsa::tracked]
@@ -360,6 +366,8 @@ pub mod stmt {
 }
 
 pub mod expr {
+    use crate::resolve::Definition;
+
     use super::*;
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -424,7 +432,7 @@ pub mod expr {
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Expr {
         Error(HirError),
-        Path(HirPath),
+        Path(Definition),
         Call(CallExpr),
         Ann(AnnExpr),
         Abs(AbsExpr),
@@ -434,12 +442,14 @@ pub mod expr {
 }
 
 pub mod type_rep {
+    use crate::resolve::Definition;
+
     use super::*;
 
     #[salsa::tracked]
     pub struct QPath {
         /// Usually a trait type path with associated type bindings, like `Foo.Bar.Baz`.
-        pub qualifier: HirPath,
+        pub qualifier: Definition,
         pub name: Identifier,
         pub location: TextRange,
     }
@@ -447,7 +457,7 @@ pub mod type_rep {
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TypeRep {
         Error(HirError),
-        Path(HirPath),
+        Path(Definition),
         QPath(QPath),
         Downgrade(Box<expr::Expr>),
     }

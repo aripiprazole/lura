@@ -103,7 +103,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             concrete::Decl::TraitDecl(_) => todo!(),
             concrete::Decl::Using(decl) => {
                 let path = decl.path().unwrap_db(self.db);
-                let range = TextRange::default();
+                let range = self.hir_range(decl.range());
                 let hir_path = self.hir_path(path);
 
                 TopLevel::Using(Using::new(self.db, hir_path, range))
@@ -114,7 +114,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     pub fn hir_path(&mut self, path: lura_syntax::Path<'_>) -> HirPath {
         let mut new_segments = vec![];
 
-        let range = TextRange::default();
+        let range = self.hir_range(path.range());
         for segment in path.segmentss(&mut self.tree.walk()) {
             let segment: lura_syntax::Identifier<'_> = segment.unwrap_db(self.db);
             let identifer = segment.child().unwrap_db(self.db);
@@ -127,12 +127,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     identifier.utf8_text(self.source.source_text(self.db).as_bytes())
                 }
             };
-            let range = TextRange::default();
+            let range = self.hir_range(segment.range());
 
             match result {
                 Ok(value) => {
-                    let hir_identifier =
-                        Identifier::new(self.db, value.into(), refers_symbol, range);
+                    let value = value.into();
+                    let hir_identifier = Identifier::new(self.db, value, refers_symbol, range);
                     new_segments.push(hir_identifier)
                 }
                 Err(_) => {
@@ -143,6 +143,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         }
 
         HirPath::new(self.db, range, new_segments)
+    }
+
+    pub fn hir_range(&self, range: tree_sitter::Range) -> TextRange {
+        TextRange {
+            start: Offset(range.start_byte),
+            end: Offset(range.end_byte),
+        }
     }
 }
 

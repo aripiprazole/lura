@@ -10,6 +10,7 @@ pub enum DefinitionKind {
     Constructor,
     Type,
     Variable,
+    Module,
 }
 
 #[salsa::tracked]
