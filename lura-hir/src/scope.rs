@@ -66,6 +66,7 @@ impl Scope {
             DefinitionKind::Constructor => todo!(),
             DefinitionKind::Type => todo!(),
             DefinitionKind::Variable => todo!(),
+            DefinitionKind::Module => todo!(),
         }
     }
 }

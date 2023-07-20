@@ -534,7 +534,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Block<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `class_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `constructor`: `{attribute | function_constructor | signature_constructor}*` ([anon_unions::Attribute_FunctionConstructor_SignatureConstructor])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `class_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `constructor`: `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct ClassDecl<'tree>(tree_sitter::Node<'tree>);
@@ -578,7 +578,7 @@ impl<'tree> ClassDecl<'tree> {
     #[inline]    pub fn clause_types < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
         self . 0 . children_by_field_name ("clause_type" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
     }
-    #[doc = "Get the field `constructor` which has kind `{attribute | function_constructor | signature_constructor}*` ([anon_unions::Attribute_FunctionConstructor_SignatureConstructor])"]
+    #[doc = "Get the field `constructor` which has kind `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])"]
     #[allow(dead_code)]
     #[inline]
     pub fn constructors<'a>(
@@ -589,16 +589,32 @@ impl<'tree> ClassDecl<'tree> {
             'tree,
             type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
             >,
         >,
     > + 'a {
         self.0.children_by_field_name("constructor", c).map(|n| {
             <type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
             > as TryFrom<_>>::try_from(n)
         })
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `field` which has kind `signature*` ([Signature])"]
     #[allow(dead_code)]
@@ -666,7 +682,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ClassDecl<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `clause`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}?` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
+#[doc = "Typed node `clause`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}?` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Clause<'tree>(tree_sitter::Node<'tree>);
@@ -687,6 +703,22 @@ impl<'tree> Clause<'tree> {
         self.0
             .children_by_field_name("attribute", c)
             .map(|n| <type_sitter_lib::ExtraOr<'tree, Attribute<'tree>> as TryFrom<_>>::try_from(n))
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `name` which has kind `path` ([Path])"]
     #[allow(dead_code)]
@@ -763,7 +795,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Clause<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `command`\n\nThis node has these fields:\n- `argument`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}*` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n- `attribute`: `attribute*` ([Attribute])\n- `command`: `path` ([Path])\n"]
+#[doc = "Typed node `command`\n\nThis node has these fields:\n- `argument`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}*` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n- `attribute`: `attribute*` ([Attribute])\n- `command`: `path` ([Path])\n- `doc_string`: `doc_string*` ([DocString])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Command<'tree>(tree_sitter::Node<'tree>);
@@ -816,6 +848,22 @@ impl<'tree> Command<'tree> {
     #[inline]
     pub fn command(&self) -> type_sitter_lib::NodeResult<'tree, Path<'tree>> {
         self . 0 . child_by_field_name ("command") . map (< Path < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
 }
 #[automatically_derived]
@@ -976,7 +1024,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ConstructorParameter<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `data_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `constructor`: `{attribute | function_constructor | signature_constructor}*` ([anon_unions::Attribute_FunctionConstructor_SignatureConstructor])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `data_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `constructor`: `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct DataDecl<'tree>(tree_sitter::Node<'tree>);
@@ -1020,7 +1068,7 @@ impl<'tree> DataDecl<'tree> {
     #[inline]    pub fn clause_types < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
         self . 0 . children_by_field_name ("clause_type" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
     }
-    #[doc = "Get the field `constructor` which has kind `{attribute | function_constructor | signature_constructor}*` ([anon_unions::Attribute_FunctionConstructor_SignatureConstructor])"]
+    #[doc = "Get the field `constructor` which has kind `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])"]
     #[allow(dead_code)]
     #[inline]
     pub fn constructors<'a>(
@@ -1031,16 +1079,32 @@ impl<'tree> DataDecl<'tree> {
             'tree,
             type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
             >,
         >,
     > + 'a {
         self.0.children_by_field_name("constructor", c).map(|n| {
             <type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
             > as TryFrom<_>>::try_from(n)
         })
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `field` which has kind `signature*` ([Signature])"]
     #[allow(dead_code)]
@@ -2480,17 +2544,17 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Parameter<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `path`\n\nThis node has these fields:\n- `segments`: `identifier+` ([Identifier])\n"]
+#[doc = "Typed node `path`\n\nThis node has these fields:\n- `segment`: `identifier+` ([Identifier])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Path<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> Path<'tree> {
-    #[doc = "Get the field `segments` which has kind `identifier+` ([Identifier])"]
+    #[doc = "Get the field `segment` which has kind `identifier+` ([Identifier])"]
     #[doc = "This is guaranteed to return at least one child"]
     #[allow(dead_code)]
     #[inline]
-    pub fn segmentss<'a>(
+    pub fn segments<'a>(
         &self,
         c: &'a mut tree_sitter::TreeCursor<'tree>,
     ) -> impl Iterator<
@@ -2499,7 +2563,7 @@ impl<'tree> Path<'tree> {
             type_sitter_lib::ExtraOr<'tree, Identifier<'tree>>,
         >,
     > + 'a {
-        self.0.children_by_field_name("segments", c).map(|n| {
+        self.0.children_by_field_name("segment", c).map(|n| {
             <type_sitter_lib::ExtraOr<'tree, Identifier<'tree>> as TryFrom<_>>::try_from(n)
         })
     }
@@ -2854,7 +2918,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for SigmaExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `signature`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `name`: `path` ([Path])\n- `value`: `block?` ([Block])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `signature`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `value`: `block?` ([Block])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Signature<'tree>(tree_sitter::Node<'tree>);
@@ -2897,6 +2961,22 @@ impl<'tree> Signature<'tree> {
     #[allow(dead_code)]
     #[inline]    pub fn clause_types < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
         self . 0 . children_by_field_name ("clause_type" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `name` which has kind `path` ([Path])"]
     #[allow(dead_code)]
@@ -3137,7 +3217,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for SymbolIdentifier<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `trait_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `trait_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `{: | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct TraitDecl<'tree>(tree_sitter::Node<'tree>);
@@ -3180,6 +3260,22 @@ impl<'tree> TraitDecl<'tree> {
     #[allow(dead_code)]
     #[inline]    pub fn clause_types < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
         self . 0 . children_by_field_name ("clause_type" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Colon_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `field` which has kind `signature*` ([Signature])"]
     #[allow(dead_code)]
@@ -7386,22 +7482,32 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{attribute | function_constructor | signature_constructor}`:\n- [Attribute]\n- [FunctionConstructor]\n- [SignatureConstructor]"]
+    #[doc = "one of `{attribute | doc_string | function_constructor | signature_constructor}`:\n- [Attribute]\n- [DocString]\n- [FunctionConstructor]\n- [SignatureConstructor]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum Attribute_FunctionConstructor_SignatureConstructor<'tree> {
+    pub enum Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
         Attribute(Attribute<'tree>),
+        DocString(DocString<'tree>),
         FunctionConstructor(FunctionConstructor<'tree>),
         SignatureConstructor(SignatureConstructor<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> Attribute_FunctionConstructor_SignatureConstructor<'tree> {
+    impl<'tree> Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
         #[doc = "Returns the node if it is of kind `attribute` ([Attribute]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
         pub fn attribute(self) -> Option<Attribute<'tree>> {
             match self {
                 Self::Attribute(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `doc_string` ([DocString]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn doc_string(self) -> Option<DocString<'tree>> {
+            match self {
+                Self::DocString(x) => Some(x),
                 _ => None,
             }
         }
@@ -7426,7 +7532,7 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for Attribute_FunctionConstructor_SignatureConstructor<'tree>
+        for Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
     {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
@@ -7434,6 +7540,9 @@ pub mod anon_unions {
             match node.kind() {
                 "attribute" => Ok(unsafe {
                     Self :: Attribute (< Attribute < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "doc_string" => Ok(unsafe {
+                    Self :: DocString (< DocString < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
                 "function_constructor" => Ok(unsafe {
                     Self :: FunctionConstructor (< FunctionConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
@@ -7450,13 +7559,15 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for Attribute_FunctionConstructor_SignatureConstructor<'tree>
+        for Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
     {
-        const KIND: &'static str = "{attribute | function_constructor | signature_constructor}";
+        const KIND: &'static str =
+            "{attribute | doc_string | function_constructor | signature_constructor}";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
                 Self::Attribute(x) => x.node(),
+                Self::DocString(x) => x.node(),
                 Self::FunctionConstructor(x) => x.node(),
                 Self::SignatureConstructor(x) => x.node(),
             }
@@ -7465,6 +7576,7 @@ pub mod anon_unions {
         fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
             match self {
                 Self::Attribute(x) => x.node_mut(),
+                Self::DocString(x) => x.node_mut(),
                 Self::FunctionConstructor(x) => x.node_mut(),
                 Self::SignatureConstructor(x) => x.node_mut(),
             }
@@ -7473,6 +7585,7 @@ pub mod anon_unions {
         fn into_node(self) -> tree_sitter::Node<'tree> {
             match self {
                 Self::Attribute(x) => x.into_node(),
+                Self::DocString(x) => x.into_node(),
                 Self::FunctionConstructor(x) => x.into_node(),
                 Self::SignatureConstructor(x) => x.into_node(),
             }

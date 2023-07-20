@@ -1,13 +1,15 @@
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, hint::black_box, sync::Arc};
 
 use if_chain::if_chain;
-use lura_syntax::{generated::lura::SourceFile, Source};
 use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, TypedNode};
 
+use lura_syntax::{generated::lura::SourceFile, Source};
+
 use crate::{
     package::Package,
+    resolve::Definition,
     scope::{Scope, ScopeKind},
     source::{
         top_level::{BindingGroup, TopLevel, Using},
@@ -102,38 +104,38 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             concrete::Decl::Signature(_) => todo!(),
             concrete::Decl::TraitDecl(_) => todo!(),
             concrete::Decl::Using(decl) => {
-                let path = decl.path().unwrap_db(self.db);
-                let range = self.hir_range(decl.range());
-                let hir_path = self.hir_path(path);
+                let range = self.range(decl.range());
+                let path = self.path(decl.path().unwrap_on(self.db));
 
-                TopLevel::Using(Using::new(self.db, hir_path, range))
+                TopLevel::Using(Using::new(self.db, self.qualify(path), range))
             }
         }
     }
 
-    pub fn hir_path(&mut self, path: lura_syntax::Path<'_>) -> HirPath {
+    pub fn path(&mut self, path: lura_syntax::Path<'_>) -> HirPath {
         let mut new_segments = vec![];
+        let source_text = self.source.source_text(self.db).as_bytes();
 
-        let range = self.hir_range(path.range());
+        let range = self.range(path.range());
         for segment in path.segmentss(&mut self.tree.walk()) {
-            let segment: lura_syntax::Identifier<'_> = segment.unwrap_db(self.db);
-            let identifer = segment.child().unwrap_db(self.db);
+            let segment: lura_syntax::Identifier<'_> = segment.unwrap_on(self.db);
+            let range = self.range(segment.range());
+
+            let identifer = segment.child().unwrap_on(self.db);
             let refers_symbol = matches!(identifer, concrete::Identifier::SymbolIdentifier(_));
+
             let result = match identifer {
-                concrete::Identifier::SimpleIdentifier(identifier) => {
-                    identifier.utf8_text(self.source.source_text(self.db).as_bytes())
-                }
-                concrete::Identifier::SymbolIdentifier(identifier) => {
-                    identifier.utf8_text(self.source.source_text(self.db).as_bytes())
+                concrete::Identifier::SimpleIdentifier(value) => value.utf8_text(source_text),
+                concrete::Identifier::SymbolIdentifier(value) => {
+                    value.child().unwrap_on(self.db).utf8_text(source_text)
                 }
             };
-            let range = self.hir_range(segment.range());
 
             match result {
                 Ok(value) => {
                     let value = value.into();
-                    let hir_identifier = Identifier::new(self.db, value, refers_symbol, range);
-                    new_segments.push(hir_identifier)
+                    let identifier = Identifier::new(self.db, value, refers_symbol, range);
+                    new_segments.push(identifier)
                 }
                 Err(_) => {
                     println!("todo")
@@ -145,26 +147,30 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         HirPath::new(self.db, range, new_segments)
     }
 
-    pub fn hir_range(&self, range: tree_sitter::Range) -> TextRange {
+    pub fn range(&self, range: tree_sitter::Range) -> TextRange {
         TextRange {
             start: Offset(range.start_byte),
             end: Offset(range.end_byte),
         }
     }
+
+    pub fn qualify(&self, path: HirPath) -> Definition {
+        todo!()
+    }
 }
 
 pub trait DbNodeResult<'tree, T> {
-    fn unwrap_db(self, db: &dyn crate::HirDb) -> T;
+    fn unwrap_on(self, db: &dyn crate::HirDb) -> T;
 }
 
 impl<'tree, T> DbNodeResult<'tree, T> for Result<T, IncorrectKind<'tree>> {
-    fn unwrap_db(self, db: &dyn crate::HirDb) -> T {
+    fn unwrap_on(self, db: &dyn crate::HirDb) -> T {
         todo!()
     }
 }
 
 impl<'tree, T> DbNodeResult<'tree, T> for Result<ExtraOr<'tree, T>, IncorrectKind<'tree>> {
-    fn unwrap_db(self, db: &dyn crate::HirDb) -> T {
+    fn unwrap_on(self, db: &dyn crate::HirDb) -> T {
         todo!()
     }
 }

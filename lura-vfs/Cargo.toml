@@ -7,7 +7,7 @@ version = "0.0.1"
 salsa-2022 = {git = "https://github.com/aripiprazole/salsa.git"}
 
 tree-sitter = "~0.20.10"
-tree-sitter-lura = "0.0.9"
+tree-sitter-lura = "0.1.0"
 type-sitter-lib = {git = "https://github.com/Jakobeha/type-sitter.git"}
 
 eyre = "0.6.8"

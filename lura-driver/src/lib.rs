@@ -126,7 +126,7 @@ mod tests {
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "Main { IO.println \"Hello, world\" }";
+    const EXAMPLE: &str = "using Std.IO";
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.
