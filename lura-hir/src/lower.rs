@@ -5,13 +5,14 @@ use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, TypedNode};
 
-use lura_syntax::{generated::lura::SourceFile, Source};
+use lura_syntax::{generated::lura::SourceFile, Source, TreeDecl};
 
 use crate::{
     package::Package,
     resolve::Definition,
     scope::{Scope, ScopeKind},
     source::{
+        self as hir,
         top_level::{BindingGroup, TopLevel, Using},
         HirError, HirPath, HirSource, HirSourceId, Identifier, Location, Offset, TextRange,
     },
@@ -47,12 +48,6 @@ struct LowerHir<'db, 'tree> {
     root_node: Node<'tree>,
     clauses: HashMap<HirPath, BindingGroup>,
     source_id: HirSourceId,
-}
-
-#[rustfmt::skip]
-mod concrete {
-    pub type Decl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>;
-    pub type Identifier<'tree> = lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
@@ -95,15 +90,15 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         )
     }
 
-    pub fn hir_decl(&mut self, decl: concrete::Decl) -> TopLevel {
+    pub fn hir_decl(&mut self, decl: lura_syntax::TreeDecl) -> hir::top_level::TopLevel {
         match decl {
-            concrete::Decl::ClassDecl(_) => todo!(),
-            concrete::Decl::Clause(_) => todo!(),
-            concrete::Decl::Command(_) => todo!(),
-            concrete::Decl::DataDecl(_) => todo!(),
-            concrete::Decl::Signature(_) => todo!(),
-            concrete::Decl::TraitDecl(_) => todo!(),
-            concrete::Decl::Using(decl) => {
+            TreeDecl::ClassDecl(_) => todo!(),
+            TreeDecl::Clause(_) => todo!(),
+            TreeDecl::Command(_) => todo!(),
+            TreeDecl::DataDecl(_) => todo!(),
+            TreeDecl::Signature(_) => todo!(),
+            TreeDecl::TraitDecl(_) => todo!(),
+            TreeDecl::Using(decl) => {
                 let range = self.range(decl.range());
                 let path = self.path(decl.path().unwrap_on(self.db));
 
@@ -117,7 +112,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let source_text = self.source.source_text(self.db).as_bytes();
 
         let range = self.range(path.range());
-        for segment in path.segmentss(&mut self.tree.walk()) {
+        for segment in path.segments(&mut self.tree.walk()) {
             let segment: lura_syntax::Identifier<'_> = segment.unwrap_on(self.db);
             let range = self.range(segment.range());
 

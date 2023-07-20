@@ -7,13 +7,21 @@
 #[allow(unused_parens)]
 #[allow(unused_labels)]
 #[allow(non_upper_case_globals)]
+#[rustfmt::skip]
 pub mod generated {
     pub mod lura;
+
+    pub type TreeDecl<'tree> = lura::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>;
+    pub type TreeArguments<'tree> = lura::anon_unions::ExplicitArguments_ImplicitArguments<'tree>;
+    pub type TreeExpr<'tree> = lura::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+    pub type TreeTypeExpr<'tree> = lura::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+    pub type TreeIdentifier<'tree> = lura::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
 }
 
-use std::{hash::Hash, sync::Arc};
-
 pub use generated::lura::*;
+pub use generated::*;
+
+use std::{hash::Hash, sync::Arc};
 
 use lura_diagnostic::DiagnosticDb;
 use lura_vfs::{SourceFile, VfsDb};
