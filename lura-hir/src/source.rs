@@ -4,7 +4,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use lura_syntax::Source;
 
-use crate::package::Package;
+use crate::{package::Package, scope::Scope};
 
 pub trait HirElement {
     /// The range of the element in the source file.
@@ -27,6 +27,7 @@ pub struct HirSource {
     pub source: Source,
     pub anchor: Location,
     pub package: Package,
+    pub scope: Scope,
 
     #[return_ref]
     pub contents: Vec<top_level::TopLevel>,
@@ -38,8 +39,13 @@ pub struct HirSourceId {
     pub path: PathBuf,
 }
 
-#[salsa::tracked]
-pub struct QualifiedPath {}
+#[salsa::input]
+pub struct QualifiedPath {
+    pub location: Location,
+
+    #[return_ref]
+    pub segments: Vec<Identifier>,
+}
 
 #[salsa::tracked]
 pub struct Identifier {}
@@ -51,7 +57,7 @@ pub struct Location(usize);
 
 /// Represents an offset in the source program relative to some anchor.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Offset(usize);
+pub struct Offset(pub usize);
 
 impl Offset {
     pub fn location(self, anchor: Location) -> Location {
@@ -180,23 +186,106 @@ pub mod top_level {
         pub name: QualifiedPath,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
-        pub body: stmt::Block,
+        pub body: Option<stmt::Block>,
         pub location: TextRange,
     }
 
     #[salsa::tracked]
     pub struct Clause {
+        pub attributes: HashSet<declaration::Attribute>,
         pub name: QualifiedPath,
         pub arguments: Vec<pattern::Pattern>,
         pub value: expr::Expr,
         pub location: TextRange,
     }
 
+    #[salsa::tracked]
+    pub struct BindingGroup {
+        pub signature: Signature,
+        pub clauses: HashSet<Clause>,
+    }
+
+    #[salsa::tracked]
+    pub struct Using {
+        pub path: QualifiedPath,
+    }
+
+    #[salsa::tracked]
+    pub struct Command {
+        pub path: QualifiedPath,
+        pub arguments: Vec<expr::Expr>,
+    }
+
+    #[salsa::tracked]
+    pub struct ClassDecl {
+        pub attributes: HashSet<declaration::Attribute>,
+        pub visibility: Spanned<declaration::Visibility>,
+        pub docs: Vec<declaration::DocString>,
+        pub name: QualifiedPath,
+        pub parameters: Vec<declaration::Parameter>,
+        pub return_type: type_rep::TypeRep,
+        pub fields: Vec<Signature>,
+        pub methods: Vec<BindingGroup>,
+        pub location: TextRange,
+    }
+
+    #[salsa::tracked]
+    pub struct TraitDecl {
+        pub attributes: HashSet<declaration::Attribute>,
+        pub visibility: Spanned<declaration::Visibility>,
+        pub docs: Vec<declaration::DocString>,
+        pub name: QualifiedPath,
+        pub parameters: Vec<declaration::Parameter>,
+        pub return_type: type_rep::TypeRep,
+        pub methods: Vec<Signature>,
+        pub location: TextRange,
+    }
+
+    #[salsa::tracked]
+    pub struct DataDecl {
+        pub attributes: HashSet<declaration::Attribute>,
+        pub visibility: Spanned<declaration::Visibility>,
+        pub docs: Vec<declaration::DocString>,
+        pub name: QualifiedPath,
+        pub parameters: Vec<declaration::Parameter>,
+        pub return_type: type_rep::TypeRep,
+        pub variants: Vec<Constructor>,
+        pub methods: Vec<BindingGroup>,
+        pub location: TextRange,
+    }
+
+    #[salsa::tracked]
+    pub struct Constructor {
+        pub kind: ConstructorKind,
+        pub attributes: Vec<declaration::Attribute>,
+        pub visibility: Spanned<declaration::Visibility>,
+        pub docs: Vec<declaration::DocString>,
+        pub name: QualifiedPath,
+        pub return_type: type_rep::TypeRep,
+        pub location: TextRange,
+    }
+
+    #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum ConstructorKind {
+        Function,
+        Gadt,
+    }
+
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TopLevel {
-        Error,
-        Clause(Clause),
-        Signature(Signature),
+        Error(HirError),
+        Using(Using),
+        Command(Command),
+        BindingGroup(BindingGroup),
+        ClassDecl(ClassDecl),
+        TraitDecl(TraitDecl),
+        DataDecl(DataDecl),
+    }
+
+    impl HirElement for TopLevel {
+        fn location(&self) -> Location {
+            todo!()
+        }
     }
 }
 

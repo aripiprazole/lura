@@ -2,19 +2,25 @@ use std::sync::Arc;
 
 use if_chain::if_chain;
 use lura_syntax::{generated::lura::SourceFile, Source};
+use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::ExtraOr;
 
-use crate::source::{top_level::TopLevel, HirSource, HirSourceId, Location};
+use crate::{
+    package::Package,
+    scope::{Scope, ScopeKind},
+    source::{top_level::TopLevel, HirError, HirSource, HirSourceId, Location, Offset, TextRange},
+};
 
-#[salsa::tracked]
-pub fn hir_lower(db: &dyn crate::HirDb, source: Source) -> HirSource {
-    let id = HirSourceId::new(db, source.file_path(db).clone());
-    let parse_tree = source.syntax_node(db);
+#[salsa::tracked(recovery_fn = rec_hir_lower)]
+pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
+    let id = HirSourceId::new(db, src.file_path(db).clone());
+    let parse_tree = src.syntax_node(db);
 
     let lower = LowerHir {
         db,
-        source,
+        source: src,
+        package: pkg,
         tree: parse_tree.tree.clone(),
         root_node: parse_tree.tree.root_node(),
         source_id: id,
@@ -23,10 +29,15 @@ pub fn hir_lower(db: &dyn crate::HirDb, source: Source) -> HirSource {
     lower.hir_source()
 }
 
+pub fn rec_hir_lower(db: &dyn crate::HirDb, cycle: &Cycle, pkg: Package, src: Source) -> HirSource {
+    todo!()
+}
+
 struct LowerHir<'db, 'tree> {
     db: &'db dyn crate::HirDb,
     source: Source,
     tree: Arc<Tree>,
+    package: Package,
     root_node: Node<'tree>,
     source_id: HirSourceId,
 }
@@ -40,6 +51,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     pub fn hir_source(&self) -> HirSource {
         let ast = SourceFile::try_from(self.root_node).unwrap();
 
+        let scope = Scope::new(ScopeKind::File);
         let decls: Vec<_> = ast
             .decls(&mut self.tree.walk())
             .map(|node| {
@@ -53,19 +65,24 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     }
                 }
 
-                TopLevel::Error
+                let range = TextRange {
+                    start: Offset(0),
+                    end: Offset(0),
+                };
+
+                TopLevel::Error(HirError::new(self.db, range))
             })
             .collect();
 
         let location = Location::start();
-        let package = todo!();
 
         HirSource::new(
             self.db,
             self.source_id,
             self.source,
             location,
-            package,
+            self.package,
+            scope,
             decls,
         )
     }

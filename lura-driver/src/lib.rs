@@ -141,7 +141,7 @@ mod tests {
         let source = lura_syntax::parse(&db, file);
 
         let local = create_package(&db, source, "local");
-        let hir = lura_hir::lower::hir_lower(&db, source);
+        let hir = lura_hir::lower::hir_lower(&db, local, source);
 
         println!("{:#?}", hir.debug_all(&db));
     }

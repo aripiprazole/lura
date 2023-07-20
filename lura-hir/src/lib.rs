@@ -10,7 +10,8 @@ extern crate salsa_2022 as salsa;
 #[salsa::jar(db = HirDb)]
 pub struct Jar(
     crate::package::Package,
-    crate::package::all_package_files,
+    crate::package::package_files,
+    crate::resolve::Definition,
     crate::resolve::find_constructor,
     crate::resolve::find_function,
     crate::resolve::find_type,
@@ -21,6 +22,13 @@ pub struct Jar(
     crate::source::Identifier,
     crate::source::top_level::Clause,
     crate::source::top_level::Signature,
+    crate::source::top_level::Using,
+    crate::source::top_level::ClassDecl,
+    crate::source::top_level::TraitDecl,
+    crate::source::top_level::DataDecl,
+    crate::source::top_level::Constructor,
+    crate::source::top_level::BindingGroup,
+    crate::source::top_level::Command,
     crate::source::pattern::ConstructorPattern,
     crate::source::pattern::BindingPattern,
     crate::source::declaration::Parameter,
@@ -44,4 +52,5 @@ impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + s
 pub mod lower;
 pub mod package;
 pub mod resolve;
+pub mod scope;
 pub mod source;

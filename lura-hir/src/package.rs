@@ -20,7 +20,7 @@ pub struct Package {
 }
 
 #[salsa::tracked]
-pub fn all_package_files(db: &dyn crate::HirDb, package: Package) -> Vec<Source> {
+pub fn package_files(db: &dyn crate::HirDb, package: Package) -> Vec<Source> {
     let mut files = vec![package.main(db)];
     files.extend(package.files(db));
     files
