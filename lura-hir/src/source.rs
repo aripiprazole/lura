@@ -96,6 +96,12 @@ pub struct HirPath {
     pub segments: Vec<Identifier>,
 }
 
+impl DefaultWithDb for HirPath {
+    fn default_with_db(db: &dyn crate::HirDb) -> Self {
+        Self::new(db, Location::call_site(db), vec![])
+    }
+}
+
 #[salsa::tracked]
 pub struct Identifier {
     pub contents: String,
@@ -641,8 +647,8 @@ pub mod top_level {
             }
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
-            *self
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            self.clone()
         }
     }
 
@@ -855,7 +861,7 @@ pub mod expr {
 
     impl HirElement for MatchArm {
         fn location(&self, _db: &dyn crate::HirDb) -> Location {
-            self.location
+            self.location.clone()
         }
     }
 

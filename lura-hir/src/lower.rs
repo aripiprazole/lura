@@ -30,12 +30,14 @@ pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource 
         db,
         src,
         pkg,
+        decls: vec![],
+        scope: Scope::new(ScopeKind::File),
         tree: parse_tree.tree.clone(),
         root_node: parse_tree.tree.root_node(),
         clauses: HashMap::new(),
     };
 
-    lower.hir_source()
+    lower.declare_and_solve()
 }
 
 pub fn rec_hir_lower(db: &dyn crate::HirDb, cycle: &Cycle, _: Package, _: Source) -> HirSource {
@@ -46,80 +48,87 @@ struct LowerHir<'db, 'tree> {
     db: &'db dyn crate::HirDb,
     src: Source,
     tree: Arc<Tree>,
+    decls: Vec<TopLevel>,
     pkg: Package,
+    scope: Scope,
     root_node: Node<'tree>,
     clauses: HashMap<HirPath, BindingGroup>,
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
-    pub fn hir_source(&mut self) -> HirSource {
+    pub fn declare_and_solve(mut self) -> HirSource {
         let ast = SourceFile::try_from(self.root_node).unwrap();
 
         let scope = Scope::new(ScopeKind::File);
-        let mut decls: Vec<_> = vec![];
         for node in ast.decls(&mut self.tree.clone().walk()).flatten() {
             if let ExtraOr::Regular(node) = node {
                 // Process declaration only if it is not an error, or it's not a junk
                 // declaration.
-                if let Some(decl) = self.hir_decl(node) {
-                    decls.push(decl);
-                }
+                if let Some(solver) = self.define(node) {
+                    solver.run_solver(&mut self);
+                };
             }
         }
 
         for group in self.clauses.values() {
-            decls.push(TopLevel::BindingGroup(*group))
+            self.decls.push(TopLevel::BindingGroup(*group))
         }
 
-        HirSource::new(self.db, self.src, self.pkg, scope, decls)
+        HirSource::new(self.db, self.src, self.pkg, scope, self.decls)
     }
 
-    pub fn hir_decl(&mut self, decl: lura_syntax::TreeDecl) -> Option<TopLevel> {
-        Some(match decl {
+    pub fn define(&mut self, decl: TreeDecl) -> Option<Solver<TopLevel>> {
+        let value = match decl {
             TreeDecl::ClassDecl(_) => todo!(),
             TreeDecl::Clause(_) => todo!(),
             TreeDecl::Command(_) => todo!(),
             TreeDecl::DataDecl(_) => todo!(),
-            TreeDecl::Signature(signature) => return self.hir_signature(signature),
+            TreeDecl::Signature(signature) => return Some(self.hir_signature(signature)),
             TreeDecl::TraitDecl(_) => todo!(),
             TreeDecl::Using(decl) => {
                 let range = self.range(decl.range());
-                let path = self.path(decl.path().unwrap_on(self.db));
+                let path = decl.path().solve(self.db, |node| self.path(node));
 
                 TopLevel::Using(Using::new(self.db, self.qualify(path), range))
             }
-        })
+        };
+
+        self.decls.push(value);
+        None // not solving
     }
 
-    pub fn hir_signature(&mut self, signature: lura_syntax::Signature) -> Option<TopLevel> {
+    pub fn hir_signature(&mut self, mut signature: lura_syntax::Signature) -> Solver<TopLevel> {
         let range = self.range(signature.range());
-        let path = self.path(signature.name().unwrap_on(self.db));
+        let path = signature.name().solve(self.db, |node| self.path(node));
 
-        let attributes = self.hir_attributes(signature.attributes(&mut signature.walk()));
+        let attrs = self.hir_attributes(signature.attributes(&mut signature.walk()));
         let docs = self.hir_docs(signature.doc_strings(&mut signature.walk()));
-        let definition = Definition::no(self.db, DefinitionKind::Function, path);
-        let visibility = signature
+
+        let vis = signature
             .visibility()
-            .map(|vis| self.hir_visibility(vis.unwrap_on(self.db)))
+            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Visibility::Public));
 
-        let signature = Signature::new(
-            /* db          = */ self.db,
-            /* attributes  = */ attributes,
-            /* docs        = */ docs,
-            /* visibility  = */ visibility,
-            /* name        = */ definition,
-            /* parameters  = */ vec![],
-            /* return_type = */ TypeRep::Unit,
-            /* location    = */ range,
-        );
+        // TODO: define the node on the scope
+        let node = Definition::no(self.db, DefinitionKind::Function, path);
 
-        let clause = self
-            .clauses
-            .entry(path)
-            .or_insert_with(|| BindingGroup::new(self.db, signature, HashSet::new()));
+        Solver::new(move |this| {
+            let parameters = vec![];
 
-        None
+            signature.arguments(&mut this.tree.walk());
+
+            let type_rep = TypeRep::Unit;
+
+            let signature =
+                Signature::new(this.db, attrs, docs, vis, node, parameters, type_rep, range);
+
+            let clause = this
+                .clauses
+                .entry(path)
+                .or_insert_with(|| BindingGroup::new(this.db, signature, HashSet::new()));
+
+            todo!()
+        })
     }
 
     pub fn hir_docs<'a, I>(&mut self, attributes: I) -> Vec<DocString>
@@ -127,12 +136,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, lura_syntax::DocString<'a>>>>,
     {
         attributes
-            .filter_map(|attribute| {
-                if let ExtraOr::Regular(attribute) = attribute.unwrap_on(self.db) {
-                    Some(DocString::new(self.db, self.range(attribute.range())))
-                } else {
-                    None
-                }
+            .flatten()
+            .filter_map(|attr| {
+                let value = attr.regular()?;
+                let range = self.range(value.range());
+
+                Some(DocString::new(self.db, range))
             })
             .collect()
     }
@@ -142,21 +151,16 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, lura_syntax::Attribute<'a>>>>,
     {
         attributes
+            .flatten()
             .filter_map(|attribute| {
-                if let ExtraOr::Regular(attribute) = attribute.unwrap_on(self.db) {
-                    Some(self.hir_attribute(attribute))
-                } else {
-                    None
-                }
+                let value = attribute.regular()?;
+                let name = value.name().solve(self.db, |path| self.path(path));
+                let arguments = vec![];
+                let range = self.range(attribute.range());
+
+                Some(Attribute::new(self.db, name, arguments, range))
             })
             .collect()
-    }
-
-    pub fn hir_attribute(&mut self, attribute: lura_syntax::Attribute) -> Attribute {
-        let name = self.path(attribute.name().unwrap_on(self.db));
-        let arguments = vec![];
-
-        Attribute::new(self.db, name, arguments, self.range(attribute.range()))
     }
 
     pub fn hir_visibility(&mut self, visibility: lura_syntax::Visibility) -> Spanned<Visibility> {
@@ -177,7 +181,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
         let range = self.range(path.range());
         for segment in path.segments(&mut self.tree.walk()) {
-            segment.or_default_error(self.db, |db, segment: lura_syntax::Identifier| {
+            segment.or_default_error(self.db, |_, segment: lura_syntax::Identifier| {
                 let range = self.range(segment.range());
 
                 let identifer = match segment.child() {
@@ -194,7 +198,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     TreeIdentifier::SymbolIdentifier(value) => {
                         let string = value
                             .child()
-                            .or_db_error(self.db, |db, node| node.utf8_text(source_text).ok());
+                            .with_db(self.db, |_, node| node.utf8_text(source_text).ok());
 
                         Identifier::new(self.db, string.into(), true, range)
                     }
@@ -214,6 +218,25 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     }
 }
 
+pub struct Solver<'a, T> {
+    f: Box<dyn FnOnce(&mut LowerHir<'_, '_>) -> T + 'a>,
+}
+
+impl<'a, T> Solver<'a, T> {
+    fn new<F>(f: F) -> Self
+    where
+        F: FnOnce(&mut LowerHir<'_, '_>) -> T + 'a,
+    {
+        let a = Box::new(f);
+
+        Self { f: a }
+    }
+
+    fn run_solver(mut self, lower: &mut LowerHir<'_, '_>) -> T {
+        (self.f)(lower)
+    }
+}
+
 trait NodeResultExt<'tree, N, T: Default> {
     fn or_error<F>(self, f: F) -> T
     where
@@ -221,18 +244,27 @@ trait NodeResultExt<'tree, N, T: Default> {
 }
 
 trait DbNodeResultExt<'tree, N> {
+    fn solve<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    where
+        Self: Sized,
+        T: DefaultWithDb,
+        F: FnOnce(N) -> T,
+    {
+        self.with_db(db, |_, node| Some(f(node)))
+    }
+
     fn or_default_error<F>(self, db: &dyn crate::HirDb, f: F)
     where
         Self: Sized,
         F: FnOnce(&dyn crate::HirDb, N),
     {
-        self.or_db_error(db, |db, node| {
+        self.with_db(db, |db, node| {
             f(db, node);
             Some(())
         })
     }
 
-    fn or_db_error<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         T: DefaultWithDb,
         F: FnOnce(&dyn crate::HirDb, N) -> Option<T>;
@@ -265,7 +297,7 @@ impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
 }
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
-    fn or_db_error<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         T: DefaultWithDb,
         F: FnOnce(&dyn crate::HirDb, N) -> Option<T>,
@@ -278,7 +310,7 @@ impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
 }
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
-    fn or_db_error<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         T: DefaultWithDb,
         F: FnOnce(&dyn crate::HirDb, N) -> Option<T>,
