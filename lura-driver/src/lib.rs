@@ -119,7 +119,7 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
-    use lura_hir::package::{Package, PackageKind, Version};
+    use lura_hir::package::{Package, PackageKind};
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
     use salsa_2022::DebugWithDb;

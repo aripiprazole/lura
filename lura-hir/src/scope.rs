@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    rc::Rc,
     sync::Arc,
 };
 
@@ -67,6 +66,7 @@ impl Scope {
             DefinitionKind::Type => todo!(),
             DefinitionKind::Variable => todo!(),
             DefinitionKind::Module => todo!(),
+            DefinitionKind::Unresolved => None,
         }
     }
 }

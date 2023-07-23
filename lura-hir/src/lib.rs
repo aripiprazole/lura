@@ -1,3 +1,5 @@
+#![feature(fn_traits)]
+#![feature(unboxed_closures)]
 #![feature(trait_upcasting)]
 
 use lura_diagnostic::DiagnosticDb;
@@ -16,7 +18,6 @@ pub struct Jar(
     crate::resolve::find_function,
     crate::resolve::find_type,
     crate::source::HirSource,
-    crate::source::HirSourceId,
     crate::source::HirError,
     crate::source::HirPath,
     crate::source::Identifier,

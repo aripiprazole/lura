@@ -1,31 +1,86 @@
 #![allow(clippy::too_many_arguments)]
 
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
 
+use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
 
 use crate::{package::Package, scope::Scope};
 
-pub trait HirElement {
-    /// The range of the element in the source file.
-    fn location(&self) -> Location;
+pub trait DefaultWithDb {
+    fn default_with_db(db: &dyn crate::HirDb) -> Self;
 }
 
-pub trait HirAnchor: HirElement {
-    fn anchor(&self, db: &dyn crate::HirDb) -> Location;
+impl<T: Default> DefaultWithDb for T {
+    fn default_with_db(_db: &dyn crate::HirDb) -> Self {
+        Self::default()
+    }
+}
+
+pub fn default_with_db<T: DefaultWithDb>(db: &dyn crate::HirDb) -> T {
+    T::default_with_db(db)
+}
+
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+pub struct Location {
+    pub source: Source,
+    pub start: Offset,
+    pub end: Offset,
+
+    pub file_name: String,
+    pub text: String,
+}
+
+impl Location {
+    pub fn new<I>(db: &dyn crate::HirDb, source: Source, start: I, end: I) -> Self
+    where
+        I: Into<Offset>,
+    {
+        Self {
+            source,
+            start: start.into(),
+            end: end.into(),
+            file_name: source.source_text(db).clone(),
+            text: source.file_path(db).to_string_lossy().into_owned(),
+        }
+    }
+
+    pub fn call_site(db: &dyn crate::HirDb) -> Self {
+        todo!()
+    }
+}
+
+impl TextRange for Location {
+    fn start(&self) -> Offset {
+        self.start
+    }
+
+    fn end(&self) -> Offset {
+        self.end
+    }
+
+    fn file_name(&self) -> &str {
+        todo!()
+    }
+
+    fn source(&self) -> &str {
+        todo!()
+    }
+}
+
+pub trait HirElement {
+    /// The range of the element in the source file.
+    fn location(&self, db: &dyn crate::HirDb) -> Location;
 }
 
 #[salsa::tracked]
 pub struct HirError {
-    pub location: TextRange,
+    pub location: Location,
 }
 
 #[salsa::tracked]
 pub struct HirSource {
-    #[id]
-    pub id: HirSourceId,
     pub source: Source,
-    pub anchor: Location,
     pub package: Package,
     pub scope: Scope,
 
@@ -33,15 +88,9 @@ pub struct HirSource {
     pub contents: Vec<top_level::TopLevel>,
 }
 
-#[salsa::interned]
-pub struct HirSourceId {
-    #[return_ref]
-    pub path: PathBuf,
-}
-
 #[salsa::input]
 pub struct HirPath {
-    pub location: TextRange,
+    pub location: Location,
 
     #[return_ref]
     pub segments: Vec<Identifier>,
@@ -51,88 +100,38 @@ pub struct HirPath {
 pub struct Identifier {
     pub contents: String,
     pub refers_symbol: bool,
-    pub location: TextRange,
-}
-
-/// Represents a specific location into the source string
-/// as a utf-8 offset.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Location(usize);
-
-/// Represents an offset in the source program relative to some anchor.
-#[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Offset(pub usize);
-
-impl Offset {
-    pub fn location(self, anchor: Location) -> Location {
-        Location(self.0 + anchor.0)
-    }
-}
-
-impl Location {
-    pub fn as_usize(self) -> usize {
-        self.0
-    }
-
-    pub fn start() -> Self {
-        Self(0)
-    }
-}
-
-impl std::ops::Add<Offset> for Location {
-    type Output = Location;
-
-    fn add(self, rhs: Offset) -> Self::Output {
-        Location(self.0 + rhs.0)
-    }
-}
-
-impl std::ops::Add<usize> for Location {
-    type Output = Location;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        Location(self.0 + rhs)
-    }
-}
-
-impl std::ops::AddAssign<usize> for Location {
-    fn add_assign(&mut self, rhs: usize) {
-        *self = *self + rhs
-    }
-}
-
-impl std::ops::Sub<Location> for Location {
-    type Output = Offset;
-
-    fn sub(self, rhs: Location) -> Self::Output {
-        Offset(self.0 - rhs.0)
-    }
-}
-
-/// Stores the location of a piece of IR within the source text.
-/// Spans are not stored as absolute values but rather relative to some enclosing anchor
-/// (some struct that implements the `HirAnchor` trait).
-/// This way, although the location of the anchor may change, the spans themselves rarely do.
-/// So long as a function doesn't convert the span into its absolute form,
-/// and thus read the anchor's precise location, it won't need to re-execute, even if the anchor
-/// has moved about in the file.
-///
-/// **NB:** It is your job, when converting the span into relative positions,
-/// to supply the correct anchor! For example, the anchor for the expressions
-/// within a function body is the function itself.
-#[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
-pub struct TextRange {
-    /// Start of the span, relative to the anchor.
-    pub start: Offset,
-
-    /// End of the span, relative to the anchor.
-    pub end: Offset,
+    pub location: Location,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Spanned<T> {
     pub value: T,
-    pub location: TextRange,
+    pub location: Option<Location>,
+}
+
+impl<T> Spanned<T> {
+    pub fn on_call_site(value: T) -> Self {
+        Self {
+            value,
+            location: None,
+        }
+    }
+
+    pub fn new(value: T, location: Location) -> Self {
+        Self {
+            value,
+            location: Some(location),
+        }
+    }
+}
+
+impl<T: Default> Default for Spanned<T> {
+    fn default() -> Self {
+        Self {
+            value: Default::default(),
+            location: None,
+        }
+    }
 }
 
 pub mod declaration {
@@ -141,24 +140,31 @@ pub mod declaration {
     use super::*;
 
     pub trait Declaration: HirElement {
-        fn attributes(&self) -> HashSet<Attribute>;
-        fn visibility(&self) -> Visibility;
-        fn docs(&self) -> Vec<DocString>;
-        fn name(&self) -> Definition;
-        fn parameters(&self) -> Vec<Parameter>;
-        fn type_rep(&self) -> Option<type_rep::TypeRep>;
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<Attribute>;
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<Visibility>;
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<DocString>;
+        fn name(&self, db: &dyn crate::HirDb) -> Definition;
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<Parameter>;
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep>;
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor;
     }
 
     #[salsa::tracked]
     pub struct Attribute {
         pub name: HirPath,
         pub arguments: Vec<expr::Expr>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl DefaultWithDb for Attribute {
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            todo!()
+        }
     }
 
     #[salsa::tracked]
     pub struct DocString {
-        pub range: TextRange,
+        pub range: Location,
     }
 
     #[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
@@ -177,7 +183,7 @@ pub mod declaration {
 
         /// Whether this parameter is implicit, i.e. it's a `forall` parameter.
         pub is_implicit: bool,
-        pub location: TextRange,
+        pub location: Location,
     }
 }
 
@@ -189,12 +195,48 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct Signature {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
+        pub visibility: Spanned<declaration::Visibility>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl declaration::Declaration for Signature {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Self::parameters(*self, db)
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::Empty
+        }
+    }
+
+    impl HirElement for Signature {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
@@ -203,7 +245,13 @@ pub mod top_level {
         pub name: Definition,
         pub arguments: Vec<pattern::Pattern>,
         pub value: expr::Expr,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for Clause {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
@@ -212,17 +260,65 @@ pub mod top_level {
         pub clauses: HashSet<Clause>,
     }
 
+    impl declaration::Declaration for BindingGroup {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            self.signature(db).attributes(db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            self.signature(db).visibility(db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            self.signature(db).docs(db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            self.signature(db).name(db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            self.signature(db).parameters(db)
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            self.signature(db).type_rep(db)
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::BindingGroup(*self)
+        }
+    }
+
+    impl HirElement for BindingGroup {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            self.signature(db).location(db)
+        }
+    }
+
     #[salsa::tracked]
     pub struct Using {
         pub path: Definition,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for Using {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
     pub struct Command {
         pub path: HirPath,
         pub arguments: Vec<expr::Expr>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for Command {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
@@ -235,7 +331,43 @@ pub mod top_level {
         pub return_type: type_rep::TypeRep,
         pub fields: Vec<Signature>,
         pub methods: Vec<BindingGroup>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl declaration::Declaration for ClassDecl {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Vec::new()
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::ClassDecl(*self)
+        }
+    }
+
+    impl HirElement for ClassDecl {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
@@ -247,7 +379,43 @@ pub mod top_level {
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub methods: Vec<Signature>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl declaration::Declaration for TraitDecl {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Self::parameters(*self, db)
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::TraitDecl(*self)
+        }
+    }
+
+    impl HirElement for TraitDecl {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
@@ -260,18 +428,90 @@ pub mod top_level {
         pub return_type: type_rep::TypeRep,
         pub variants: Vec<Constructor>,
         pub methods: Vec<BindingGroup>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl declaration::Declaration for DataDecl {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Self::parameters(*self, db)
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::DataDecl(*self)
+        }
+    }
+
+    impl HirElement for DataDecl {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
     pub struct Constructor {
         pub kind: ConstructorKind,
-        pub attributes: Vec<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute>,
         pub visibility: Spanned<declaration::Visibility>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub return_type: type_rep::TypeRep,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl declaration::Declaration for Constructor {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Vec::new()
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::Empty
+        }
+    }
+
+    impl HirElement for Constructor {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
@@ -282,6 +522,7 @@ pub mod top_level {
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TopLevel {
+        Empty,
         Error(HirError),
         Using(Using),
         Command(Command),
@@ -291,9 +532,145 @@ pub mod top_level {
         DataDecl(DataDecl),
     }
 
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum DeclDescriptor {
+        Empty,
+        Error(HirError),
+        BindingGroup(BindingGroup),
+        ClassDecl(ClassDecl),
+        TraitDecl(TraitDecl),
+        DataDecl(DataDecl),
+    }
+
+    impl TryFrom<DeclDescriptor> for TopLevel {
+        type Error = ();
+
+        fn try_from(value: DeclDescriptor) -> Result<Self, ()> {
+            Ok(match value {
+                DeclDescriptor::Empty => Self::Empty,
+                DeclDescriptor::Error(downcast) => Self::Error(downcast),
+                DeclDescriptor::BindingGroup(downcast) => Self::BindingGroup(downcast),
+                DeclDescriptor::ClassDecl(downcast) => Self::ClassDecl(downcast),
+                DeclDescriptor::TraitDecl(downcast) => Self::TraitDecl(downcast),
+                DeclDescriptor::DataDecl(downcast) => Self::DataDecl(downcast),
+            })
+        }
+    }
+
+    impl TryFrom<TopLevel> for DeclDescriptor {
+        type Error = ();
+
+        fn try_from(value: TopLevel) -> Result<Self, ()> {
+            Ok(match value {
+                TopLevel::Empty => Self::Empty,
+                TopLevel::Error(downcast) => Self::Error(downcast),
+                TopLevel::Using(_) => return Err(()),
+                TopLevel::Command(_) => return Err(()),
+                TopLevel::BindingGroup(downcast) => Self::BindingGroup(downcast),
+                TopLevel::ClassDecl(downcast) => Self::ClassDecl(downcast),
+                TopLevel::TraitDecl(downcast) => Self::TraitDecl(downcast),
+                TopLevel::DataDecl(downcast) => Self::DataDecl(downcast),
+            })
+        }
+    }
+
+    impl declaration::Declaration for DeclDescriptor {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            match self {
+                Self::Empty => Default::default(),
+                Self::Error(_) => Default::default(),
+                Self::BindingGroup(downcast) => downcast.attributes(db),
+                Self::ClassDecl(downcast) => downcast.attributes(db),
+                Self::TraitDecl(downcast) => downcast.attributes(db),
+                Self::DataDecl(downcast) => downcast.attributes(db),
+            }
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+            match self {
+                Self::Empty => Default::default(),
+                Self::Error(_) => Default::default(),
+                Self::BindingGroup(downcast) => downcast.visibility(db),
+                Self::ClassDecl(downcast) => downcast.visibility(db),
+                Self::TraitDecl(downcast) => downcast.visibility(db),
+                Self::DataDecl(downcast) => downcast.visibility(db),
+            }
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            match self {
+                Self::Empty => Default::default(),
+                Self::Error(_) => Default::default(),
+                Self::BindingGroup(downcast) => downcast.docs(db),
+                Self::ClassDecl(downcast) => downcast.docs(db),
+                Self::TraitDecl(downcast) => downcast.docs(db),
+                Self::DataDecl(downcast) => downcast.docs(db),
+            }
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            match self {
+                Self::Empty => default_with_db(db),
+                Self::Error(_) => default_with_db(db),
+                Self::BindingGroup(downcast) => downcast.name(db),
+                Self::ClassDecl(downcast) => downcast.name(db),
+                Self::TraitDecl(downcast) => downcast.name(db),
+                Self::DataDecl(downcast) => downcast.name(db),
+            }
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            match self {
+                Self::Empty => Default::default(),
+                Self::Error(_) => Default::default(),
+                Self::BindingGroup(downcast) => downcast.parameters(db),
+                Self::ClassDecl(downcast) => downcast.parameters(db),
+                Self::TraitDecl(downcast) => downcast.parameters(db),
+                Self::DataDecl(downcast) => downcast.parameters(db),
+            }
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            match self {
+                Self::Empty => Default::default(),
+                Self::Error(_) => Default::default(),
+                Self::BindingGroup(downcast) => downcast.type_rep(db),
+                Self::ClassDecl(downcast) => downcast.type_rep(db),
+                Self::TraitDecl(downcast) => downcast.type_rep(db),
+                Self::DataDecl(downcast) => downcast.type_rep(db),
+            }
+        }
+
+        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            *self
+        }
+    }
+
+    impl HirElement for DeclDescriptor {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Empty => Location::call_site(db),
+                Self::Error(downcast) => downcast.location(db),
+                Self::BindingGroup(downcast) => downcast.location(db),
+                Self::ClassDecl(downcast) => downcast.location(db),
+                Self::TraitDecl(downcast) => downcast.location(db),
+                Self::DataDecl(downcast) => downcast.location(db),
+            }
+        }
+    }
+
     impl HirElement for TopLevel {
-        fn location(&self) -> Location {
-            todo!()
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Empty => Location::call_site(db),
+                Self::Error(downcast) => downcast.location(db),
+                Self::Using(downcast) => downcast.location(db),
+                Self::Command(downcast) => downcast.location(db),
+                Self::BindingGroup(downcast) => downcast.location(db),
+                Self::ClassDecl(downcast) => downcast.location(db),
+                Self::TraitDecl(downcast) => downcast.location(db),
+                Self::DataDecl(downcast) => downcast.location(db),
+            }
         }
     }
 }
@@ -315,20 +692,42 @@ pub mod pattern {
     pub struct ConstructorPattern {
         pub name: Constructor,
         pub arguments: Vec<pattern::Pattern>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for ConstructorPattern {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
     pub struct BindingPattern {
         pub name: Identifier,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for BindingPattern {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Pattern {
-        Error,
+        Error(HirError),
         Constructor(ConstructorPattern),
         Binding(BindingPattern),
+    }
+
+    impl HirElement for Pattern {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Error(downcast) => downcast.location(db),
+                Self::Constructor(downcast) => downcast.location(db),
+                Self::Binding(downcast) => downcast.location(db),
+            }
+        }
     }
 }
 
@@ -339,14 +738,26 @@ pub mod stmt {
     pub struct AskStmt {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for AskStmt {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
     pub struct LetStmt {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for LetStmt {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -354,14 +765,31 @@ pub mod stmt {
         Error(HirError),
         Ask(AskStmt),
         Let(LetStmt),
-        Expr(expr::Expr),
+        Downgrade(expr::Expr),
+    }
+
+    impl HirElement for Stmt {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Error(downcast) => downcast.location(db),
+                Self::Ask(downcast) => downcast.location(db),
+                Self::Let(downcast) => downcast.location(db),
+                Self::Downgrade(downcast) => (*downcast).location(db),
+            }
+        }
     }
 
     #[salsa::tracked]
     pub struct Block {
         pub statements: Vec<Stmt>,
         pub return_value: Option<expr::Expr>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for Block {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 }
 
@@ -396,21 +824,39 @@ pub mod expr {
     pub struct AbsExpr {
         pub parameters: Vec<declaration::Parameter>,
         pub value: Box<expr::Expr>,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for AbsExpr {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[salsa::tracked]
     pub struct AnnExpr {
         pub value: Box<expr::Expr>,
         pub type_rep: type_rep::TypeRep,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for AnnExpr {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub struct MatchArm {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for MatchArm {
+        fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location
+        }
     }
 
     #[salsa::tracked]
@@ -418,6 +864,13 @@ pub mod expr {
         pub kind: MatchKind,
         pub scrutinee: Box<expr::Expr>,
         pub clauses: Vec<MatchArm>,
+        pub location: Location,
+    }
+
+    impl HirElement for MatchExpr {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            self.location(db)
+        }
     }
 
     #[salsa::tracked]
@@ -426,11 +879,18 @@ pub mod expr {
         pub callee: Callee,
         pub arguments: Vec<expr::Expr>,
         pub do_notation: stmt::Block,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for CallExpr {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Expr {
+        Empty,
         Error(HirError),
         Path(Definition),
         Call(CallExpr),
@@ -438,6 +898,21 @@ pub mod expr {
         Abs(AbsExpr),
         Match(MatchExpr),
         Upgrade(Box<expr::type_rep::TypeRep>),
+    }
+
+    impl HirElement for Expr {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Empty => Location::call_site(db),
+                Self::Error(downcast) => downcast.location(db),
+                Self::Path(downcast) => downcast.location(db),
+                Self::Call(downcast) => downcast.location(db),
+                Self::Ann(downcast) => downcast.location(db),
+                Self::Abs(downcast) => downcast.location(db),
+                Self::Match(downcast) => downcast.location(db),
+                Self::Upgrade(downcast) => (*downcast).location(db),
+            }
+        }
     }
 }
 
@@ -451,14 +926,35 @@ pub mod type_rep {
         /// Usually a trait type path with associated type bindings, like `Foo.Bar.Baz`.
         pub qualifier: Definition,
         pub name: Identifier,
-        pub location: TextRange,
+        pub location: Location,
+    }
+
+    impl HirElement for QPath {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TypeRep {
+        Unit,
+        Empty,
         Error(HirError),
         Path(Definition),
         QPath(QPath),
         Downgrade(Box<expr::Expr>),
+    }
+
+    impl HirElement for TypeRep {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            match self {
+                Self::Unit => Location::call_site(db),
+                Self::Empty => Location::call_site(db),
+                Self::Error(downcast) => downcast.location(db),
+                Self::Path(downcast) => downcast.location(db),
+                Self::QPath(downcast) => downcast.location(db),
+                Self::Downgrade(downcast) => (*downcast).location(db),
+            }
+        }
     }
 }
