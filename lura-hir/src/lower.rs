@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use if_chain::if_chain;
 use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, TypedNode};
@@ -18,15 +17,33 @@ use crate::{
         declaration::{Attribute, DocString, Visibility},
         top_level::{BindingGroup, Signature, TopLevel, Using},
         type_rep::TypeRep,
-        DefaultWithDb, HirError, HirPath, HirSource, Identifier, Location, Spanned,
+        DefaultWithDb, HirPath, HirSource, Identifier, Location, Spanned,
     },
 };
+
+#[salsa::tracked(recovery_fn = rec_hir_lower)]
+pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
+    let parse_tree = src.syntax_node(db);
+
+    let lower = LowerHir {
+        db,
+        src,
+        pkg,
+        decls: vec![],
+        scope: Scope::new(ScopeKind::File),
+        tree: parse_tree.tree.clone(),
+        root_node: parse_tree.tree.root_node(),
+        clauses: HashMap::new(),
+    };
+
+    lower.declare()
+}
 
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
 pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
     let parse_tree = src.syntax_node(db);
 
-    let mut lower = LowerHir {
+    let lower = LowerHir {
         db,
         src,
         pkg,
@@ -56,10 +73,27 @@ struct LowerHir<'db, 'tree> {
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
+    pub fn declare(mut self) -> HirSource {
+        let ast = SourceFile::try_from(self.root_node).unwrap();
+
+        for node in ast.decls(&mut self.tree.clone().walk()).flatten() {
+            if let ExtraOr::Regular(node) = node {
+                // Process declaration only if it is not an error, or it's not a junk
+                // declaration.
+                self.define(node);
+            }
+        }
+
+        for group in self.clauses.values() {
+            self.decls.push(TopLevel::BindingGroup(*group))
+        }
+
+        HirSource::new(self.db, self.src, self.pkg, self.scope, self.decls)
+    }
+
     pub fn declare_and_solve(mut self) -> HirSource {
         let ast = SourceFile::try_from(self.root_node).unwrap();
 
-        let scope = Scope::new(ScopeKind::File);
         for node in ast.decls(&mut self.tree.clone().walk()).flatten() {
             if let ExtraOr::Regular(node) = node {
                 // Process declaration only if it is not an error, or it's not a junk
@@ -74,7 +108,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             self.decls.push(TopLevel::BindingGroup(*group))
         }
 
-        HirSource::new(self.db, self.src, self.pkg, scope, self.decls)
+        HirSource::new(self.db, self.src, self.pkg, self.scope, self.decls)
     }
 
     pub fn define<'a>(&mut self, decl: TreeDecl<'a>) -> Option<Solver<'a, TopLevel>> {
@@ -230,7 +264,7 @@ impl<'a, T> Solver<'a, T> {
         Self { f: a }
     }
 
-    fn run_solver(mut self, lower: &mut LowerHir<'_, '_>) -> T {
+    fn run_solver(self, lower: &mut LowerHir<'_, '_>) -> T {
         (self.f)(lower)
     }
 }

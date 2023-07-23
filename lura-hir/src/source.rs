@@ -45,7 +45,7 @@ impl Location {
         }
     }
 
-    pub fn call_site(db: &dyn crate::HirDb) -> Self {
+    pub fn call_site(_db: &dyn crate::HirDb) -> Self {
         todo!()
     }
 }
@@ -164,7 +164,9 @@ pub mod declaration {
 
     impl DefaultWithDb for Attribute {
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
-            todo!()
+            let name = default_with_db(db);
+
+            Attribute::new(db, name, vec![], Location::call_site(db))
         }
     }
 
@@ -234,7 +236,7 @@ pub mod top_level {
             Self::return_type(*self, db).into()
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::Empty
         }
     }
@@ -291,7 +293,7 @@ pub mod top_level {
             self.signature(db).type_rep(db)
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::BindingGroup(*self)
         }
     }
@@ -357,7 +359,7 @@ pub mod top_level {
             Self::name(*self, db)
         }
 
-        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+        fn parameters(&self, _db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
             Vec::new()
         }
 
@@ -365,7 +367,7 @@ pub mod top_level {
             Self::return_type(*self, db).into()
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::ClassDecl(*self)
         }
     }
@@ -413,7 +415,7 @@ pub mod top_level {
             Self::return_type(*self, db).into()
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::TraitDecl(*self)
         }
     }
@@ -462,7 +464,7 @@ pub mod top_level {
             Self::return_type(*self, db).into()
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::DataDecl(*self)
         }
     }
@@ -501,7 +503,7 @@ pub mod top_level {
             Self::name(*self, db)
         }
 
-        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+        fn parameters(&self, _db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
             Vec::new()
         }
 
@@ -509,7 +511,7 @@ pub mod top_level {
             Self::return_type(*self, db).into()
         }
 
-        fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
             top_level::DeclDescriptor::Empty
         }
     }
@@ -875,7 +877,7 @@ pub mod expr {
 
     impl HirElement for MatchExpr {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
-            self.location(db)
+            Self::location(*self, db)
         }
     }
 

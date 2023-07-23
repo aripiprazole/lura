@@ -1,7 +1,7 @@
 use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 
 use crate::{
-    lower::hir_lower,
+    lower::hir_declare,
     package::package_files,
     source::{DefaultWithDb, HirPath, Location},
 };
@@ -77,7 +77,7 @@ impl Diagnostic for HirDiagnostic {
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package_files(db, *package) {
-            let source = hir_lower(db, *package, file);
+            let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Function) {
@@ -86,14 +86,14 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    todo!()
+    Definition::no(db, DefinitionKind::Function, name)
 }
 
 #[salsa::tracked]
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package_files(db, *package) {
-            let source = hir_lower(db, *package, file);
+            let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Constructor) {
@@ -102,14 +102,14 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    todo!()
+    Definition::no(db, DefinitionKind::Constructor, name)
 }
 
 #[salsa::tracked]
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package_files(db, *package) {
-            let source = hir_lower(db, *package, file);
+            let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Constructor) {
@@ -118,5 +118,5 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    todo!()
+    Definition::no(db, DefinitionKind::Type, name)
 }
