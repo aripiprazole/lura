@@ -77,7 +77,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         HirSource::new(self.db, self.src, self.pkg, scope, self.decls)
     }
 
-    pub fn define(&mut self, decl: TreeDecl) -> Option<Solver<TopLevel>> {
+    pub fn define<'a>(&mut self, decl: TreeDecl<'a>) -> Option<Solver<'a, TopLevel>> {
         let value = match decl {
             TreeDecl::ClassDecl(_) => todo!(),
             TreeDecl::Clause(_) => todo!(),
@@ -97,14 +97,14 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         None // not solving
     }
 
-    pub fn hir_signature(&mut self, mut signature: lura_syntax::Signature) -> Solver<TopLevel> {
-        let range = self.range(signature.range());
-        let path = signature.name().solve(self.db, |node| self.path(node));
+    pub fn hir_signature<'a>(&mut self, tree: lura_syntax::Signature<'a>) -> Solver<'a, TopLevel> {
+        let range = self.range(tree.range());
+        let path = tree.name().solve(self.db, |node| self.path(node));
 
-        let attrs = self.hir_attributes(signature.attributes(&mut signature.walk()));
-        let docs = self.hir_docs(signature.doc_strings(&mut signature.walk()));
+        let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
+        let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
 
-        let vis = signature
+        let vis = tree
             .visibility()
             .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Visibility::Public));
@@ -114,8 +114,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
         Solver::new(move |this| {
             let parameters = vec![];
-
-            signature.arguments(&mut this.tree.walk());
 
             let type_rep = TypeRep::Unit;
 
