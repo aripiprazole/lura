@@ -137,6 +137,12 @@ pub struct Identifier {
     pub location: Location,
 }
 
+impl Identifier {
+    pub fn symbol(db: &dyn crate::HirDb, contents: &str, location: Location) -> Self {
+        Self::new(db, contents.into(), true, location)
+    }
+}
+
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct Spanned<T> {
     pub value: T,
@@ -219,6 +225,11 @@ pub mod declaration {
 
         /// Whether this parameter is implicit, i.e. it's a `forall` parameter.
         pub is_implicit: bool,
+
+        /// Whether this parameter is rigid, if it's not rigid, it can be transformed into a
+        /// an implicit parameter.
+        pub rigid: bool,
+
         pub location: Location,
     }
 
@@ -229,7 +240,7 @@ pub mod declaration {
             type_rep: type_rep::TypeRep,
             location: Location,
         ) -> Self {
-            Self::new(db, binding, type_rep, false, location)
+            Self::new(db, binding, type_rep, false, true, location)
         }
 
         pub fn implicit(
@@ -238,7 +249,16 @@ pub mod declaration {
             type_rep: type_rep::TypeRep,
             location: Location,
         ) -> Self {
-            Self::new(db, binding, type_rep, true, location)
+            Self::new(db, binding, type_rep, true, true, location)
+        }
+
+        pub fn unrigid(
+            db: &dyn crate::HirDb,
+            binding: pattern::Pattern,
+            type_rep: type_rep::TypeRep,
+            location: Location,
+        ) -> Self {
+            Self::new(db, binding, type_rep, false, false, location)
         }
 
         /// Creates a new unnamed and explicit parameter, it does have an empty binding, that is
@@ -248,7 +268,14 @@ pub mod declaration {
         pub fn unnamed(db: &dyn crate::HirDb, type_rep: type_rep::TypeRep) -> Self {
             let binding = pattern::Pattern::Empty;
 
-            Self::new(db, binding, type_rep.clone(), false, type_rep.location(db))
+            Self::new(
+                db,
+                binding,
+                type_rep.clone(),
+                false,
+                true,
+                type_rep.location(db),
+            )
         }
     }
 
@@ -259,7 +286,7 @@ pub mod declaration {
             let binding = pattern::Pattern::Empty;
             let type_rep = type_rep::TypeRep::Unit;
 
-            Self::new(db, binding, type_rep, false, Location::call_site(db))
+            Self::new(db, binding, type_rep, false, false, Location::call_site(db))
         }
     }
 }
@@ -887,7 +914,9 @@ pub mod stmt {
 }
 
 pub mod expr {
-    use crate::resolve::Definition;
+    use lura_diagnostic::{Diagnostics, Report};
+
+    use crate::resolve::{Definition, HirDiagnostic};
 
     use super::*;
 
@@ -903,7 +932,8 @@ pub mod expr {
         Array,
         Tuple,
         Unit,
-        Expr(Box<expr::Expr>),
+        Definition(Definition),
+        Expr(expr::Expr),
     }
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -916,7 +946,7 @@ pub mod expr {
     #[salsa::tracked]
     pub struct AbsExpr {
         pub parameters: Vec<declaration::Parameter>,
-        pub value: Box<expr::Expr>,
+        pub value: expr::Expr,
         pub location: Location,
     }
 
@@ -928,7 +958,7 @@ pub mod expr {
 
     #[salsa::tracked]
     pub struct AnnExpr {
-        pub value: Box<expr::Expr>,
+        pub value: expr::Expr,
         pub type_rep: type_rep::TypeRep,
         pub location: Location,
     }
@@ -971,7 +1001,7 @@ pub mod expr {
         pub kind: CallKind,
         pub callee: Callee,
         pub arguments: Vec<expr::Expr>,
-        pub do_notation: stmt::Block,
+        pub do_notation: Option<stmt::Block>,
         pub location: Location,
     }
 
@@ -1006,6 +1036,28 @@ pub mod expr {
         }
     }
 
+    impl DefaultWithDb for Expr {
+        /// The default expression is `Empty`. But it's not allowed to be used in any
+        /// contexts, so this function should report it as an error, and return `Empty`. For better
+        /// error reporting, the location of the `Empty` expression should be the same as
+        /// the location of the context where it's used.
+        ///
+        /// TODO: This is not implemented yet.
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            Diagnostics::push(
+                db,
+                Report::new(HirDiagnostic {
+                    message:
+                        "Empty expression representation is not allowed to be used in any contexts"
+                            .into(),
+                    location: Location::call_site(db),
+                }),
+            );
+
+            Self::Empty
+        }
+    }
+
     impl HirElement for Expr {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
@@ -1033,11 +1085,26 @@ pub mod type_rep {
     pub struct QPath {
         /// Usually a trait type path with associated type bindings, like `Foo.Bar.Baz`.
         pub qualifier: Definition,
-        pub name: Identifier,
+
+        /// Usually a type name after the `.`, like `Bar` in `Foo.Bar`.
+        pub name: Option<Identifier>,
         pub location: Location,
     }
 
     impl HirElement for QPath {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
+    }
+
+    #[salsa::tracked]
+    pub struct AppTypeRep {
+        pub callee: TypeRep,
+        pub arguments: Vec<type_rep::TypeRep>,
+        pub location: Location,
+    }
+
+    impl HirElement for AppTypeRep {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
         }
@@ -1050,6 +1117,7 @@ pub mod type_rep {
         Error(HirError),
         Path(Definition),
         QPath(QPath),
+        App(AppTypeRep),
         Pi {
             parameters: Vec<declaration::Parameter>,
             value: Box<Self>,
@@ -1065,6 +1133,19 @@ pub mod type_rep {
             location: Location,
         },
         Downgrade(Box<expr::Expr>),
+    }
+
+    impl TypeRep {
+        /// Downgrades this type representation to a expression. This is useful for error recovery and
+        /// future dependent types or refinement types integration.
+        ///
+        /// This function also reports an error currently, because it's not allowed dependent types
+        /// on the language, this is the reason because it's good to error recovery.
+        pub fn downgrade(self, _db: &dyn crate::HirDb) -> expr::Expr {
+            // TODO: report error
+
+            expr::Expr::Upgrade(Box::new(self))
+        }
     }
 
     impl DefaultWithDb for TypeRep {
@@ -1098,6 +1179,7 @@ pub mod type_rep {
                 Self::Error(downcast) => downcast.location(db),
                 Self::Path(downcast) => downcast.location(db),
                 Self::QPath(downcast) => downcast.location(db),
+                Self::App(downcast) => downcast.location(db),
                 Self::Downgrade(downcast) => (*downcast).location(db),
             }
         }

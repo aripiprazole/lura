@@ -42,6 +42,7 @@ pub struct Jar(
     crate::source::expr::AnnExpr,
     crate::source::expr::CallExpr,
     crate::source::expr::MatchExpr,
+    crate::source::type_rep::AppTypeRep,
     crate::source::type_rep::QPath,
     crate::lower::hir_declare,
     crate::lower::hir_lower,
