@@ -221,6 +221,47 @@ pub mod declaration {
         pub is_implicit: bool,
         pub location: Location,
     }
+
+    impl Parameter {
+        pub fn explicit(
+            db: &dyn crate::HirDb,
+            binding: pattern::Pattern,
+            type_rep: type_rep::TypeRep,
+            location: Location,
+        ) -> Self {
+            Self::new(db, binding, type_rep, false, location)
+        }
+
+        pub fn implicit(
+            db: &dyn crate::HirDb,
+            binding: pattern::Pattern,
+            type_rep: type_rep::TypeRep,
+            location: Location,
+        ) -> Self {
+            Self::new(db, binding, type_rep, true, location)
+        }
+
+        /// Creates a new unnamed and explicit parameter, it does have an empty binding, that is
+        /// just like an *wildcard* pattern.
+        ///
+        /// This is useful for constructing parameters with just the types, and not the bindings.
+        pub fn unnamed(db: &dyn crate::HirDb, type_rep: type_rep::TypeRep) -> Self {
+            let binding = pattern::Pattern::Empty;
+
+            Self::new(db, binding, type_rep.clone(), false, type_rep.location(db))
+        }
+    }
+
+    impl DefaultWithDb for Parameter {
+        /// Creates a new unit parameter. Just like `(): ()`, for default and error recovery
+        /// purposes.
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            let binding = pattern::Pattern::Empty;
+            let type_rep = type_rep::TypeRep::Unit;
+
+            Self::new(db, binding, type_rep, false, Location::call_site(db))
+        }
+    }
 }
 
 pub mod top_level {
@@ -751,6 +792,20 @@ pub mod pattern {
 
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Pattern {
+        /// The empty parameter should work as a wildcard, it's just like a `_` pattern. But it's
+        /// splitted into a different variant to make it easier to work with, when we don't have
+        /// an actual pattern.
+        ///
+        /// It's useful to do code generation. This pattern matches agains't every value, just like
+        /// a wildcard.
+        ///
+        /// Actually, in this compiler, we have a few another patterns that are just like a wildcard
+        /// pattern, but they are not represented as a wildcard pattern, because they are actual
+        /// patterns, these are:
+        /// - [`Pattern::Error`]
+        /// - [`Pattern::Binding`]
+        Empty,
+        Wildcard(Location),
         Error(HirError),
         Constructor(ConstructorPattern),
         Binding(BindingPattern),
@@ -759,6 +814,8 @@ pub mod pattern {
     impl HirElement for Pattern {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
+                Self::Empty => Location::call_site(db),
+                Self::Wildcard(location) => location.clone(),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Constructor(downcast) => downcast.location(db),
                 Self::Binding(downcast) => downcast.location(db),
@@ -936,6 +993,19 @@ pub mod expr {
         Upgrade(Box<expr::type_rep::TypeRep>),
     }
 
+    impl Expr {
+        /// Upgrades this expression to a type representation. This is useful for error recovery and
+        /// future dependent types or refinement types integration.
+        ///
+        /// This function also reports an error currently, because it's not allowed dependent types
+        /// on the language, this is the reason because it's good to error recovery.
+        pub fn upgrade(self, _db: &dyn crate::HirDb) -> type_rep::TypeRep {
+            // TODO: report error
+
+            type_rep::TypeRep::Downgrade(Box::new(self))
+        }
+    }
+
     impl HirElement for Expr {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
@@ -981,15 +1051,15 @@ pub mod type_rep {
         Path(Definition),
         QPath(QPath),
         Pi {
-            parameter: declaration::Parameter,
-            value: Box<expr::Expr>,
+            parameters: Vec<declaration::Parameter>,
+            value: Box<Self>,
 
             /// The location of the `->` keyword.
             location: Location,
         },
         Sigma {
-            parameter: declaration::Parameter,
-            value: Box<expr::Expr>,
+            parameters: Vec<declaration::Parameter>,
+            value: Box<Self>,
 
             /// The location of the `forall` keyword.
             location: Location,

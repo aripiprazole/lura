@@ -59,7 +59,7 @@ impl Scope {
         }
     }
 
-    pub fn search(&self, name: HirPath, kind: DefinitionKind) -> Option<Definition> {
+    pub fn search(&self, _name: HirPath, kind: DefinitionKind) -> Option<Definition> {
         match kind {
             DefinitionKind::Function => todo!(),
             DefinitionKind::Constructor => todo!(),

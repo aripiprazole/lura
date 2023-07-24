@@ -7,14 +7,18 @@ use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};
 
-use lura_syntax::{generated::lura::SourceFile, Source, TreeDecl, TreeIdentifier, TreeTypeRep};
+use lura_syntax::{
+    anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
+    TreeDecl, TreeIdentifier,
+};
 
 use crate::{
     package::Package,
     resolve::{Definition, DefinitionKind},
     scope::{Scope, ScopeKind},
     source::{
-        declaration::{Attribute, DocString, Vis},
+        declaration::{Attribute, DocString, Parameter, Vis},
+        expr::Expr,
         top_level::{BindingGroup, Signature, TopLevel, Using},
         type_rep::TypeRep,
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
@@ -99,7 +103,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 // Process declaration only if it is not an error, or it's not a junk
                 // declaration.
                 if let Some(solver) = self.define(node) {
-                    solver.run_solver(&mut self);
+                    let decl = solver.run_solver(&mut self);
+                    self.decls.push(decl);
                 };
             }
         }
@@ -147,7 +152,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let node = Definition::no(self.db, DefinitionKind::Function, path);
 
         Solver::new(move |db, this| {
-            let parameters = vec![];
+            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
 
             let type_rep = tree
                 .clause_type()
@@ -163,29 +168,162 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .entry(path)
                 .or_insert_with(|| BindingGroup::new(db, signature, HashSet::new()));
 
-            todo!()
+            // TODO: add the current body to the clause, and solve it
+            let _ = clause;
+
+            // It's not needed to solve the clause, because it is already solved in the next steps.
+            //
+            // The entire next step, is getting the clauses from the scope, and transforms into
+            // declarations, so it is not needed to solve the clause here.
+            TopLevel::Empty
         })
+    }
+
+    /// Takes an list of syntatic arguments, and returns a list of parameters, handled if it is
+    /// either implicit or explicit, and if it is a named or unnamed parameter.
+    pub fn parameters<'a, I>(&mut self, arguments: I) -> Vec<Parameter>
+    where
+        I: Iterator<Item = NodeResult<'a, ExtraOr<'a, ExplicitArguments_ImplicitArguments<'a>>>>,
+    {
+        arguments
+            .flatten()
+            .filter_map(|parameter| parameter.regular())
+            .flat_map(|parameter| {
+                use lura_syntax::anon_unions::ExplicitArguments_ImplicitArguments::*;
+
+                match parameter {
+                    ExplicitArguments(explicits) => explicits
+                        .parameters(&mut explicits.walk())
+                        .flatten()
+                        .filter_map(|node| node.regular())
+                        .map(|parameter| self.parameter(parameter))
+                        .collect::<Vec<_>>(),
+
+                    ImplicitArguments(implicits) => implicits
+                        .parameters(&mut implicits.walk())
+                        .flatten()
+                        .filter_map(|node| node.regular())
+                        .map(|parameter| self.parameter(parameter))
+                        .collect::<Vec<_>>(),
+                }
+            })
+            .collect::<Vec<_>>()
     }
 
     pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
+        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
+
         clause.clause_type().solve(self.db, |node| match node {
-            TreeTypeRep::AnnExpr(_) => todo!(),
-            TreeTypeRep::BinaryExpr(_) => todo!(),
-            TreeTypeRep::LamExpr(_) => todo!(),
-            TreeTypeRep::MatchExpr(_) => todo!(),
-            TreeTypeRep::PiExpr(_) => todo!(),
-            TreeTypeRep::Primary(_) => todo!(),
-            TreeTypeRep::SigmaExpr(sigma) => self.sigma_expr(sigma),
-            TreeTypeRep::TypeAppExpr(_) => todo!(),
+            // SECTION: type_expr
+            //
+            // Upgrades the expressions to type level expressions, to be easier to handle errors
+            // in the type system, and still keeps the diagnostics in the IDE.
+            Primary(primary) => self.primary(primary).upgrade(self.db),
+            AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+            LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+            MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+            BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+            // Type level expressions
+            PiExpr(pi) => self.pi_expr(pi),
+            SigmaExpr(sigma) => self.sigma_expr(sigma),
+            TypeAppExpr(type_app) => self.type_app_expr(type_app),
         })
     }
 
+    pub fn type_expr(&mut self, tree: lura_syntax::TreeTypeRep) -> TypeRep {
+        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
+
+        match tree {
+            // SECTION: type_expr
+            //
+            // Upgrades the expressions to type level expressions, to be easier to handle errors
+            // in the type system, and still keeps the diagnostics in the IDE.
+            Primary(primary) => self.primary(primary).upgrade(self.db),
+            AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+            LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+            MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+            BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+            // Type level expressions
+            PiExpr(pi) => self.pi_expr(pi),
+            SigmaExpr(sigma) => self.sigma_expr(sigma),
+            TypeAppExpr(type_app) => self.type_app_expr(type_app),
+        }
+    }
+
+    pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr) -> Expr {
+        todo!()
+    }
+
+    pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr) -> Expr {
+        todo!()
+    }
+
+    pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr) -> Expr {
+        todo!()
+    }
+
+    pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr) -> Expr {
+        todo!()
+    }
+
+    pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
+        todo!()
+    }
+
     pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
+        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
+
+        let parameters = tree.parameter().solve(self.db, |node| {
+            let type_rep = match node {
+                Primary(primary) => self.primary(primary).upgrade(self.db),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+                // Type level expressions
+                PiExpr(pi) => self.pi_expr(pi),
+                SigmaExpr(sigma) => self.sigma_expr(sigma),
+                TypeAppExpr(type_app) => self.type_app_expr(type_app),
+                PiNamedParameterSet(tree) => {
+                    return tree
+                        .parameters(&mut tree.walk())
+                        .flatten()
+                        .filter_map(|node| node.regular())
+                        .filter_map(|node| node.parameter())
+                        .map(|parameter| self.parameter(parameter))
+                        .collect::<Vec<_>>();
+                }
+            };
+
+            // This handles the case where the parameter is unnamed, and only haves a type. The name
+            // should not be shown in the IDE in this case.
+            vec![Parameter::unnamed(self.db, type_rep)]
+        });
+
+        TypeRep::Pi {
+            parameters,
+            value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+            location: self.range(tree.range()),
+        }
+    }
+
+    pub fn primary(&mut self, tree: lura_syntax::Primary) -> Expr {
+        todo!()
+    }
+
+    pub fn parameter(&mut self, tree: lura_syntax::Parameter) -> Parameter {
         todo!()
     }
 
     pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
-        todo!()
+        TypeRep::Sigma {
+            parameters: vec![],
+            value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+            location: self.range(tree.range()),
+        }
     }
 
     pub fn hir_docs<'a, I>(&mut self, attributes: I) -> Vec<DocString>
