@@ -2,7 +2,6 @@ use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 
 use crate::{
     lower::hir_declare,
-    package::package_files,
     source::{DefaultWithDb, HirPath, Location},
 };
 
@@ -76,7 +75,7 @@ impl Diagnostic for HirDiagnostic {
 #[salsa::tracked]
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
-        for file in package_files(db, *package) {
+        for file in package.all_files(db) {
             let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 
@@ -92,7 +91,7 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 #[salsa::tracked]
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
-        for file in package_files(db, *package) {
+        for file in package.all_files(db) {
             let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 
@@ -108,7 +107,7 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 #[salsa::tracked]
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
-        for file in package_files(db, *package) {
+        for file in package.all_files(db) {
             let source = hir_declare(db, *package, file);
             let scope = source.scope(db);
 

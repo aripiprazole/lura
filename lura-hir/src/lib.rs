@@ -12,7 +12,7 @@ extern crate salsa_2022 as salsa;
 #[salsa::jar(db = HirDb)]
 pub struct Jar(
     crate::package::Package,
-    crate::package::package_files,
+    crate::package::Package_all_files,
     crate::resolve::Definition,
     crate::resolve::find_constructor,
     crate::resolve::find_function,
