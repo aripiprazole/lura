@@ -401,25 +401,25 @@ pub mod top_level {
     }
 
     #[salsa::tracked]
-    pub struct Using {
+    pub struct UsingTopLevel {
         pub path: Definition,
         pub location: Location,
     }
 
-    impl HirElement for Using {
+    impl HirElement for UsingTopLevel {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
         }
     }
 
     #[salsa::tracked]
-    pub struct Command {
+    pub struct CommandTopLevel {
         pub path: HirPath,
         pub arguments: Vec<expr::Expr>,
         pub location: Location,
     }
 
-    impl HirElement for Command {
+    impl HirElement for CommandTopLevel {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
         }
@@ -628,8 +628,8 @@ pub mod top_level {
     pub enum TopLevel {
         Empty,
         Error(HirError),
-        Using(Using),
-        Command(Command),
+        Using(UsingTopLevel),
+        Command(CommandTopLevel),
         BindingGroup(BindingGroup),
         ClassDecl(ClassDecl),
         TraitDecl(TraitDecl),

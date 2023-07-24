@@ -1,3 +1,10 @@
+//! This module defines the lowering of the syntax tree to the high level intermediate representation
+//! (HIR).
+//!
+//! Lowering means that it will take the syntax tree, and will transform it into a low level for
+//! human readability, but high-level abstraction for the compiler. It's very useful to the future
+//! steps, even of the compiler frontend.
+
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -19,12 +26,19 @@ use crate::{
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
         expr::{AbsExpr, AnnExpr, CallExpr, CallKind, Callee, Expr},
-        top_level::{BindingGroup, Signature, TopLevel, Using},
-        type_rep::{AppTypeRep, QPath, TypeRep},
+        top_level::{BindingGroup, Signature, TopLevel, UsingTopLevel},
+        type_rep::{AppTypeRep, TypeRep},
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
     },
 };
 
+/// Defines the [`hir_declare`] query.
+///
+/// It will declare the source file into the scope of the
+/// lowerrer. It will declare all the top level declarations, and this won't return the resolved
+/// declarations within the [`HirSource`].
+///
+/// For solving, see [`hir_lower`].
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
 pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
     let parse_tree = src.syntax_node(db);
@@ -43,6 +57,12 @@ pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSourc
     lower.declare()
 }
 
+/// Defines the [`hir_lower`] query.
+///
+/// It does have a behavior just like [`hir_declare`], but it will solve the clauses too, and it
+/// will return the [`HirSource`] with the declarations and the clauses solved.
+///
+/// For declaring, see [`hir_declare`].
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
 pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
     let parse_tree = src.syntax_node(db);
@@ -65,6 +85,19 @@ pub fn rec_hir_lower(db: &dyn crate::HirDb, cycle: &Cycle, _: Package, _: Source
     panic!("Cyclic dependency between queries: {:#?}", cycle.debug(db))
 }
 
+/// A high-level declaration solver, that will solve the declarations, and will solve the clauses
+/// too. It can either just declare the top level declarations, or solve it within the declaration.
+///
+/// This step is very important to be ran **AFTER** a kind of validation of the syntax tree, because
+/// it will treat as the syntax tree is correct, and will not check for errors in the syntax tree.
+///
+/// If there are any errors in the syntax tree, it will return the [`Default`] or [`DefaultWithDb`]
+/// if [`Default`] ins't specified, and it can be really bad for error handling, because it will
+/// cause blindness.
+///
+/// The validation and the lowering to HIR are totally different steps, in this compiler.
+///
+/// It will return the [`HirSource`] with the declarations solved, and the clauses solved too.
 struct LowerHir<'db, 'tree> {
     db: &'db dyn crate::HirDb,
     src: Source,
@@ -77,6 +110,13 @@ struct LowerHir<'db, 'tree> {
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
+    /// Declare the source file into the scope of the lowerrer. It will declare all the top level
+    /// declarations, and this won't return the [`HirSource`] with the declarations, just an empty
+    /// [`HirSource`].
+    ///
+    /// This should be used as a helper function for the [`hir_declare`] query. It's useful to
+    /// search the functions/and other declarations in the scope, but it won't solve the clauses, so
+    /// it won't cause any cycles in the queries.
     pub fn declare(mut self) -> HirSource {
         let ast = SourceFile::try_from(self.root_node).unwrap();
 
@@ -88,13 +128,14 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             }
         }
 
-        for group in self.clauses.values() {
-            self.decls.push(TopLevel::BindingGroup(*group))
-        }
-
         HirSource::new(self.db, self.src, self.pkg, self.scope, self.decls)
     }
 
+    /// Declare the source file into the scope of the lowerrer. It will declare all the top level
+    /// **AND** will solve the clauses, and this will return the [`HirSource`] with the declarations
+    /// and the clauses solved.
+    ///
+    /// This is the main function of the lowerrer, and it will be used in the [`hir_lower`] query.
     pub fn declare_and_solve(mut self) -> HirSource {
         let ast = SourceFile::try_from(self.root_node).unwrap();
 
@@ -109,6 +150,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             }
         }
 
+        // Pulls the clauses from the scope, and transforms into new declarations, to be put in the
+        // instance of [`HirSource`].
         for group in self.clauses.values() {
             self.decls.push(TopLevel::BindingGroup(*group))
         }
@@ -116,26 +159,41 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         HirSource::new(self.db, self.src, self.pkg, self.scope, self.decls)
     }
 
+    /// Creates a new declaration solver, for the given [`TreeDecl`]. It will return `None` if the
+    /// declaration is not "resolvable", just like "commands" and "using" declarations, because they
+    /// are not declarations, they are just "commands" to the compiler.
+    ///
+    /// It will return `Some` if the declaration is "resolvable", and it will return a solver for
+    /// the declaration.
     pub fn define<'a>(&mut self, decl: TreeDecl<'a>) -> Option<Solver<'a, TopLevel>> {
-        let value = match decl {
-            TreeDecl::ClassDecl(_) => todo!(),
-            TreeDecl::Clause(_) => todo!(),
-            TreeDecl::Command(_) => todo!(),
-            TreeDecl::DataDecl(_) => todo!(),
-            TreeDecl::Signature(signature) => return Some(self.hir_signature(signature)),
-            TreeDecl::TraitDecl(_) => todo!(),
-            TreeDecl::Using(decl) => {
+        use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using::*;
+
+        // Creates a new [`TopLevel`] instance.
+        let decl = match decl {
+            ClassDecl(_) => todo!(),
+            Clause(_) => todo!(),
+            Command(_) => todo!(),
+            DataDecl(_) => todo!(),
+            TraitDecl(_) => todo!(),
+            Signature(signature) => return Some(self.hir_signature(signature)),
+            Using(decl) => {
                 let range = self.range(decl.range());
                 let path = decl.path().solve(self.db, |node| self.path(node));
 
-                TopLevel::Using(Using::new(self.db, self.qualify(path), range))
+                TopLevel::Using(UsingTopLevel::new(self.db, self.qualify(path), range))
             }
         };
 
-        self.decls.push(value);
-        None // not solving
+        self.decls.push(decl);
+
+        None // Not solving a "not resolvable" declaration
     }
 
+    /// Creates a new high level signature declaration [`Signature`] solver, for the given
+    /// concrete syntax tree [`TreeSignature`].
+    ///
+    /// It will return a [`Solver`] for the [`Signature`], and it will solve the [`Signature`] in
+    /// the [`hir_lower`] query.
     pub fn hir_signature<'a>(&mut self, tree: lura_syntax::Signature<'a>) -> Solver<'a, TopLevel> {
         let range = self.range(tree.range());
         let path = tree.name().solve(self.db, |node| self.path(node));
@@ -143,6 +201,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
         let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
 
+        // Converts the visibility to default visibility, if it is not specified.
         let vis = tree
             .visibility()
             .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
@@ -181,6 +240,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
     /// Takes an list of syntatic arguments, and returns a list of parameters, handled if it is
     /// either implicit or explicit, and if it is a named or unnamed parameter.
+    ///
+    /// It will transform `[a: b] => c -> d` into a list of `a: b`, `_: b`, `_: c` parameters, for
+    /// example.
     pub fn parameters<'a, I>(&mut self, arguments: I) -> Vec<Parameter>
     where
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, ExplicitArguments_ImplicitArguments<'a>>>>,
@@ -425,6 +487,11 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         }
     }
 
+    /// Handles a list of raw documentation items in to a list of high level documentation items
+    /// to be shown in the IDE, or handled by resolution. It will return a list of [`DocString`].
+    ///
+    /// It will return a list of [`DocString`] because it is possible to have multiple documentation
+    /// items in the same declaration, and it will be handled as a list of [`DocString`].
     pub fn hir_docs<'a, I>(&mut self, attributes: I) -> Vec<DocString>
     where
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, lura_syntax::DocString<'a>>>>,
@@ -440,6 +507,11 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .collect()
     }
 
+    /// Handles a list of raw attributes in to a list of high level attributes to be shown in the
+    /// IDE, or handled by resolution. It will return a list of [`Attribute`].
+    ///
+    /// It will return a list of [`Attribute`] because it is possible to have multiple attributes
+    /// in the same declaration, and it will be handled as a list of [`Attribute`].
     pub fn hir_attributes<'a, I>(&mut self, attributes: I) -> HashSet<Attribute>
     where
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, lura_syntax::Attribute<'a>>>>,
@@ -457,6 +529,11 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .collect()
     }
 
+    /// Handles a raw visibility in to a high level visibility to be shown in the IDE, or handled by
+    /// resolution. It will return a [`Vis`]. Defaulting to [`Vis::Public`] if the visibility is
+    /// not specified, or bad specified.
+    ///
+    /// It does return a [`Spanned`] wrapped visibility, to be possible to get it's location.
     pub fn hir_visibility(&mut self, visibility: lura_syntax::Visibility) -> Spanned<Vis> {
         let value = match visibility.utf8_text(self.src.source_text(self.db).as_bytes()) {
             Ok("public") => Vis::Public,
@@ -469,6 +546,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         Spanned::new(value, location)
     }
 
+    /// Creates a new [`HirPath`] from the given [`Path`]. It does transform the raw path, in a
+    /// high level path, to be handled within [`Self::qualify`] function.
+    ///
+    /// The [`HirPath`] is a high level path, and it is used in the resolution.
     pub fn path(&mut self, path: lura_syntax::Path) -> HirPath {
         let mut new_segments = vec![];
         let source_text = self.src.source_text(self.db).as_bytes();
@@ -503,15 +584,23 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         HirPath::new(self.db, range, new_segments)
     }
 
+    /// Qualifies the given [`HirPath`] with the current package, and returns a new [`Definition`]
+    /// with the qualified [`HirPath`]. It does search the definition in the scope, and if it is
+    /// not present in the scope, it will invoke a compiler query to search in the entire package.
+    ///
+    /// It is useful to search for definitions in the scope, and it will be used in the resolution.
     pub fn qualify(&self, path: HirPath) -> Definition {
         Definition::no(self.db, DefinitionKind::Unresolved, path)
     }
 
+    /// Creates a new [`Location`] from the given [`tree_sitter::Range`]. It does transforms the
+    /// raw location, in a high level location, to be handled within resolution.
     pub fn range(&self, range: tree_sitter::Range) -> Location {
         Location::new(self.db, self.src, range.start_byte, range.end_byte)
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct Solver<'a, T> {
     f: Box<dyn FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a>,
 }
@@ -552,7 +641,7 @@ trait DbNodeResultExt<'tree, N> {
         Self: Sized,
         F: FnOnce(N),
     {
-        self.with_db(db, |db, node| {
+        self.with_db(db, |_db, node| {
             f(node);
             Some(())
         })
