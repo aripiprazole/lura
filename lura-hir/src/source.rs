@@ -7,8 +7,18 @@ use lura_syntax::Source;
 
 use crate::{package::Package, scope::Scope};
 
+pub trait OptionExt<T> {
+    fn unwrap_or_default_with_db(self, db: &dyn crate::HirDb) -> T;
+}
+
 pub trait DefaultWithDb {
     fn default_with_db(db: &dyn crate::HirDb) -> Self;
+}
+
+impl<T: DefaultWithDb> OptionExt<T> for Option<T> {
+    fn unwrap_or_default_with_db(self, db: &dyn crate::HirDb) -> T {
+        self.unwrap_or_else(|| T::default_with_db(db))
+    }
 }
 
 impl<T: Default> DefaultWithDb for T {
@@ -22,7 +32,7 @@ pub fn default_with_db<T: DefaultWithDb>(db: &dyn crate::HirDb) -> T {
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct Location {
+pub struct HirTextRange {
     pub source: Source,
     pub start: Offset,
     pub end: Offset,
@@ -31,40 +41,58 @@ pub struct Location {
     pub text: String,
 }
 
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+pub enum Location {
+    TextRange(HirTextRange),
+    CallSite,
+}
+
 impl Location {
     pub fn new<I>(db: &dyn crate::HirDb, source: Source, start: I, end: I) -> Self
     where
         I: Into<Offset>,
     {
-        Self {
+        Self::TextRange(HirTextRange {
             source,
             start: start.into(),
             end: end.into(),
             file_name: source.source_text(db).clone(),
             text: source.file_path(db).to_string_lossy().into_owned(),
-        }
+        })
     }
 
     pub fn call_site(_db: &dyn crate::HirDb) -> Self {
-        todo!()
+        Self::CallSite
     }
 }
 
 impl TextRange for Location {
     fn start(&self) -> Offset {
-        self.start
+        match self {
+            Location::TextRange(range) => range.start,
+            Location::CallSite => Offset(0),
+        }
     }
 
     fn end(&self) -> Offset {
-        self.end
+        match self {
+            Location::TextRange(range) => range.end,
+            Location::CallSite => Offset(0),
+        }
     }
 
     fn file_name(&self) -> &str {
-        todo!()
+        match self {
+            Location::TextRange(range) => &range.file_name,
+            Location::CallSite => "unresolved",
+        }
     }
 
     fn source(&self) -> &str {
-        todo!()
+        match self {
+            Location::TextRange(range) => &range.text,
+            Location::CallSite => "unresolved",
+        }
     }
 }
 
@@ -147,7 +175,7 @@ pub mod declaration {
 
     pub trait Declaration: HirElement {
         fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<Attribute>;
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<Visibility>;
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<Vis>;
         fn docs(&self, db: &dyn crate::HirDb) -> Vec<DocString>;
         fn name(&self, db: &dyn crate::HirDb) -> Definition;
         fn parameters(&self, db: &dyn crate::HirDb) -> Vec<Parameter>;
@@ -176,7 +204,7 @@ pub mod declaration {
     }
 
     #[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
-    pub enum Visibility {
+    pub enum Vis {
         #[default]
         Public,
         Sealed,
@@ -204,7 +232,7 @@ pub mod top_level {
     pub struct Signature {
         pub attributes: HashSet<declaration::Attribute>,
         pub docs: Vec<declaration::DocString>,
-        pub visibility: Spanned<declaration::Visibility>,
+        pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
@@ -216,7 +244,7 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             Self::visibility(*self, db)
         }
 
@@ -273,7 +301,7 @@ pub mod top_level {
             self.signature(db).attributes(db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             self.signature(db).visibility(db)
         }
 
@@ -332,7 +360,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct ClassDecl {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Visibility>,
+        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
@@ -347,7 +375,7 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             Self::visibility(*self, db)
         }
 
@@ -381,7 +409,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct TraitDecl {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Visibility>,
+        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
@@ -395,7 +423,7 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             Self::visibility(*self, db)
         }
 
@@ -429,7 +457,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct DataDecl {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Visibility>,
+        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
@@ -444,7 +472,7 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             Self::visibility(*self, db)
         }
 
@@ -479,7 +507,7 @@ pub mod top_level {
     pub struct Constructor {
         pub kind: ConstructorKind,
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Visibility>,
+        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub return_type: type_rep::TypeRep,
@@ -491,7 +519,7 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             Self::visibility(*self, db)
         }
 
@@ -594,7 +622,7 @@ pub mod top_level {
             }
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Visibility> {
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             match self {
                 Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
@@ -925,7 +953,9 @@ pub mod expr {
 }
 
 pub mod type_rep {
-    use crate::resolve::Definition;
+    use lura_diagnostic::{Diagnostics, Report};
+
+    use crate::resolve::{Definition, HirDiagnostic};
 
     use super::*;
 
@@ -950,7 +980,42 @@ pub mod type_rep {
         Error(HirError),
         Path(Definition),
         QPath(QPath),
+        Pi {
+            parameter: declaration::Parameter,
+            value: Box<expr::Expr>,
+
+            /// The location of the `->` keyword.
+            location: Location,
+        },
+        Sigma {
+            parameter: declaration::Parameter,
+            value: Box<expr::Expr>,
+
+            /// The location of the `forall` keyword.
+            location: Location,
+        },
         Downgrade(Box<expr::Expr>),
+    }
+
+    impl DefaultWithDb for TypeRep {
+        /// The default type representation is `Empty`. But it's not allowed to be used in any
+        /// contexts, so this function should report it as an error, and return `Empty`. For better
+        /// error reporting, the location of the `Empty` type representation should be the same as
+        /// the location of the context where it's used.
+        ///
+        /// TODO: This is not implemented yet.
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            Diagnostics::push(
+                db,
+                Report::new(HirDiagnostic {
+                    message: "Empty type representation is not allowed to be used in any contexts"
+                        .into(),
+                    location: Location::call_site(db),
+                }),
+            );
+
+            Self::Empty
+        }
     }
 
     impl HirElement for TypeRep {
@@ -958,6 +1023,8 @@ pub mod type_rep {
             match self {
                 Self::Unit => Location::call_site(db),
                 Self::Empty => Location::call_site(db),
+                Self::Pi { location, .. } => location.clone(),
+                Self::Sigma { location, .. } => location.clone(),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Path(downcast) => downcast.location(db),
                 Self::QPath(downcast) => downcast.location(db),

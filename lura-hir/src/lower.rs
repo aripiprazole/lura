@@ -5,19 +5,19 @@ use std::{
 
 use salsa::Cycle;
 use tree_sitter::{Node, Tree};
-use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, TypedNode};
+use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};
 
-use lura_syntax::{generated::lura::SourceFile, Source, TreeDecl, TreeIdentifier};
+use lura_syntax::{generated::lura::SourceFile, Source, TreeDecl, TreeIdentifier, TreeTypeRep};
 
 use crate::{
     package::Package,
     resolve::{Definition, DefinitionKind},
     scope::{Scope, ScopeKind},
     source::{
-        declaration::{Attribute, DocString, Visibility},
+        declaration::{Attribute, DocString, Vis},
         top_level::{BindingGroup, Signature, TopLevel, Using},
         type_rep::TypeRep,
-        DefaultWithDb, HirPath, HirSource, Identifier, Location, Spanned,
+        DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
     },
 };
 
@@ -141,15 +141,19 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let vis = tree
             .visibility()
             .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
-            .unwrap_or(Spanned::on_call_site(Visibility::Public));
+            .unwrap_or(Spanned::on_call_site(Vis::Public));
 
         // TODO: define the node on the scope
         let node = Definition::no(self.db, DefinitionKind::Function, path);
 
-        Solver::new(move |this| {
+        Solver::new(move |db, this| {
             let parameters = vec![];
 
-            let type_rep = TypeRep::Unit;
+            let type_rep = tree
+                .clause_type()
+                .flatten()
+                .map(|node| this.clause_type(node))
+                .unwrap_or_default_with_db(db);
 
             let signature =
                 Signature::new(this.db, attrs, docs, vis, node, parameters, type_rep, range);
@@ -157,10 +161,31 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let clause = this
                 .clauses
                 .entry(path)
-                .or_insert_with(|| BindingGroup::new(this.db, signature, HashSet::new()));
+                .or_insert_with(|| BindingGroup::new(db, signature, HashSet::new()));
 
             todo!()
         })
+    }
+
+    pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
+        clause.clause_type().solve(self.db, |node| match node {
+            TreeTypeRep::AnnExpr(_) => todo!(),
+            TreeTypeRep::BinaryExpr(_) => todo!(),
+            TreeTypeRep::LamExpr(_) => todo!(),
+            TreeTypeRep::MatchExpr(_) => todo!(),
+            TreeTypeRep::PiExpr(_) => todo!(),
+            TreeTypeRep::Primary(_) => todo!(),
+            TreeTypeRep::SigmaExpr(sigma) => self.sigma_expr(sigma),
+            TreeTypeRep::TypeAppExpr(_) => todo!(),
+        })
+    }
+
+    pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
+        todo!()
+    }
+
+    pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
+        todo!()
     }
 
     pub fn hir_docs<'a, I>(&mut self, attributes: I) -> Vec<DocString>
@@ -195,25 +220,25 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .collect()
     }
 
-    pub fn hir_visibility(&mut self, visibility: lura_syntax::Visibility) -> Spanned<Visibility> {
+    pub fn hir_visibility(&mut self, visibility: lura_syntax::Visibility) -> Spanned<Vis> {
         let value = match visibility.utf8_text(self.src.source_text(self.db).as_bytes()) {
-            Ok("public") => Visibility::Public,
-            Ok("sealed") => Visibility::Sealed,
-            Ok("private") => Visibility::Private,
-            Ok("internal") => Visibility::Internal,
-            _ => Visibility::Public,
+            Ok("public") => Vis::Public,
+            Ok("sealed") => Vis::Sealed,
+            Ok("private") => Vis::Private,
+            Ok("internal") => Vis::Internal,
+            _ => Vis::Public,
         };
         let location = self.range(visibility.range());
         Spanned::new(value, location)
     }
 
-    pub fn path(&mut self, path: lura_syntax::Path<'_>) -> HirPath {
+    pub fn path(&mut self, path: lura_syntax::Path) -> HirPath {
         let mut new_segments = vec![];
         let source_text = self.src.source_text(self.db).as_bytes();
 
         let range = self.range(path.range());
         for segment in path.segments(&mut self.tree.walk()) {
-            segment.or_default_error(self.db, |_, segment: lura_syntax::Identifier| {
+            segment.or_default_error(self.db, |segment: lura_syntax::Identifier| {
                 let range = self.range(segment.range());
 
                 let identifer = match segment.child() {
@@ -241,23 +266,23 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         HirPath::new(self.db, range, new_segments)
     }
 
-    pub fn range(&self, range: tree_sitter::Range) -> Location {
-        Location::new(self.db, self.src, range.start_byte, range.end_byte)
-    }
-
     pub fn qualify(&self, path: HirPath) -> Definition {
         Definition::no(self.db, DefinitionKind::Unresolved, path)
+    }
+
+    pub fn range(&self, range: tree_sitter::Range) -> Location {
+        Location::new(self.db, self.src, range.start_byte, range.end_byte)
     }
 }
 
 pub struct Solver<'a, T> {
-    f: Box<dyn FnOnce(&mut LowerHir<'_, '_>) -> T + 'a>,
+    f: Box<dyn FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a>,
 }
 
 impl<'a, T> Solver<'a, T> {
     fn new<F>(f: F) -> Self
     where
-        F: FnOnce(&mut LowerHir<'_, '_>) -> T + 'a,
+        F: FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a,
     {
         let a = Box::new(f);
 
@@ -265,7 +290,7 @@ impl<'a, T> Solver<'a, T> {
     }
 
     fn run_solver(self, lower: &mut LowerHir<'_, '_>) -> T {
-        (self.f)(lower)
+        (self.f)(lower.db, lower)
     }
 }
 
@@ -288,10 +313,10 @@ trait DbNodeResultExt<'tree, N> {
     fn or_default_error<F>(self, db: &dyn crate::HirDb, f: F)
     where
         Self: Sized,
-        F: FnOnce(&dyn crate::HirDb, N),
+        F: FnOnce(N),
     {
         self.with_db(db, |db, node| {
-            f(db, node);
+            f(node);
             Some(())
         })
     }

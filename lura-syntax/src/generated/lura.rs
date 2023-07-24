@@ -2092,12 +2092,26 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for InfixOp<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `lam_expr`\n\nThis node has these fields:\n- `value`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n\nAnd additional children: `parameter*` ([Parameter])\n"]
+#[doc = "Typed node `lam_expr`\n\nThis node has these fields:\n- `parameter`: `{, | parameter}*` ([anon_unions::Comma_Parameter])\n- `value`: `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct LamExpr<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> LamExpr<'tree> {
+    #[doc = "Get the field `parameter` which has kind `{, | parameter}*` ([anon_unions::Comma_Parameter])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn parameters<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, anon_unions::Comma_Parameter<'tree>>,
+        >,
+    > + 'a {
+        self . 0 . children_by_field_name ("parameter" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Parameter < 'tree > > as TryFrom < _ >> :: try_from (n))
+    }
     #[doc = "Get the field `value` which has kind `{ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])"]
     #[allow(dead_code)]
     #[inline]
@@ -2108,17 +2122,6 @@ impl<'tree> LamExpr<'tree> {
         anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>,
     > {
         self . 0 . child_by_field_name ("value") . map (< anon_unions :: AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
-    }
-    #[doc = "Get the node's named children"]
-    #[doc = "This is guaranteed to return at least one child"]
-    #[allow(dead_code)]
-    #[inline]    pub fn children < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl ExactSizeIterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > > >> + 'a{
-        self . 0 . named_children (c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
-    }
-    #[doc = "Get the node's named child #i"]
-    #[allow(dead_code)]
-    #[inline]    pub fn child (& self , i : usize) -> Option < type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > > >>{
-        self . 0 . named_child (i) . map (< type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > > as TryFrom < _ >> :: try_from)
     }
 }
 #[automatically_derived]
@@ -2719,17 +2722,24 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Path<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `pi_expr`\n\nThis node has these fields:\n- `parameter`: `pi_parameter` ([PiParameter])\n- `value`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
+#[doc = "Typed node `pi_expr`\n\nThis node has these fields:\n- `parameter`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `value`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct PiExpr<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> PiExpr<'tree> {
-    #[doc = "Get the field `parameter` which has kind `pi_parameter` ([PiParameter])"]
+    #[doc = "Get the field `parameter` which has kind `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
     #[inline]
-    pub fn parameter(&self) -> type_sitter_lib::NodeResult<'tree, PiParameter<'tree>> {
-        self . 0 . child_by_field_name ("parameter") . map (< PiParameter < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    pub fn parameter(
+        &self,
+    ) -> type_sitter_lib::NodeResult<
+        'tree,
+        anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<
+            'tree,
+        >,
+    > {
+        self . 0 . child_by_field_name ("parameter") . map (< anon_unions :: AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
     #[doc = "Get the field `value` which has kind `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
@@ -2763,80 +2773,6 @@ impl<'tree> TryFrom<tree_sitter::Node<'tree>> for PiExpr<'tree> {
 #[automatically_derived]
 impl<'tree> type_sitter_lib::TypedNode<'tree> for PiExpr<'tree> {
     const KIND: &'static str = "pi_expr";
-    #[inline]
-    fn node(&self) -> &tree_sitter::Node<'tree> {
-        &self.0
-    }
-    #[inline]
-    fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
-        &mut self.0
-    }
-    #[inline]
-    fn into_node(self) -> tree_sitter::Node<'tree> {
-        self.0
-    }
-    #[inline]
-    unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
-        Self(node)
-    }
-}
-#[doc = "Typed node `pi_parameter`\n\nThis node has children: `{parameter | primary}*`:\n- [Parameter]\n- [Primary]\n\n"]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(non_camel_case_types)]
-pub struct PiParameter<'tree>(tree_sitter::Node<'tree>);
-#[automatically_derived]
-impl<'tree> PiParameter<'tree> {
-    #[doc = "Get the node's named children"]
-    #[allow(dead_code)]
-    #[inline]
-    pub fn children<'a>(
-        &self,
-        c: &'a mut tree_sitter::TreeCursor<'tree>,
-    ) -> impl ExactSizeIterator<
-        Item = type_sitter_lib::NodeResult<
-            'tree,
-            type_sitter_lib::ExtraOr<'tree, anon_unions::Parameter_Primary<'tree>>,
-        >,
-    > + 'a {
-        self . 0 . named_children (c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_Primary < 'tree > > as TryFrom < _ >> :: try_from (n))
-    }
-    #[doc = "Get the node's named child #i"]
-    #[allow(dead_code)]
-    #[inline]
-    pub fn child(
-        &self,
-        i: usize,
-    ) -> Option<
-        type_sitter_lib::NodeResult<
-            'tree,
-            type_sitter_lib::ExtraOr<'tree, anon_unions::Parameter_Primary<'tree>>,
-        >,
-    > {
-        self.0.named_child(i).map(
-            <type_sitter_lib::ExtraOr<'tree, anon_unions::Parameter_Primary<'tree>> as TryFrom<
-                _,
-            >>::try_from,
-        )
-    }
-}
-#[automatically_derived]
-impl<'tree> TryFrom<tree_sitter::Node<'tree>> for PiParameter<'tree> {
-    type Error = type_sitter_lib::IncorrectKind<'tree>;
-    #[inline]
-    fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
-        if node.kind() == "pi_parameter" {
-            Ok(Self(node))
-        } else {
-            Err(type_sitter_lib::IncorrectKind {
-                node,
-                kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
-            })
-        }
-    }
-}
-#[automatically_derived]
-impl<'tree> type_sitter_lib::TypedNode<'tree> for PiParameter<'tree> {
-    const KIND: &'static str = "pi_parameter";
     #[inline]
     fn node(&self) -> &tree_sitter::Node<'tree> {
         &self.0
@@ -2968,12 +2904,26 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ReturnExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `sigma_expr`\n\nThis node has these fields:\n- `value`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n\nAnd additional children: `parameter*` ([Parameter])\n"]
+#[doc = "Typed node `sigma_expr`\n\nThis node has these fields:\n- `parameter`: `{, | parameter}*` ([anon_unions::Comma_Parameter])\n- `value`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct SigmaExpr<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> SigmaExpr<'tree> {
+    #[doc = "Get the field `parameter` which has kind `{, | parameter}*` ([anon_unions::Comma_Parameter])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn parameters<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, anon_unions::Comma_Parameter<'tree>>,
+        >,
+    > + 'a {
+        self . 0 . children_by_field_name ("parameter" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Parameter < 'tree > > as TryFrom < _ >> :: try_from (n))
+    }
     #[doc = "Get the field `value` which has kind `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
     #[inline]
@@ -2986,17 +2936,6 @@ impl<'tree> SigmaExpr<'tree> {
         >,
     > {
         self . 0 . child_by_field_name ("value") . map (< anon_unions :: AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
-    }
-    #[doc = "Get the node's named children"]
-    #[doc = "This is guaranteed to return at least one child"]
-    #[allow(dead_code)]
-    #[inline]    pub fn children < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl ExactSizeIterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
-        self . 0 . named_children (c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
-    }
-    #[doc = "Get the node's named child #i"]
-    #[allow(dead_code)]
-    #[inline]    pub fn child (& self , i : usize) -> Option < type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >>{
-        self . 0 . named_child (i) . map (< type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from)
     }
 }
 #[automatically_derived]
@@ -7959,22 +7898,24 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{parameter | ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}`:\n- [Parameter]\n- [AnnExpr]\n- [AppExpr]\n- [BinaryExpr]\n- [LamExpr]\n- [MatchExpr]\n- [PiExpr]\n- [Primary]\n- [SigmaExpr]"]
+    #[doc = "one of `{, | parameter}`:\n- [symbols::Comma]\n- [Parameter]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree> {
+    pub enum Comma_Parameter<'tree> {
+        Comma(symbols::Comma<'tree>),
         Parameter(Parameter<'tree>),
-        AnnExpr(AnnExpr<'tree>),
-        AppExpr(AppExpr<'tree>),
-        BinaryExpr(BinaryExpr<'tree>),
-        LamExpr(LamExpr<'tree>),
-        MatchExpr(MatchExpr<'tree>),
-        PiExpr(PiExpr<'tree>),
-        Primary(Primary<'tree>),
-        SigmaExpr(SigmaExpr<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree> {
+    impl<'tree> Comma_Parameter<'tree> {
+        #[doc = "Returns the node if it is of kind `,` ([symbols::Comma]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn comma(self) -> Option<symbols::Comma<'tree>> {
+            match self {
+                Self::Comma(x) => Some(x),
+                _ => None,
+            }
+        }
         #[doc = "Returns the node if it is of kind `parameter` ([Parameter]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -7984,123 +7925,20 @@ pub mod anon_unions {
                 _ => None,
             }
         }
-        #[doc = "Returns the node if it is of kind `ann_expr` ([AnnExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn ann_expr(self) -> Option<AnnExpr<'tree>> {
-            match self {
-                Self::AnnExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `app_expr` ([AppExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn app_expr(self) -> Option<AppExpr<'tree>> {
-            match self {
-                Self::AppExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `binary_expr` ([BinaryExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn binary_expr(self) -> Option<BinaryExpr<'tree>> {
-            match self {
-                Self::BinaryExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `lam_expr` ([LamExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn lam_expr(self) -> Option<LamExpr<'tree>> {
-            match self {
-                Self::LamExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `match_expr` ([MatchExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn match_expr(self) -> Option<MatchExpr<'tree>> {
-            match self {
-                Self::MatchExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `pi_expr` ([PiExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn pi_expr(self) -> Option<PiExpr<'tree>> {
-            match self {
-                Self::PiExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `primary` ([Primary]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn primary(self) -> Option<Primary<'tree>> {
-            match self {
-                Self::Primary(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `sigma_expr` ([SigmaExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn sigma_expr(self) -> Option<SigmaExpr<'tree>> {
-            match self {
-                Self::SigmaExpr(x) => Some(x),
-                _ => None,
-            }
-        }
     }
     #[automatically_derived]
-    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>
-    {
+    impl<'tree> TryFrom<tree_sitter::Node<'tree>> for Comma_Parameter<'tree> {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
         fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
             match node.kind() {
+                "," => Ok(unsafe {
+                    Self::Comma(<symbols::Comma<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
                 "parameter" => Ok(unsafe {
                     Self :: Parameter (< Parameter < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "ann_expr" => {
-                    Ok(unsafe {
-                        Self :: AnnExpr (< AnnExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "app_expr" => {
-                    Ok(unsafe {
-                        Self :: AppExpr (< AppExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "binary_expr" => Ok(unsafe {
-                    Self :: BinaryExpr (< BinaryExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "lam_expr" => {
-                    Ok(unsafe {
-                        Self :: LamExpr (< LamExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "match_expr" => Ok(unsafe {
-                    Self :: MatchExpr (< MatchExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "pi_expr" => {
-                    Ok(unsafe {
-                        Self :: PiExpr (< PiExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "primary" => {
-                    Ok(unsafe {
-                        Self :: Primary (< Primary < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "sigma_expr" => Ok(unsafe {
-                    Self :: SigmaExpr (< SigmaExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
                 _ => Err(type_sitter_lib::IncorrectKind {
                     node,
@@ -8110,50 +7948,27 @@ pub mod anon_unions {
         }
     }
     #[automatically_derived]
-    impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for Parameter_AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>
-    {
-        const KIND : & 'static str = "{parameter | ann_expr | app_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}" ;
+    impl<'tree> type_sitter_lib::TypedNode<'tree> for Comma_Parameter<'tree> {
+        const KIND: &'static str = "{, | parameter}";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
+                Self::Comma(x) => x.node(),
                 Self::Parameter(x) => x.node(),
-                Self::AnnExpr(x) => x.node(),
-                Self::AppExpr(x) => x.node(),
-                Self::BinaryExpr(x) => x.node(),
-                Self::LamExpr(x) => x.node(),
-                Self::MatchExpr(x) => x.node(),
-                Self::PiExpr(x) => x.node(),
-                Self::Primary(x) => x.node(),
-                Self::SigmaExpr(x) => x.node(),
             }
         }
         #[inline]
         fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
             match self {
+                Self::Comma(x) => x.node_mut(),
                 Self::Parameter(x) => x.node_mut(),
-                Self::AnnExpr(x) => x.node_mut(),
-                Self::AppExpr(x) => x.node_mut(),
-                Self::BinaryExpr(x) => x.node_mut(),
-                Self::LamExpr(x) => x.node_mut(),
-                Self::MatchExpr(x) => x.node_mut(),
-                Self::PiExpr(x) => x.node_mut(),
-                Self::Primary(x) => x.node_mut(),
-                Self::SigmaExpr(x) => x.node_mut(),
             }
         }
         #[inline]
         fn into_node(self) -> tree_sitter::Node<'tree> {
             match self {
+                Self::Comma(x) => x.into_node(),
                 Self::Parameter(x) => x.into_node(),
-                Self::AnnExpr(x) => x.into_node(),
-                Self::AppExpr(x) => x.into_node(),
-                Self::BinaryExpr(x) => x.into_node(),
-                Self::LamExpr(x) => x.into_node(),
-                Self::MatchExpr(x) => x.into_node(),
-                Self::PiExpr(x) => x.into_node(),
-                Self::Primary(x) => x.into_node(),
-                Self::SigmaExpr(x) => x.into_node(),
             }
         }
     }
@@ -8693,80 +8508,6 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{parameter | primary}`:\n- [Parameter]\n- [Primary]"]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[allow(non_camel_case_types)]
-    pub enum Parameter_Primary<'tree> {
-        Parameter(Parameter<'tree>),
-        Primary(Primary<'tree>),
-    }
-    #[automatically_derived]
-    impl<'tree> Parameter_Primary<'tree> {
-        #[doc = "Returns the node if it is of kind `parameter` ([Parameter]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn parameter(self) -> Option<Parameter<'tree>> {
-            match self {
-                Self::Parameter(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `primary` ([Primary]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn primary(self) -> Option<Primary<'tree>> {
-            match self {
-                Self::Primary(x) => Some(x),
-                _ => None,
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> TryFrom<tree_sitter::Node<'tree>> for Parameter_Primary<'tree> {
-        type Error = type_sitter_lib::IncorrectKind<'tree>;
-        #[inline]
-        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
-            match node.kind() {
-                "parameter" => Ok(unsafe {
-                    Self :: Parameter (< Parameter < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "primary" => {
-                    Ok(unsafe {
-                        Self :: Primary (< Primary < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                _ => Err(type_sitter_lib::IncorrectKind {
-                    node,
-                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
-                }),
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> type_sitter_lib::TypedNode<'tree> for Parameter_Primary<'tree> {
-        const KIND: &'static str = "{parameter | primary}";
-        #[inline]
-        fn node(&self) -> &tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.node(),
-                Self::Primary(x) => x.node(),
-            }
-        }
-        #[inline]
-        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.node_mut(),
-                Self::Primary(x) => x.node_mut(),
-            }
-        }
-        #[inline]
-        fn into_node(self) -> tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.into_node(),
-                Self::Primary(x) => x.into_node(),
-            }
-        }
-    }
     #[doc = "one of `{array_expr | identifier | if_expr | literal | match_expr | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [Identifier]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [ReturnExpr]\n- [TupleExpr]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
@@ -8925,210 +8666,6 @@ pub mod anon_unions {
                 Self::MatchExpr(x) => x.into_node(),
                 Self::ReturnExpr(x) => x.into_node(),
                 Self::TupleExpr(x) => x.into_node(),
-            }
-        }
-    }
-    #[doc = "one of `{parameter | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}`:\n- [Parameter]\n- [AnnExpr]\n- [BinaryExpr]\n- [LamExpr]\n- [MatchExpr]\n- [PiExpr]\n- [Primary]\n- [SigmaExpr]\n- [TypeAppExpr]"]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[allow(non_camel_case_types)]
-    pub enum Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<
-        'tree,
-    > {
-        Parameter(Parameter<'tree>),
-        AnnExpr(AnnExpr<'tree>),
-        BinaryExpr(BinaryExpr<'tree>),
-        LamExpr(LamExpr<'tree>),
-        MatchExpr(MatchExpr<'tree>),
-        PiExpr(PiExpr<'tree>),
-        Primary(Primary<'tree>),
-        SigmaExpr(SigmaExpr<'tree>),
-        TypeAppExpr(TypeAppExpr<'tree>),
-    }
-    #[automatically_derived]
-    impl<'tree>
-        Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>
-    {
-        #[doc = "Returns the node if it is of kind `parameter` ([Parameter]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn parameter(self) -> Option<Parameter<'tree>> {
-            match self {
-                Self::Parameter(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `ann_expr` ([AnnExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn ann_expr(self) -> Option<AnnExpr<'tree>> {
-            match self {
-                Self::AnnExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `binary_expr` ([BinaryExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn binary_expr(self) -> Option<BinaryExpr<'tree>> {
-            match self {
-                Self::BinaryExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `lam_expr` ([LamExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn lam_expr(self) -> Option<LamExpr<'tree>> {
-            match self {
-                Self::LamExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `match_expr` ([MatchExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn match_expr(self) -> Option<MatchExpr<'tree>> {
-            match self {
-                Self::MatchExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `pi_expr` ([PiExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn pi_expr(self) -> Option<PiExpr<'tree>> {
-            match self {
-                Self::PiExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `primary` ([Primary]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn primary(self) -> Option<Primary<'tree>> {
-            match self {
-                Self::Primary(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `sigma_expr` ([SigmaExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn sigma_expr(self) -> Option<SigmaExpr<'tree>> {
-            match self {
-                Self::SigmaExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `type_app_expr` ([TypeAppExpr]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn type_app_expr(self) -> Option<TypeAppExpr<'tree>> {
-            match self {
-                Self::TypeAppExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<
-            'tree,
-        >
-    {
-        type Error = type_sitter_lib::IncorrectKind<'tree>;
-        #[inline]
-        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
-            match node.kind() {
-                "parameter" => Ok(unsafe {
-                    Self :: Parameter (< Parameter < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "ann_expr" => {
-                    Ok(unsafe {
-                        Self :: AnnExpr (< AnnExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "binary_expr" => Ok(unsafe {
-                    Self :: BinaryExpr (< BinaryExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "lam_expr" => {
-                    Ok(unsafe {
-                        Self :: LamExpr (< LamExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "match_expr" => Ok(unsafe {
-                    Self :: MatchExpr (< MatchExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "pi_expr" => {
-                    Ok(unsafe {
-                        Self :: PiExpr (< PiExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "primary" => {
-                    Ok(unsafe {
-                        Self :: Primary (< Primary < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                    })
-                }
-                "sigma_expr" => Ok(unsafe {
-                    Self :: SigmaExpr (< SigmaExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "type_app_expr" => Ok(unsafe {
-                    Self :: TypeAppExpr (< TypeAppExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                _ => Err(type_sitter_lib::IncorrectKind {
-                    node,
-                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
-                }),
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for Parameter_AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<
-            'tree,
-        >
-    {
-        const KIND : & 'static str = "{parameter | ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}" ;
-        #[inline]
-        fn node(&self) -> &tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.node(),
-                Self::AnnExpr(x) => x.node(),
-                Self::BinaryExpr(x) => x.node(),
-                Self::LamExpr(x) => x.node(),
-                Self::MatchExpr(x) => x.node(),
-                Self::PiExpr(x) => x.node(),
-                Self::Primary(x) => x.node(),
-                Self::SigmaExpr(x) => x.node(),
-                Self::TypeAppExpr(x) => x.node(),
-            }
-        }
-        #[inline]
-        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.node_mut(),
-                Self::AnnExpr(x) => x.node_mut(),
-                Self::BinaryExpr(x) => x.node_mut(),
-                Self::LamExpr(x) => x.node_mut(),
-                Self::MatchExpr(x) => x.node_mut(),
-                Self::PiExpr(x) => x.node_mut(),
-                Self::Primary(x) => x.node_mut(),
-                Self::SigmaExpr(x) => x.node_mut(),
-                Self::TypeAppExpr(x) => x.node_mut(),
-            }
-        }
-        #[inline]
-        fn into_node(self) -> tree_sitter::Node<'tree> {
-            match self {
-                Self::Parameter(x) => x.into_node(),
-                Self::AnnExpr(x) => x.into_node(),
-                Self::BinaryExpr(x) => x.into_node(),
-                Self::LamExpr(x) => x.into_node(),
-                Self::MatchExpr(x) => x.into_node(),
-                Self::PiExpr(x) => x.into_node(),
-                Self::Primary(x) => x.into_node(),
-                Self::SigmaExpr(x) => x.into_node(),
-                Self::TypeAppExpr(x) => x.into_node(),
             }
         }
     }
