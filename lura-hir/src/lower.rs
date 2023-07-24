@@ -272,219 +272,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .collect::<Vec<_>>()
     }
 
-    pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
-        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
-
-        clause.clause_type().solve(self.db, |node| match node {
-            // SECTION: type_expr
-            //
-            // Upgrades the expressions to type level expressions, to be easier to handle errors
-            // in the type system, and still keeps the diagnostics in the IDE.
-            Primary(primary) => self.primary(primary).upgrade(self.db),
-            AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-            LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-            MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-            BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
-
-            // Type level expressions
-            PiExpr(pi) => self.pi_expr(pi),
-            SigmaExpr(sigma) => self.sigma_expr(sigma),
-            TypeAppExpr(type_app) => self.type_app_expr(type_app),
-        })
-    }
-
-    pub fn type_expr(&mut self, tree: lura_syntax::TreeTypeRep) -> TypeRep {
-        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
-
-        match tree {
-            // SECTION: type_expr
-            //
-            // Upgrades the expressions to type level expressions, to be easier to handle errors
-            // in the type system, and still keeps the diagnostics in the IDE.
-            Primary(primary) => self.primary(primary).upgrade(self.db),
-            AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-            LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-            MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-            BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
-
-            // Type level expressions
-            PiExpr(pi) => self.pi_expr(pi),
-            SigmaExpr(sigma) => self.sigma_expr(sigma),
-            TypeAppExpr(type_app) => self.type_app_expr(type_app),
-        }
-    }
-
-    pub fn expr(&mut self, tree: lura_syntax::TreeExpr) -> Expr {
-        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
-
-        match tree {
-            // SECTION: expr
-            Primary(primary) => self.primary(primary),
-            AnnExpr(ann_expr) => self.ann_expr(ann_expr),
-            LamExpr(lam_expr) => self.lam_expr(lam_expr),
-            MatchExpr(match_expr) => self.match_expr(match_expr),
-            BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
-            AppExpr(type_app) => self.app_expr(type_app),
-
-            // Type level expressions
-            PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
-            SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
-        }
-    }
-
-    pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr) -> Expr {
-        let value = tree.value().solve(self.db, |node| self.expr(node));
-        let type_rep = tree.against().solve(self.db, |node| self.type_expr(node));
-        let location = self.range(tree.range());
-
-        Expr::Ann(AnnExpr::new(self.db, value, type_rep, location))
-    }
-
-    pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr) -> Expr {
-        let lhs = tree.lhs().solve(self.db, |node| self.expr(node));
-        let rhs = tree.rhs().solve(self.db, |node| self.expr(node));
-        let op = tree.op().solve(self.db, |node| {
-            let location = self.range(node.range());
-            let identifier = node
-                .utf8_text(self.src.source_text(self.db).as_bytes())
-                .unwrap_or_default();
-
-            let identifier = Identifier::symbol(self.db, identifier, location.clone());
-
-            HirPath::new(self.db, location, vec![identifier])
-        });
-        let location = self.range(tree.range());
-
-        let op = self
-            .scope
-            .search(op, DefinitionKind::Function)
-            .unwrap_or_else(|| {
-                // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
-                // will report an error. It's made for doing global lookups, and not local lookups.
-                find_function(self.db, op)
-            });
-
-        Expr::Call(CallExpr::new(
-            self.db,
-            /* kind        = */ CallKind::Infix,
-            /* callee      = */ Callee::Definition(op),
-            /* arguments   = */ vec![lhs, rhs],
-            /* do_notation = */ None,
-            /* location    = */ location,
-        ))
-    }
-
-    pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr) -> Expr {
-        let parameters = tree
-            .parameters(&mut tree.walk())
-            .flatten()
-            .filter_map(|node| node.regular())
-            .filter_map(|node| node.parameter())
-            .map(|parameter| self.parameter(parameter))
-            .collect::<Vec<_>>();
-
-        let value = tree.value().solve(self.db, |node| self.expr(node));
-
-        let location = self.range(tree.range());
-
-        Expr::Abs(AbsExpr::new(self.db, parameters, value, location))
-    }
-
-    pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr) -> Expr {
-        todo!("Not implemented match expr")
-    }
-
-    pub fn app_expr(&mut self, tree: lura_syntax::AppExpr) -> Expr {
-        let callee = tree.callee().solve(self.db, |node| self.primary(node));
-
-        let arguments = tree
-            .arguments(&mut tree.walk())
-            .flatten()
-            .flat_map(|node| node.regular())
-            .map(|node| self.primary(node))
-            .collect::<Vec<_>>();
-
-        let location = self.range(tree.range());
-
-        Expr::Call(CallExpr::new(
-            self.db,
-            /* kind        = */ CallKind::Infix,
-            /* callee      = */ Callee::Expr(callee),
-            /* arguments   = */ arguments,
-            /* do_notation = */ None,
-            /* location    = */ location,
-        ))
-    }
-
-    pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
-        let callee = tree
-            .callee()
-            .solve(self.db, |node| self.primary(node).upgrade(self.db));
-
-        let arguments = tree
-            .arguments(&mut tree.walk())
-            .flatten()
-            .flat_map(|node| node.regular())
-            .map(|node| self.primary(node).upgrade(self.db))
-            .collect::<Vec<_>>();
-
-        let location = self.range(tree.range());
-
-        TypeRep::App(AppTypeRep::new(self.db, callee, arguments, location))
-    }
-
-    pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
-        use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
-
-        let parameters = tree.parameter().solve(self.db, |node| {
-            let type_rep = match node {
-                Primary(primary) => self.primary(primary).upgrade(self.db),
-                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
-
-                // Type level expressions
-                PiExpr(pi) => self.pi_expr(pi),
-                SigmaExpr(sigma) => self.sigma_expr(sigma),
-                TypeAppExpr(type_app) => self.type_app_expr(type_app),
-                PiNamedParameterSet(tree) => {
-                    return tree
-                        .parameters(&mut tree.walk())
-                        .flatten()
-                        .filter_map(|node| node.regular())
-                        .filter_map(|node| node.parameter())
-                        .map(|parameter| self.parameter(parameter))
-                        .collect::<Vec<_>>();
-                }
-            };
-
-            // This handles the case where the parameter is unnamed, and only haves a type. The name
-            // should not be shown in the IDE in this case.
-            vec![Parameter::unnamed(self.db, type_rep)]
-        });
-
-        TypeRep::Pi {
-            parameters,
-            value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
-            location: self.range(tree.range()),
-        }
-    }
-
-    pub fn primary(&mut self, _tree: lura_syntax::Primary) -> Expr {
-        todo!("Not implemented primary")
-    }
-
     pub fn parameter(&mut self, _tree: lura_syntax::Parameter) -> Parameter {
         todo!("Not implemented parameter")
-    }
-
-    pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
-        TypeRep::Sigma {
-            parameters: vec![],
-            value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
-            location: self.range(tree.range()),
-        }
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items
@@ -600,12 +389,237 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     }
 }
 
+/// Defines a module for resolving language "terms", that are the expressions, types, and other
+/// things that are used in the language, like primaries. It will be used in the resolution, and
+/// it's a helper module for the [`LowerHir`] struct.
+///
+/// It's only a module, to organization purposes.
+mod term_solver {
+    use super::*;
+
+    impl LowerHir<'_, '_> {
+        pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
+            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
+
+            clause.clause_type().solve(self.db, |node| match node {
+                // SECTION: type_expr
+                //
+                // Upgrades the expressions to type level expressions, to be easier to handle errors
+                // in the type system, and still keeps the diagnostics in the IDE.
+                Primary(primary) => self.primary(primary).upgrade(self.db),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+                // Type level expressions
+                PiExpr(pi) => self.pi_expr(pi),
+                SigmaExpr(sigma) => self.sigma_expr(sigma),
+                TypeAppExpr(type_app) => self.type_app_expr(type_app),
+            })
+        }
+
+        pub fn type_expr(&mut self, tree: lura_syntax::TreeTypeRep) -> TypeRep {
+            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
+
+            match tree {
+                // SECTION: type_expr
+                //
+                // Upgrades the expressions to type level expressions, to be easier to handle errors
+                // in the type system, and still keeps the diagnostics in the IDE.
+                Primary(primary) => self.primary(primary).upgrade(self.db),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+                // Type level expressions
+                PiExpr(pi) => self.pi_expr(pi),
+                SigmaExpr(sigma) => self.sigma_expr(sigma),
+                TypeAppExpr(type_app) => self.type_app_expr(type_app),
+            }
+        }
+
+        pub fn expr(&mut self, tree: lura_syntax::TreeExpr) -> Expr {
+            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+            match tree {
+                // SECTION: expr
+                Primary(primary) => self.primary(primary),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr),
+                MatchExpr(match_expr) => self.match_expr(match_expr),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
+                AppExpr(type_app) => self.app_expr(type_app),
+
+                // Type level expressions
+                PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
+                SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
+            }
+        }
+
+        pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr) -> Expr {
+            let value = tree.value().solve(self.db, |node| self.expr(node));
+            let type_rep = tree.against().solve(self.db, |node| self.type_expr(node));
+            let location = self.range(tree.range());
+
+            Expr::Ann(AnnExpr::new(self.db, value, type_rep, location))
+        }
+
+        pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr) -> Expr {
+            let lhs = tree.lhs().solve(self.db, |node| self.expr(node));
+            let rhs = tree.rhs().solve(self.db, |node| self.expr(node));
+            let op = tree.op().solve(self.db, |node| {
+                let location = self.range(node.range());
+                let identifier = node
+                    .utf8_text(self.src.source_text(self.db).as_bytes())
+                    .unwrap_or_default();
+
+                let identifier = Identifier::symbol(self.db, identifier, location.clone());
+
+                HirPath::new(self.db, location, vec![identifier])
+            });
+            let location = self.range(tree.range());
+
+            let op = self
+                .scope
+                .search(op, DefinitionKind::Function)
+                .unwrap_or_else(|| {
+                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
+                    // will report an error. It's made for doing global lookups, and not local lookups.
+                    find_function(self.db, op)
+                });
+
+            Expr::Call(CallExpr::new(
+                self.db,
+                /* kind        = */ CallKind::Infix,
+                /* callee      = */ Callee::Definition(op),
+                /* arguments   = */ vec![lhs, rhs],
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
+        pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr) -> Expr {
+            let parameters = tree
+                .parameters(&mut tree.walk())
+                .flatten()
+                .filter_map(|node| node.regular())
+                .filter_map(|node| node.parameter())
+                .map(|parameter| self.parameter(parameter))
+                .collect::<Vec<_>>();
+
+            let value = tree.value().solve(self.db, |node| self.expr(node));
+
+            let location = self.range(tree.range());
+
+            Expr::Abs(AbsExpr::new(self.db, parameters, value, location))
+        }
+
+        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr) -> Expr {
+            todo!("Not implemented match expr")
+        }
+
+        pub fn app_expr(&mut self, tree: lura_syntax::AppExpr) -> Expr {
+            let callee = tree.callee().solve(self.db, |node| self.primary(node));
+
+            let arguments = tree
+                .arguments(&mut tree.walk())
+                .flatten()
+                .flat_map(|node| node.regular())
+                .map(|node| self.primary(node))
+                .collect::<Vec<_>>();
+
+            let location = self.range(tree.range());
+
+            Expr::Call(CallExpr::new(
+                self.db,
+                /* kind        = */ CallKind::Infix,
+                /* callee      = */ Callee::Expr(callee),
+                /* arguments   = */ arguments,
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
+        pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
+            let callee = tree
+                .callee()
+                .solve(self.db, |node| self.primary(node).upgrade(self.db));
+
+            let arguments = tree
+                .arguments(&mut tree.walk())
+                .flatten()
+                .flat_map(|node| node.regular())
+                .map(|node| self.primary(node).upgrade(self.db))
+                .collect::<Vec<_>>();
+
+            let location = self.range(tree.range());
+
+            TypeRep::App(AppTypeRep::new(self.db, callee, arguments, location))
+        }
+
+        pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
+            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
+
+            let parameters = tree.parameter().solve(self.db, |node| {
+                let type_rep = match node {
+                    Primary(primary) => self.primary(primary).upgrade(self.db),
+                    AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
+                    LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
+                    MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
+                    BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+
+                    // Type level expressions
+                    PiExpr(pi) => self.pi_expr(pi),
+                    SigmaExpr(sigma) => self.sigma_expr(sigma),
+                    TypeAppExpr(type_app) => self.type_app_expr(type_app),
+                    PiNamedParameterSet(tree) => {
+                        return tree
+                            .parameters(&mut tree.walk())
+                            .flatten()
+                            .filter_map(|node| node.regular())
+                            .filter_map(|node| node.parameter())
+                            .map(|parameter| self.parameter(parameter))
+                            .collect::<Vec<_>>();
+                    }
+                };
+
+                // This handles the case where the parameter is unnamed, and only haves a type. The name
+                // should not be shown in the IDE in this case.
+                vec![Parameter::unnamed(self.db, type_rep)]
+            });
+
+            TypeRep::Pi {
+                parameters,
+                value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+                location: self.range(tree.range()),
+            }
+        }
+
+        pub fn primary(&mut self, _tree: lura_syntax::Primary) -> Expr {
+            todo!("Not implemented primary")
+        }
+
+        pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
+            TypeRep::Sigma {
+                parameters: vec![],
+                value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+                location: self.range(tree.range()),
+            }
+        }
+    }
+}
+
+/// Defines a solver function over the [`LowerHir`] struct, that will solve the clauses, and will
+/// return the [`HirSource`] with the declarations and the clauses solved.
 #[allow(clippy::type_complexity)]
-pub struct Solver<'a, T> {
+struct Solver<'a, T> {
     f: Box<dyn FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a>,
 }
 
 impl<'a, T> Solver<'a, T> {
+    /// Creates a new solver function over the [`LowerHir`] struct.
     fn new<F>(f: F) -> Self
     where
         F: FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a,
@@ -615,6 +629,7 @@ impl<'a, T> Solver<'a, T> {
         Self { f: a }
     }
 
+    /// Runs the solver function over the [`LowerHir`] struct, and returns the result.
     fn run_solver(self, lower: &mut LowerHir<'_, '_>) -> T {
         (self.f)(lower.db, lower)
     }
