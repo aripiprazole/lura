@@ -13,12 +13,13 @@ pub enum DefinitionKind {
     Variable,
     Module,
 
-    /**
-     * This is a temporary state that should never be returned by the resolver.
-     */
+    /// This is a temporary state that should never be returned by the resolver. Only if there's
+    /// an unresolved name.
     Unresolved,
 }
 
+/// Defines a definition in the High-Level Intermediate Representation. It's intended to be used
+/// as a resolved path or definition, and to be used to create the HIR.
 #[salsa::tracked]
 pub struct Definition {
     pub kind: DefinitionKind,
@@ -26,6 +27,8 @@ pub struct Definition {
     pub location: Location,
 }
 
+/// Represents the diagnostic for High-Level Intermediate Representation. It's intended to be used
+/// to report errors to the diagnostic database, by this crate, only.
 #[derive(Debug)]
 pub struct HirDiagnostic {
     pub location: Location,
@@ -72,6 +75,14 @@ impl Diagnostic for HirDiagnostic {
     }
 }
 
+/// Defines the [`find_function`] query.
+///
+/// It does search for a constructor with the given `name` in all packages, and returns it as a
+/// [`Definition`].
+///
+/// If it can't find a constructor with the given `name`, it returns a [`Definition`] with the
+/// [`DefinitionKind::Functions`] and [`DefinitionKind::Unresolved`] kind. And will report an
+/// error to the revision diagnostic database.
 #[salsa::tracked]
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
@@ -85,9 +96,18 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
+    // TODO: report error
     Definition::no(db, DefinitionKind::Function, name)
 }
 
+/// Defines the [`find_constructor`] query.
+///
+/// It does search for a constructor with the given `name` in all packages, and returns it as a
+/// [`Definition`].
+///
+/// If it can't find a constructor with the given `name`, it returns a [`Definition`] with the
+/// [`DefinitionKind::Constructor`] and [`DefinitionKind::Unresolved`] kind. And will report an
+/// error to the revision diagnostic database.
 #[salsa::tracked]
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
@@ -101,9 +121,18 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
+    // TODO: report error
     Definition::no(db, DefinitionKind::Constructor, name)
 }
 
+/// Defines the [`find_type`] query.
+///
+/// It does search for a type with the given `name` in all packages, and returns it as a
+/// [`Definition`].
+///
+/// If it can't find a type with the given `name`, it returns a [`Definition`] with the
+/// [`DefinitionKind::Type`] and [`DefinitionKind::Unresolved`] kind. And will report an error to
+/// the revision diagnostic database.
 #[salsa::tracked]
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
@@ -117,5 +146,6 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
+    // TODO: report error
     Definition::no(db, DefinitionKind::Type, name)
 }
