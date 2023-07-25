@@ -1371,7 +1371,7 @@ pub mod expr {
     #[salsa::tracked]
     pub struct MatchExpr {
         pub kind: MatchKind,
-        pub scrutinee: Box<expr::Expr>,
+        pub scrutinee: expr::Expr,
         pub clauses: Vec<MatchArm>,
         pub location: Location,
     }

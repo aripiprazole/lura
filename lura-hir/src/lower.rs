@@ -524,30 +524,25 @@ mod literal_solver {
 ///
 /// It's only a module, to organization purposes.
 mod term_solver {
-    use crate::resolve::{find_type, HirLevel};
+    use crate::{
+        resolve::{find_type, HirLevel},
+        source::{
+            expr::{MatchArm, MatchExpr, MatchKind},
+            literal::Literal,
+            pattern::Pattern,
+            HirElement,
+        },
+    };
 
     use super::*;
 
+    type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+
     impl LowerHir<'_, '_> {
         pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
-            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
-
-            clause.clause_type().solve(self.db, |node| match node {
-                // SECTION: type_expr
-                //
-                // Upgrades the expressions to type level expressions, to be easier to handle errors
-                // in the type system, and still keeps the diagnostics in the IDE.
-                Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
-                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
-
-                // Type level expressions
-                PiExpr(pi) => self.pi_expr(pi),
-                SigmaExpr(sigma) => self.sigma_expr(sigma),
-                TypeAppExpr(type_app) => self.type_app_expr(type_app),
-            })
+            clause
+                .clause_type()
+                .solve(self.db, |node| self.type_expr(node))
         }
 
         pub fn type_expr(&mut self, tree: lura_syntax::TreeTypeRep) -> TypeRep {
@@ -559,10 +554,14 @@ mod term_solver {
                 // Upgrades the expressions to type level expressions, to be easier to handle errors
                 // in the type system, and still keeps the diagnostics in the IDE.
                 Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
-                AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-                LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-                MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-                BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr, HirLevel::Type).upgrade(self.db),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr, HirLevel::Type).upgrade(self.db),
+                MatchExpr(match_expr) => {
+                    self.match_expr(match_expr, HirLevel::Type).upgrade(self.db)
+                }
+                BinaryExpr(binary_expr) => self
+                    .binary_expr(binary_expr, HirLevel::Type)
+                    .upgrade(self.db),
 
                 // Type level expressions
                 PiExpr(pi) => self.pi_expr(pi),
@@ -571,17 +570,17 @@ mod term_solver {
             }
         }
 
-        pub fn expr(&mut self, tree: lura_syntax::TreeExpr) -> Expr {
+        pub fn expr(&mut self, tree: lura_syntax::TreeExpr, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
             match tree {
                 // SECTION: expr
-                Primary(primary) => self.primary(primary, HirLevel::Expr),
-                AnnExpr(ann_expr) => self.ann_expr(ann_expr),
-                LamExpr(lam_expr) => self.lam_expr(lam_expr),
-                MatchExpr(match_expr) => self.match_expr(match_expr),
-                BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
-                AppExpr(type_app) => self.app_expr(type_app),
+                Primary(primary) => self.primary(primary, level),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr, level),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr, level),
+                MatchExpr(match_expr) => self.match_expr(match_expr, level),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr, level),
+                AppExpr(app) => self.app_expr(app, level),
 
                 // Type level expressions
                 PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
@@ -589,17 +588,17 @@ mod term_solver {
             }
         }
 
-        pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr) -> Expr {
-            let value = tree.value().solve(self.db, |node| self.expr(node));
+        pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr, level: HirLevel) -> Expr {
+            let value = tree.value().solve(self.db, |node| self.expr(node, level));
             let type_rep = tree.against().solve(self.db, |node| self.type_expr(node));
             let location = self.range(tree.range());
 
             Expr::Ann(AnnExpr::new(self.db, value, type_rep, location))
         }
 
-        pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr) -> Expr {
-            let lhs = tree.lhs().solve(self.db, |node| self.expr(node));
-            let rhs = tree.rhs().solve(self.db, |node| self.expr(node));
+        pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr, level: HirLevel) -> Expr {
+            let lhs = tree.lhs().solve(self.db, |node| self.expr(node, level));
+            let rhs = tree.rhs().solve(self.db, |node| self.expr(node, level));
             let op = tree.op().solve(self.db, |node| {
                 let location = self.range(node.range());
                 let identifier = node
@@ -631,7 +630,7 @@ mod term_solver {
             ))
         }
 
-        pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr) -> Expr {
+        pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr, level: HirLevel) -> Expr {
             let parameters = tree
                 .parameters(&mut tree.walk())
                 .flatten()
@@ -640,23 +639,23 @@ mod term_solver {
                 .map(|parameter| self.parameter(false, false, parameter))
                 .collect::<Vec<_>>();
 
-            let value = tree.value().solve(self.db, |node| self.expr(node));
+            let value = tree.value().solve(self.db, |node| self.expr(node, level));
 
             let location = self.range(tree.range());
 
             Expr::Abs(AbsExpr::new(self.db, parameters, value, location))
         }
 
-        pub fn app_expr(&mut self, tree: lura_syntax::AppExpr) -> Expr {
+        pub fn app_expr(&mut self, tree: lura_syntax::AppExpr, level: HirLevel) -> Expr {
             let callee = tree
                 .callee()
-                .solve(self.db, |node| self.primary(node, HirLevel::Expr));
+                .solve(self.db, |node| self.primary(node, level));
 
             let arguments = tree
                 .arguments(&mut tree.walk())
                 .flatten()
                 .flat_map(|node| node.regular())
-                .map(|node| self.primary(node, HirLevel::Expr))
+                .map(|node| self.primary(node, level))
                 .collect::<Vec<_>>();
 
             let location = self.range(tree.range());
@@ -693,16 +692,6 @@ mod term_solver {
 
             let parameters = tree.parameter().solve(self.db, |node| {
                 let type_rep = match node {
-                    Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
-                    AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
-                    LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
-                    MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
-                    BinaryExpr(binary_expr) => self.binary_expr(binary_expr).upgrade(self.db),
-
-                    // Type level expressions
-                    PiExpr(pi) => self.pi_expr(pi),
-                    SigmaExpr(sigma) => self.sigma_expr(sigma),
-                    TypeAppExpr(type_app) => self.type_app_expr(type_app),
                     PiNamedParameterSet(tree) => {
                         return tree
                             .parameters(&mut tree.walk())
@@ -712,6 +701,7 @@ mod term_solver {
                             .map(|parameter| self.parameter(false, true, parameter))
                             .collect::<Vec<_>>();
                     }
+                    _ => self.type_expr(node.into_node().try_into().unwrap()),
                 };
 
                 // This handles the case where the parameter is unnamed, and only haves a type. The name
@@ -726,6 +716,24 @@ mod term_solver {
             }
         }
 
+        pub fn child_expr(&mut self, tree: SyntaxExpr, level: HirLevel) -> Expr {
+            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+            match tree {
+                // SECTION: expr
+                Primary(primary) => self.primary(primary, level),
+                AnnExpr(ann_expr) => self.ann_expr(ann_expr, level),
+                LamExpr(lam_expr) => self.lam_expr(lam_expr, level),
+                MatchExpr(match_expr) => self.match_expr(match_expr, level),
+                BinaryExpr(binary_expr) => self.binary_expr(binary_expr, level),
+                AppExpr(app) => self.app_expr(app, level),
+
+                // Type level expressions
+                PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
+                SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
+            }
+        }
+
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
             TypeRep::Sigma {
                 parameters: vec![],
@@ -734,38 +742,64 @@ mod term_solver {
             }
         }
 
-        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr) -> Expr {
+        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr, _level: HirLevel) -> Expr {
             todo!("Not implemented match expr")
         }
 
-        pub fn if_expr(&mut self, _tree: lura_syntax::IfExpr) -> Expr {
-            todo!("Not implemented if expr")
+        pub fn if_expr(&mut self, tree: lura_syntax::IfExpr, level: HirLevel) -> Expr {
+            let scrutinee = tree
+                .condition()
+                .solve(self.db, |node| self.child_expr(node, level));
+
+            let then = tree.then().solve(self.db, |node| {
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+                node.child().solve(self.db, |node| match node {
+                    Block(_block) => todo!(),
+                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                })
+            });
+
+            let otherwise = tree.otherwise().solve(self.db, |node| {
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+                node.value().solve(self.db, |node| match node {
+                    Block(_block) => todo!(),
+                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                })
+            });
+
+            let clauses = vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Spanned::on_call_site(Literal::TRUE)),
+                    location: then.location(self.db),
+                    value: then,
+                },
+                MatchArm {
+                    pattern: Pattern::Literal(Spanned::on_call_site(Literal::FALSE)),
+                    location: otherwise.location(self.db),
+                    value: otherwise,
+                },
+            ];
+
+            let location = self.range(tree.range());
+
+            Expr::Match(MatchExpr::new(
+                self.db,
+                /* kind      = */ MatchKind::If,
+                /* scrutinee = */ scrutinee,
+                /* clauses   = */
+                clauses,
+                /* location = */ location,
+            ))
         }
 
-        pub fn array_expr(&mut self, tree: lura_syntax::ArrayExpr) -> Expr {
-            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
-
+        pub fn array_expr(&mut self, tree: lura_syntax::ArrayExpr, level: HirLevel) -> Expr {
             let location = self.range(tree.range());
 
             let items = tree
                 .items(&mut tree.walk())
-                .map(|item| {
-                    item.solve(self.db, |node| {
-                        match node {
-                            // SECTION: expr
-                            Primary(primary) => self.primary(primary, HirLevel::Expr),
-                            AnnExpr(ann_expr) => self.ann_expr(ann_expr),
-                            LamExpr(lam_expr) => self.lam_expr(lam_expr),
-                            MatchExpr(match_expr) => self.match_expr(match_expr),
-                            BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
-                            AppExpr(type_app) => self.app_expr(type_app),
-
-                            // Type level expressions
-                            PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
-                            SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
-                        }
-                    })
-                })
+                .map(|item| item.solve(self.db, |node| self.child_expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
@@ -778,30 +812,12 @@ mod term_solver {
             ))
         }
 
-        pub fn tuple_expr(&mut self, tree: lura_syntax::TupleExpr) -> Expr {
-            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
-
+        pub fn tuple_expr(&mut self, tree: lura_syntax::TupleExpr, level: HirLevel) -> Expr {
             let location = self.range(tree.range());
 
             let items = tree
                 .children(&mut tree.walk())
-                .map(|item| {
-                    item.solve(self.db, |node| {
-                        match node {
-                            // SECTION: expr
-                            Primary(primary) => self.primary(primary, HirLevel::Expr),
-                            AnnExpr(ann_expr) => self.ann_expr(ann_expr),
-                            LamExpr(lam_expr) => self.lam_expr(lam_expr),
-                            MatchExpr(match_expr) => self.match_expr(match_expr),
-                            BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
-                            AppExpr(type_app) => self.app_expr(type_app),
-
-                            // Type level expressions
-                            PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
-                            SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
-                        }
-                    })
-                })
+                .map(|item| item.solve(self.db, |node| self.child_expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
@@ -814,7 +830,7 @@ mod term_solver {
             ))
         }
 
-        pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr) -> Expr {
+        pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr, level: HirLevel) -> Expr {
             if !self.scope.is_do_notation_scope() {
                 // TODO: report error if it's outside of a do notation
             }
@@ -825,7 +841,7 @@ mod term_solver {
             // will return a default value.
             let value = tree
                 .value()
-                .map(|node| node.solve(self.db, |node| self.expr(node)))
+                .map(|node| node.solve(self.db, |node| self.expr(node, level)))
                 .unwrap_or_else(|| Expr::call_unit_expr(location.clone(), self.db));
 
             Expr::Call(CallExpr::new(
@@ -846,12 +862,12 @@ mod term_solver {
 
             tree.child().solve(self.db, |node| match node {
                 // SECTION: primary
-                ArrayExpr(array_expr) => self.array_expr(array_expr),
-                IfExpr(if_expr) => self.if_expr(if_expr),
+                ArrayExpr(array_expr) => self.array_expr(array_expr, level),
+                IfExpr(if_expr) => self.if_expr(if_expr, level),
                 Literal(literal) => self.literal(literal).upgrade_expr(location, self.db),
-                MatchExpr(match_expr) => self.match_expr(match_expr),
-                ReturnExpr(return_expr) => self.return_expr(return_expr),
-                TupleExpr(tuple_expr) => self.tuple_expr(tuple_expr),
+                MatchExpr(match_expr) => self.match_expr(match_expr, level),
+                ReturnExpr(return_expr) => self.return_expr(return_expr, level),
+                TupleExpr(tuple_expr) => self.tuple_expr(tuple_expr, level),
 
                 // SECTION: identifier
                 // It will match agains't the identifier, and it will create a new [`Expr::Path`]
