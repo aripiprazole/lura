@@ -524,6 +524,8 @@ mod literal_solver {
 ///
 /// It's only a module, to organization purposes.
 mod term_solver {
+    use lura_syntax::anon_unions::Comma_Parameter;
+
     use crate::{
         resolve::{find_type, HirLevel},
         source::{
@@ -735,8 +737,16 @@ mod term_solver {
         }
 
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
+            let parameters = tree
+                .parameters(&mut tree.walk())
+                .flatten()
+                .filter_map(|parameter| parameter.regular())
+                .filter_map(|parameter| parameter.parameter())
+                .map(|parameter| self.parameter(false, true, parameter))
+                .collect::<Vec<_>>();
+
             TypeRep::Sigma {
-                parameters: vec![],
+                parameters,
                 value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
                 location: self.range(tree.range()),
             }
@@ -788,8 +798,7 @@ mod term_solver {
                 self.db,
                 /* kind      = */ MatchKind::If,
                 /* scrutinee = */ scrutinee,
-                /* clauses   = */
-                clauses,
+                /* clauses   = */ clauses,
                 /* location = */ location,
             ))
         }
