@@ -49,6 +49,12 @@ pub struct Jar(
     crate::lower::hir_lower,
 );
 
+/// The database that stores all the information about the source code. It is
+/// implemented using the `salsa` crate.
+///
+/// The `salsa` crate is a crate that provides an incremental and parallel
+/// recomputation library. It is used to implement the incremental and parallel
+/// compilation of Lura.
 pub trait HirDb: HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 
 impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}

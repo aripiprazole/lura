@@ -738,6 +738,30 @@ mod term_solver {
             }
         }
 
+        pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr) -> Expr {
+            if !self.scope.is_do_notation_scope() {
+                // TODO: report error if it's outside of a do notation
+            }
+
+            let location = self.range(tree.range());
+
+            // If it's a return expression, it will return the value of the expression, otherwise it
+            // will return a default value.
+            let value = tree
+                .value()
+                .map(|node| node.solve(self.db, |node| self.expr(node)))
+                .unwrap_or_else(|| Expr::call_unit_expr(location.clone(), self.db));
+
+            Expr::Call(CallExpr::new(
+                self.db,
+                /* kind        = */ CallKind::Prefix,
+                /* callee      = */ Callee::Pure,
+                /* arguments   = */ vec![value],
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
         pub fn primary(&mut self, tree: lura_syntax::Primary, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr::*;
             use lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier::*;
@@ -750,7 +774,7 @@ mod term_solver {
                 IfExpr(_) => todo!(),
                 Literal(literal) => self.literal(literal).upgrade_expr(location, self.db),
                 MatchExpr(match_expr) => self.match_expr(match_expr),
-                ReturnExpr(_) => todo!(),
+                ReturnExpr(return_expr) => self.return_expr(return_expr),
                 TupleExpr(_) => todo!(),
 
                 // SECTION: identifier

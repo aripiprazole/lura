@@ -1291,6 +1291,7 @@ pub mod expr {
         Array,
         Tuple,
         Unit,
+        Pure,
         Definition(Definition),
         Expr(expr::Expr),
     }
@@ -1430,6 +1431,17 @@ pub mod expr {
     }
 
     impl Expr {
+        pub fn call_unit_expr(location: Location, db: &dyn crate::HirDb) -> Self {
+            Self::Call(CallExpr::new(
+                db,
+                /* kind        = */ CallKind::Prefix,
+                /* callee      = */ Callee::Unit,
+                /* arguments   = */ vec![],
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
         /// Upgrades this expression to a type representation. This is useful for error recovery and
         /// future dependent types or refinement types integration.
         ///

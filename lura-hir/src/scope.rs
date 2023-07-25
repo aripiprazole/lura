@@ -91,4 +91,10 @@ impl Scope {
             DefinitionKind::Unresolved => None,
         }
     }
+
+    /// Checks if the current scope is a do-notation scope. If it's a do-notation scope, the
+    /// return expr is allowed.
+    pub fn is_do_notation_scope(&self) -> bool {
+        todo!()
+    }
 }
