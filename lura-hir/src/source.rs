@@ -1068,7 +1068,7 @@ pub mod pattern {
     /// defines a name.
     #[salsa::tracked]
     pub struct BindingPattern {
-        pub name: Identifier,
+        pub name: HirPath,
         pub location: Location,
     }
 
@@ -1079,7 +1079,7 @@ pub mod pattern {
     }
 
     /// Defines the pattern element in the HIR.
-    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    #[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Pattern {
         /// The empty parameter should work as a wildcard, it's just like a `_` pattern. But it's
         /// splitted into a different variant to make it easier to work with, when we don't have
@@ -1093,8 +1093,11 @@ pub mod pattern {
         /// patterns, these are:
         /// - [`Pattern::Error`]
         /// - [`Pattern::Binding`]
+        #[default]
         Empty,
+        Literal(Spanned<literal::Literal>),
         Wildcard(Location),
+        Rest(Location),
         Error(HirError),
         Constructor(ConstructorPattern),
         Binding(BindingPattern),
@@ -1104,7 +1107,9 @@ pub mod pattern {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
                 Self::Empty => Location::call_site(db),
+                Self::Literal(literal) => literal.location.clone().unwrap(),
                 Self::Wildcard(location) => location.clone(),
+                Self::Rest(location) => location.clone(),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Constructor(downcast) => downcast.location(db),
                 Self::Binding(downcast) => downcast.location(db),
@@ -1188,6 +1193,61 @@ pub mod stmt {
     impl HirElement for Block {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
+        }
+    }
+}
+
+/// Defines a kind of primaries. It does define terms that are literally literals, and it's used
+/// as numbers, strings, etc... These are the base of the base of the base of the language
+pub mod literal {
+    use super::*;
+
+    /// Defines a literal element in the HIR.
+    #[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum Literal {
+        #[default]
+        Empty,
+
+        Int8(i8),
+        UInt8(u8),
+        Int16(i16),
+        UInt16(u16),
+        Int32(i32),
+        UInt32(u32),
+        Int64(i64),
+        UInt64(u64),
+
+        /// Defines a string literal. It's used to represent a string value.
+        String(String),
+
+        /// Defines a boolean literal. It's used to represent a boolean value.
+        Boolean(bool),
+
+        /// Defines a character literal. It's used to represent a character value.
+        Char(char),
+    }
+
+    impl Literal {
+        /// Defines the true literal. It's used to represent a boolean value.
+        pub const TRUE: Literal = Literal::Boolean(true);
+
+        /// Defines the false literal. It's used to represent a boolean value.
+        pub const FALSE: Literal = Literal::Boolean(false);
+
+        /// Creates a literal pattern from a literal. It's used to create a pattern from a literal.
+        ///
+        /// It's not currently supported by the language, but it will be in the future. So the
+        /// compiler will emit an error.
+        pub fn upgrade_pattern(self, loc: Location, _db: &dyn crate::HirDb) -> pattern::Pattern {
+            // TODO: report error
+
+            pattern::Pattern::Literal(Spanned::new(self, loc))
+        }
+
+        /// Creates a literal expression from a literal. It's used to create a expression from a
+        /// literal.
+        pub fn upgrade_expr(self, loc: Location, _db: &dyn crate::HirDb) -> expr::Expr {
+            expr::Expr::Literal(Spanned::new(self, loc))
         }
     }
 }
@@ -1348,6 +1408,7 @@ pub mod expr {
 
         Error(HirError),
         Path(Definition),
+        Literal(Spanned<literal::Literal>),
         Call(CallExpr),
         Ann(AnnExpr),
         Abs(AbsExpr),
@@ -1400,6 +1461,7 @@ pub mod expr {
                 Self::Empty => Location::call_site(db),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Path(downcast) => downcast.location(db),
+                Self::Literal(downcast) => downcast.location.clone().unwrap(),
                 Self::Call(downcast) => downcast.location(db),
                 Self::Ann(downcast) => downcast.location(db),
                 Self::Abs(downcast) => downcast.location(db),

@@ -267,22 +267,44 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                         .parameters(&mut explicits.walk())
                         .flatten()
                         .filter_map(|node| node.regular())
-                        .map(|parameter| self.parameter(parameter))
+                        .map(|parameter| self.parameter(false, true, parameter))
                         .collect::<Vec<_>>(),
 
                     ImplicitArguments(implicits) => implicits
                         .parameters(&mut implicits.walk())
                         .flatten()
                         .filter_map(|node| node.regular())
-                        .map(|parameter| self.parameter(parameter))
+                        .map(|parameter| self.parameter(true, true, parameter))
                         .collect::<Vec<_>>(),
                 }
             })
             .collect::<Vec<_>>()
     }
 
-    pub fn parameter(&mut self, _tree: lura_syntax::Parameter) -> Parameter {
-        todo!("Not implemented parameter")
+    /// Takes a raw parameter, and returns a high level parameter, to be handled by the resolution.
+    /// It will return a [`Parameter`].
+    ///
+    /// It will return a [`Parameter`] because it is possible to have multiple parameters in the
+    /// same declaration, and it will be handled as a list of [`Parameter`].
+    ///
+    /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
+    /// given parameters.
+    pub fn parameter(
+        &mut self,
+        implicit: bool,
+        rigid: bool,
+        tree: lura_syntax::Parameter,
+    ) -> Parameter {
+        let binding = tree.pattern().solve(self.db, |node| self.pattern(node));
+
+        let type_rep = tree
+            .parameter_type()
+            .map(|node| node.solve(self.db, |node| self.type_expr(node)))
+            .unwrap_or_default_with_db(self.db);
+
+        let location = self.range(tree.range());
+
+        Parameter::new(self.db, binding, type_rep, implicit, rigid, location)
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items
@@ -396,6 +418,96 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// raw location, in a high level location, to be handled within resolution.
     pub fn range(&self, range: tree_sitter::Range) -> Location {
         Location::new(self.db, self.src, range.start_byte, range.end_byte)
+    }
+}
+
+/// Defines a module for resolving language "patterns", that matches agains't values and another
+/// things. It will be used in the resolution, and it's a helper module for the [`LowerHir`] struct.
+///
+/// It's only a module, to organization purposes.
+mod pattern_solver {
+    use crate::source::pattern::{BindingPattern, Constructor, ConstructorPattern, Pattern};
+
+    use super::*;
+
+    type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_Literal_RestPattern<'tree>;
+
+    impl LowerHir<'_, '_> {
+        pub fn pattern(&mut self, tree: SyntaxPattern) -> Pattern {
+            use lura_syntax::anon_unions::ConsPattern_Literal_RestPattern::*;
+
+            let location = self.range(tree.range());
+
+            match tree {
+                ConsPattern(cons_pattern) => self.cons_pattern(cons_pattern),
+                Literal(literal) => self.literal(literal).upgrade_pattern(location, self.db),
+                RestPattern(_) => Pattern::Rest(location),
+            }
+        }
+
+        pub fn cons_pattern(&mut self, pattern: lura_syntax::ConsPattern) -> Pattern {
+            let name = pattern.name().solve(self.db, |node| self.path(node));
+            let patterns = self.patterns(pattern.patterns(&mut pattern.walk()));
+            let location = self.range(pattern.range());
+
+            if patterns.is_empty() {
+                Pattern::Binding(BindingPattern::new(self.db, name, location))
+            } else {
+                let name = Constructor::Path(self.qualify(name));
+
+                Pattern::Constructor(ConstructorPattern::new(self.db, name, patterns, location))
+            }
+        }
+
+        pub fn patterns<'a, I>(&mut self, patterns: I) -> Vec<Pattern>
+        where
+            I: Iterator<Item = NodeResult<'a, ExtraOr<'a, SyntaxPattern<'a>>>>,
+        {
+            patterns
+                .flatten()
+                .filter_map(|pattern| pattern.regular())
+                .map(|pattern| self.pattern(pattern))
+                .collect()
+        }
+    }
+}
+
+/// Defines a module for resolving language "literals", that are simple values, like numbers,
+/// strings, and other things. It will be used in the resolution, and it's a helper module for the
+/// [`LowerHir`] struct.
+///
+/// It's only a module, to organization purposes.
+mod literal_solver {
+    use crate::source::literal::Literal;
+
+    use super::*;
+
+    impl LowerHir<'_, '_> {
+        pub fn literal(&mut self, tree: lura_syntax::Literal) -> Literal {
+            use lura_syntax::anon_unions::Char_F32_F64_I128_I16_I64_I8_Nat_String_U1_U128_U16_U32_U64_U8::*;
+
+            let text = tree
+                .utf8_text(self.src.source_text(self.db).as_bytes())
+                .unwrap_or_default();
+
+            tree.child().with_db(self.db, |_, node| match node {
+                Char(..) => todo!("Not implemented Char literal"),
+                F32(..) => todo!("Not implemented F32 literal"),
+                F64(..) => todo!("Not implemented F64 literal"),
+                I8(..) => text.parse::<i8>().ok().map(Literal::Int8),
+                I16(..) => text.parse::<i16>().ok().map(Literal::Int16),
+                I64(..) => text.parse::<i64>().ok().map(Literal::Int64),
+                I128(..) => todo!("Not implemented I128 literal"),
+                U1(..) => text.parse::<bool>().ok().map(Literal::Boolean),
+                U8(..) => text.parse::<u8>().ok().map(Literal::UInt8),
+                U16(..) => text.parse::<u16>().ok().map(Literal::UInt16),
+                U32(..) => text.parse::<u32>().ok().map(Literal::UInt32),
+                U64(..) => text.parse::<u64>().ok().map(Literal::UInt64),
+                U128(..) => todo!("Not implemented U128 literal"),
+                Nat(..) => todo!("Not implemented Nat literal"),
+                String(..) => Some(Literal::String((&text[1..text.len() - 1]).into())),
+            })
+        }
     }
 }
 
@@ -516,7 +628,7 @@ mod term_solver {
                 .flatten()
                 .filter_map(|node| node.regular())
                 .filter_map(|node| node.parameter())
-                .map(|parameter| self.parameter(parameter))
+                .map(|parameter| self.parameter(false, false, parameter))
                 .collect::<Vec<_>>();
 
             let value = tree.value().solve(self.db, |node| self.expr(node));
@@ -590,7 +702,7 @@ mod term_solver {
                             .flatten()
                             .filter_map(|node| node.regular())
                             .filter_map(|node| node.parameter())
-                            .map(|parameter| self.parameter(parameter))
+                            .map(|parameter| self.parameter(false, true, parameter))
                             .collect::<Vec<_>>();
                     }
                 };
@@ -607,16 +719,73 @@ mod term_solver {
             }
         }
 
-        pub fn primary(&mut self, _tree: lura_syntax::Primary) -> Expr {
-            todo!("Not implemented primary")
-        }
-
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
             TypeRep::Sigma {
                 parameters: vec![],
                 value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
                 location: self.range(tree.range()),
             }
+        }
+
+        pub fn primary(&mut self, tree: lura_syntax::Primary) -> Expr {
+            use lura_syntax::anon_unions::ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr::*;
+            use lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier::*;
+
+            let location = self.range(tree.range());
+
+            tree.child().solve(self.db, |node| match node {
+                // SECTION: primary
+                ArrayExpr(_) => todo!(),
+                IfExpr(_) => todo!(),
+                Literal(literal) => self.literal(literal).upgrade_expr(location, self.db),
+                MatchExpr(match_expr) => self.match_expr(match_expr),
+                ReturnExpr(_) => todo!(),
+                TupleExpr(_) => todo!(),
+
+                // SECTION: identifier
+                // It will match agains't the identifier, and it will create a new [`Expr::Path`]
+                // expression, with the [`Definition`] as the callee, from the given identifier.
+                //
+                // It will search for the definition in the scope, and if it is not present in the
+                // it will query the compiler.
+                Identifier(identifier) => identifier.child().solve(self.db, |node| {
+                    let source_text = self.src.source_text(self.db).as_bytes();
+
+                    // Matches agains't node to check if it is a symbol or a simple identifier to
+                    // create proper identifier.
+                    let identifier = match node {
+                        SimpleIdentifier(value) => {
+                            let string = value.utf8_text(source_text).ok().unwrap_or_default();
+
+                            self::Identifier::new(self.db, string.into(), false, location.clone())
+                        }
+                        SymbolIdentifier(value) => {
+                            let string = value
+                                .child()
+                                .with_db(self.db, |_, node| node.utf8_text(source_text).ok());
+
+                            self::Identifier::new(self.db, string.into(), true, location.clone())
+                        }
+                    };
+
+                    // Create a new path with the identifier, and search for the definition in the
+                    // scope, and if it is not present in the scope, it will invoke a compiler query
+                    // to search in the entire package.
+                    let path = HirPath::new(self.db, location, vec![identifier]);
+
+                    let definition = self
+                        .scope
+                        .search(path, DefinitionKind::Function)
+                        .unwrap_or_else(|| {
+                            // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
+                            // will report an error. It's made for doing global lookups, and not local lookups.
+                            find_function(self.db, path)
+                        });
+
+                    // Creates a new [`Expr`] with the [`Definition`] as the callee.
+                    Expr::Path(definition)
+                }),
+            })
         }
     }
 }
@@ -634,9 +803,7 @@ impl<'a, T> Solver<'a, T> {
     where
         F: FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a,
     {
-        let a = Box::new(f);
-
-        Self { f: a }
+        Self { f: Box::new(f) }
     }
 
     /// Runs the solver function over the [`LowerHir`] struct, and returns the result.
