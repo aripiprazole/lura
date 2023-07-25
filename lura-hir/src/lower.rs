@@ -7,6 +7,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    mem::take,
     sync::Arc,
 };
 
@@ -222,6 +223,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         Solver::new(move |db, this| {
             let parameters = this.parameters(tree.arguments(&mut tree.walk()));
 
+            // Creates a new scope for the function, and it will be used to store the parameters,
+            // and the variables.
+            this.scope = this.scope.fork(ScopeKind::Function);
+
             let type_rep = tree
                 .clause_type()
                 .flatten()
@@ -238,6 +243,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             // TODO: add the current body to the clause, and solve it
             let _ = clause;
+
+            this.scope = *take(&mut this.scope).root();
 
             // It's not needed to solve the clause, because it is already solved in the next steps.
             //
@@ -517,6 +524,8 @@ mod literal_solver {
 ///
 /// It's only a module, to organization purposes.
 mod term_solver {
+    use crate::resolve::{find_type, HirLevel};
+
     use super::*;
 
     impl LowerHir<'_, '_> {
@@ -528,7 +537,7 @@ mod term_solver {
                 //
                 // Upgrades the expressions to type level expressions, to be easier to handle errors
                 // in the type system, and still keeps the diagnostics in the IDE.
-                Primary(primary) => self.primary(primary).upgrade(self.db),
+                Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
                 AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
                 LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
                 MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
@@ -549,7 +558,7 @@ mod term_solver {
                 //
                 // Upgrades the expressions to type level expressions, to be easier to handle errors
                 // in the type system, and still keeps the diagnostics in the IDE.
-                Primary(primary) => self.primary(primary).upgrade(self.db),
+                Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
                 AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
                 LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
                 MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
@@ -567,7 +576,7 @@ mod term_solver {
 
             match tree {
                 // SECTION: expr
-                Primary(primary) => self.primary(primary),
+                Primary(primary) => self.primary(primary, HirLevel::Expr),
                 AnnExpr(ann_expr) => self.ann_expr(ann_expr),
                 LamExpr(lam_expr) => self.lam_expr(lam_expr),
                 MatchExpr(match_expr) => self.match_expr(match_expr),
@@ -643,13 +652,15 @@ mod term_solver {
         }
 
         pub fn app_expr(&mut self, tree: lura_syntax::AppExpr) -> Expr {
-            let callee = tree.callee().solve(self.db, |node| self.primary(node));
+            let callee = tree
+                .callee()
+                .solve(self.db, |node| self.primary(node, HirLevel::Expr));
 
             let arguments = tree
                 .arguments(&mut tree.walk())
                 .flatten()
                 .flat_map(|node| node.regular())
-                .map(|node| self.primary(node))
+                .map(|node| self.primary(node, HirLevel::Expr))
                 .collect::<Vec<_>>();
 
             let location = self.range(tree.range());
@@ -665,15 +676,15 @@ mod term_solver {
         }
 
         pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
-            let callee = tree
-                .callee()
-                .solve(self.db, |node| self.primary(node).upgrade(self.db));
+            let callee = tree.callee().solve(self.db, |node| {
+                self.primary(node, HirLevel::Type).upgrade(self.db)
+            });
 
             let arguments = tree
                 .arguments(&mut tree.walk())
                 .flatten()
                 .flat_map(|node| node.regular())
-                .map(|node| self.primary(node).upgrade(self.db))
+                .map(|node| self.primary(node, HirLevel::Type).upgrade(self.db))
                 .collect::<Vec<_>>();
 
             let location = self.range(tree.range());
@@ -686,7 +697,7 @@ mod term_solver {
 
             let parameters = tree.parameter().solve(self.db, |node| {
                 let type_rep = match node {
-                    Primary(primary) => self.primary(primary).upgrade(self.db),
+                    Primary(primary) => self.primary(primary, HirLevel::Type).upgrade(self.db),
                     AnnExpr(ann_expr) => self.ann_expr(ann_expr).upgrade(self.db),
                     LamExpr(lam_expr) => self.lam_expr(lam_expr).upgrade(self.db),
                     MatchExpr(match_expr) => self.match_expr(match_expr).upgrade(self.db),
@@ -727,7 +738,7 @@ mod term_solver {
             }
         }
 
-        pub fn primary(&mut self, tree: lura_syntax::Primary) -> Expr {
+        pub fn primary(&mut self, tree: lura_syntax::Primary, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr::*;
             use lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier::*;
 
@@ -773,14 +784,26 @@ mod term_solver {
                     // to search in the entire package.
                     let path = HirPath::new(self.db, location, vec![identifier]);
 
-                    let definition = self
-                        .scope
-                        .search(path, DefinitionKind::Function)
-                        .unwrap_or_else(|| {
-                            // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
-                            // will report an error. It's made for doing global lookups, and not local lookups.
-                            find_function(self.db, path)
-                        });
+                    let definition = match level {
+                        HirLevel::Expr => {
+                            self.scope
+                                .search(path, DefinitionKind::Function)
+                                .unwrap_or_else(|| {
+                                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
+                                    // will report an error. It's made for doing global lookups, and not local lookups.
+                                    find_function(self.db, path)
+                                })
+                        }
+                        HirLevel::Type => {
+                            self.scope
+                                .search(path, DefinitionKind::Type)
+                                .unwrap_or_else(|| {
+                                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
+                                    // will report an error. It's made for doing global lookups, and not local lookups.
+                                    find_type(self.db, path)
+                                })
+                        }
+                    };
 
                     // Creates a new [`Expr`] with the [`Definition`] as the callee.
                     Expr::Path(definition)

@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     resolve::{Definition, DefinitionKind},
@@ -9,7 +6,7 @@ use crate::{
 };
 
 /// Represents the kind of the scope
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ScopeKind {
     Function = 1,
@@ -17,6 +14,8 @@ pub enum ScopeKind {
     Lambda = 3,
     Match = 4,
     Call = 5,
+
+    #[default]
     File = 6,
 }
 
@@ -31,10 +30,10 @@ pub struct Import {
 /// to store context-sensitive information, like imports, and definitions.
 ///
 /// It's also used to store parameters, variables, functions, types and more.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
     pub kind: ScopeKind,
-    pub parent: Option<Arc<Scope>>,
+    pub parent: Option<Box<Scope>>,
 
     /// The imports informations
     pub imports: HashSet<Import>,
@@ -58,6 +57,13 @@ impl Scope {
         }
     }
 
+    pub fn root(self) -> Box<Self> {
+        match self.parent {
+            Some(parent) => parent,
+            None => Box::new(self),
+        }
+    }
+
     /// Creates a new `Scope` with the given `kind`, `parent`, `constructors`, `types`, `values`,
     /// forking the current environment.
     ///
@@ -65,7 +71,7 @@ impl Scope {
     pub fn fork(&self, kind: ScopeKind) -> Self {
         Self {
             kind,
-            parent: Some(Arc::new(self.clone())),
+            parent: Some(Box::new(self.clone())),
             constructors: HashMap::new(),
             types: HashMap::new(),
             values: HashMap::new(),
@@ -79,7 +85,7 @@ impl Scope {
         match kind {
             DefinitionKind::Function => self.values.get(&name).copied(),
             DefinitionKind::Constructor => todo!(),
-            DefinitionKind::Type => todo!(),
+            DefinitionKind::Type => self.types.get(&name).copied(),
             DefinitionKind::Variable => todo!(),
             DefinitionKind::Module => todo!(),
             DefinitionKind::Unresolved => None,

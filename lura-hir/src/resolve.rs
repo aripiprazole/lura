@@ -6,16 +6,26 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum DefinitionKind {
-    Function,
-    Constructor,
-    Type,
-    Variable,
-    Module,
+    Function = 1,
+    Constructor = 2,
+    Type = 3,
+    Variable = 4,
+    Module = 5,
 
     /// This is a temporary state that should never be returned by the resolver. Only if there's
     /// an unresolved name.
-    Unresolved,
+    Unresolved = 6,
+}
+
+/// Represents the level of the expression in the High-Level Intermediate Representation. It's
+/// intended to be used to store the level of the expression, and to be used to create the HIR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum HirLevel {
+    Expr = 1,
+    Type = 2,
 }
 
 /// Defines a definition in the High-Level Intermediate Representation. It's intended to be used
@@ -140,7 +150,7 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
             let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
-            if let Some(function) = scope.search(name, DefinitionKind::Constructor) {
+            if let Some(function) = scope.search(name, DefinitionKind::Type) {
                 return function;
             }
         }
