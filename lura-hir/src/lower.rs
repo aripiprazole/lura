@@ -842,6 +842,7 @@ trait NodeResultExt<'tree, N, T: Default> {
 }
 
 trait DbNodeResultExt<'tree, N> {
+    #[inline]
     fn solve<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         Self: Sized,
@@ -851,6 +852,7 @@ trait DbNodeResultExt<'tree, N> {
         self.with_db(db, |_, node| Some(f(node)))
     }
 
+    #[inline]
     fn or_default_error<F>(self, db: &dyn crate::HirDb, f: F)
     where
         Self: Sized,
@@ -869,6 +871,7 @@ trait DbNodeResultExt<'tree, N> {
 }
 
 impl<'tree, N, T: Default> NodeResultExt<'tree, N, T> for Result<N, IncorrectKind<'tree>> {
+    #[inline]
     fn or_error<F>(self, f: F) -> T
     where
         F: FnOnce(N) -> Option<T>,
@@ -882,6 +885,7 @@ impl<'tree, N, T: Default> NodeResultExt<'tree, N, T> for Result<N, IncorrectKin
 impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
     for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>>
 {
+    #[inline]
     fn or_error<F>(self, f: F) -> T
     where
         F: FnOnce(N) -> Option<T>,
@@ -895,6 +899,7 @@ impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
 }
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
+    #[inline]
     fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         T: DefaultWithDb,
@@ -908,6 +913,7 @@ impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
 }
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
+    #[inline]
     fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
     where
         T: DefaultWithDb,

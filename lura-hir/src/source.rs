@@ -33,6 +33,15 @@ pub trait DefaultWithDb {
     fn default_with_db(db: &dyn crate::HirDb) -> Self;
 }
 
+/// A trait for recovering to default value, but with a database and reporting errors.
+pub trait RecoverWithDb {
+    /// Returns the "default value" for a type.
+    ///
+    /// Default values are often some kind of initial value, identity value, or anything else that
+    /// may make sense as a default.
+    fn recover_with_db(db: &dyn crate::HirDb, value: &str) -> Self;
+}
+
 impl<T: DefaultWithDb> OptionExt<T> for Option<T> {
     /// Returns the contained [`Some`] value or a default.
     ///
