@@ -87,7 +87,7 @@ impl Diagnostic for HirDiagnostic {
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, *package, file);
+            let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Function) {
@@ -112,7 +112,7 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, *package, file);
+            let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Constructor) {
@@ -137,7 +137,7 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, *package, file);
+            let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
             if let Some(function) = scope.search(name, DefinitionKind::Constructor) {

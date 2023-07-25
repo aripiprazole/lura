@@ -15,7 +15,7 @@ use lura_syntax::Source;
 /// assert_eq!(version, Version(1, 0, 0));
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Version(u8, u8, u8);
+pub struct Version(pub u8, pub u8, pub u8);
 
 impl Debug for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -91,7 +91,7 @@ impl Package {
 /// "incremented", or be hot. Every change on this can trigger a full rebuild.
 pub trait HasManifest {
     /// Finds all the packages in the current workspace.
-    fn all_packages(&self) -> &[Package];
+    fn all_packages(&self) -> Vec<Package>;
 }
 
 pub struct DepGraph<'db> {

@@ -75,9 +75,9 @@ impl Scope {
 
     /// Searches a name for the given `kind` in the current scope, and returns the definition if
     /// found.
-    pub fn search(&self, _name: HirPath, kind: DefinitionKind) -> Option<Definition> {
+    pub fn search(&self, name: HirPath, kind: DefinitionKind) -> Option<Definition> {
         match kind {
-            DefinitionKind::Function => todo!(),
+            DefinitionKind::Function => self.values.get(&name).copied(),
             DefinitionKind::Constructor => todo!(),
             DefinitionKind::Type => todo!(),
             DefinitionKind::Variable => todo!(),

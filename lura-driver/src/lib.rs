@@ -5,9 +5,9 @@ use std::{
 };
 
 use crossbeam_channel::Sender;
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::{mapref::entry::Entry, DashMap, DashSet};
 use eyre::Context;
-use lura_hir::package::HasManifest;
+use lura_hir::package::{HasManifest, Package};
 use notify_debouncer_mini::{
     new_debouncer,
     notify::{RecommendedWatcher, RecursiveMode},
@@ -32,6 +32,7 @@ extern crate salsa_2022 as salsa;
 pub struct RootDb {
     /// Salsa storage, used to store the results of the various passes of the compiler.
     storage: salsa::Storage<RootDb>,
+    packages: Arc<DashSet<Package>>,
 
     files: DashMap<PathBuf, lura_vfs::SourceFile>,
     watcher: Arc<Mutex<Debouncer<RecommendedWatcher>>>,
@@ -39,10 +40,13 @@ pub struct RootDb {
 }
 
 impl RootDb {
+    /// Creates a new [`RootDb`].
     pub fn new(tx: Sender<DebounceEventResult>) -> Self {
         let storage = Default::default();
+
         Self {
             storage,
+            packages: Default::default(),
             logs: Default::default(),
             files: DashMap::new(),
             watcher: Arc::new(Mutex::new(
@@ -50,11 +54,17 @@ impl RootDb {
             )),
         }
     }
+
+    /// Registers a package in the database.
+    pub fn register_package(&self, package: Package) -> Package {
+        self.packages.insert(package);
+        package
+    }
 }
 
 impl HasManifest for RootDb {
-    fn all_packages(&self) -> &[lura_hir::package::Package] {
-        todo!()
+    fn all_packages(&self) -> Vec<Package> {
+        self.packages.iter().map(|p| *p).collect::<Vec<_>>()
     }
 }
 
@@ -79,6 +89,7 @@ impl salsa::ParallelDatabase for RootDb {
             logs: self.logs.clone(),
             files: self.files.clone(),
             watcher: self.watcher.clone(),
+            packages: self.packages.clone(),
         })
     }
 }
@@ -122,7 +133,7 @@ mod tests {
     use lura_diagnostic::Diagnostics;
     use lura_hir::{
         lower::hir_lower,
-        package::{Package, PackageKind},
+        package::{Package, PackageKind, Version},
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
@@ -154,13 +165,13 @@ mod tests {
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
-        Package::new(
-            db,
-            name.into(),
-            (0, 0, 1).into(),
-            source,
-            PackageKind::Binary,
-            vec![],
-        )
+        let version = Version(0, 0, 1);
+        let kind = PackageKind::Binary;
+
+        // Creates a new package with the given `name`, `version`, `source` and `kind`.
+        let package = Package::new(db, name.into(), version, source, kind, vec![]);
+
+        // Registers the package in the database.
+        db.register_package(package)
     }
 }
