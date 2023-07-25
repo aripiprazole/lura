@@ -906,7 +906,7 @@ impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
         F: FnOnce(&dyn crate::HirDb, N) -> Option<T>,
     {
         match self {
-            Ok(node) => f(db, node).unwrap_or(T::default_with_db(db)),
+            Ok(node) => f(db, node).unwrap_or_else(|| T::default_with_db(db)),
             Err(..) => T::default_with_db(db),
         }
     }
@@ -921,7 +921,7 @@ impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, Incorrect
     {
         match self {
             Ok(ExtraOr::Extra(..)) => T::default_with_db(db),
-            Ok(ExtraOr::Regular(node)) => f(db, node).unwrap_or(T::default_with_db(db)),
+            Ok(ExtraOr::Regular(node)) => f(db, node).unwrap_or_else(|| T::default_with_db(db)),
             Err(..) => T::default_with_db(db),
         }
     }
