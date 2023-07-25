@@ -10,7 +10,7 @@ extern crate salsa_2022 as salsa;
 pub struct Location(usize);
 
 /// Represents an offset in the source program relative to some anchor.
-#[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Offset(pub usize);
 
 impl From<usize> for Offset {
@@ -26,6 +26,12 @@ impl Location {
 
     pub fn start() -> Self {
         Self(0)
+    }
+}
+
+impl Debug for Offset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Offset({})", self.0)
     }
 }
 
@@ -65,16 +71,34 @@ pub struct Jar(crate::Diagnostics);
 #[salsa::accumulator]
 pub struct Diagnostics(Report);
 
-#[derive(Clone, Debug)]
-pub struct Report(pub Arc<dyn DiagnosticDyn>);
+#[derive(Clone)]
+#[cfg_attr(not(debug_assertions), repr(transparent))]
+pub struct Report {
+    pub diagnostic: Arc<dyn DiagnosticDyn>,
+
+    #[cfg(debug_assertions)]
+    pub internal_location: core::panic::Location<'static>,
+}
 
 impl Report {
+    #[track_caller]
     pub fn new(diagnostic: impl Diagnostic + 'static) -> Self {
-        Self(Arc::new(diagnostic))
+        Self {
+            diagnostic: Arc::new(diagnostic),
+
+            #[cfg(debug_assertions)]
+            internal_location: *core::panic::Location::caller(),
+        }
     }
 
     pub fn into_inner(self) -> Arc<dyn DiagnosticDyn> {
-        self.0
+        self.diagnostic
+    }
+}
+
+impl Debug for Report {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(f)
     }
 }
 

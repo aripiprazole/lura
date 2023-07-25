@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use lura_syntax::Source;
 
 /// Defines a version for a package. That can receive a tuple of `(major, minor, patch)`.
@@ -12,8 +14,16 @@ use lura_syntax::Source;
 /// let version = Version::from((1, 0, 0));
 /// assert_eq!(version, Version(1, 0, 0));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Version(u8, u8, u8);
+
+impl Debug for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Version(major, minor, patch) = self;
+
+        write!(f, "{}.{}.{}", major, minor, patch)
+    }
+}
 
 /// Defines a kind of package, that can be either a library or a binary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

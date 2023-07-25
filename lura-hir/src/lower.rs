@@ -145,6 +145,15 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 // declaration.
                 if let Some(solver) = self.define(node) {
                     let decl = solver.run_solver(&mut self);
+
+                    // Can't let empty declarations in the declarations list, because it will cause
+                    // errors in the IDE, and it will cause blindness in the resolution.
+                    //
+                    // So, continue before pushing the declaration, if it is an empty declaration.
+                    if let TopLevel::Empty = decl {
+                        continue;
+                    }
+
                     self.decls.push(decl);
                 };
             }
@@ -344,7 +353,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let source_text = self.src.source_text(self.db).as_bytes();
 
         let range = self.range(path.range());
-        for segment in path.segments(&mut self.tree.walk()) {
+
+        for segment in path.segments(&mut path.walk()) {
             segment.or_default_error(self.db, |segment: lura_syntax::Identifier| {
                 let range = self.range(segment.range());
 

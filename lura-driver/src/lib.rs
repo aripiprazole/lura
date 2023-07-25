@@ -119,7 +119,7 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
-    use lura_diagnostic::{Diagnostic, Diagnostics};
+    use lura_diagnostic::Diagnostics;
     use lura_hir::{
         lower::hir_lower,
         package::{Package, PackageKind},
@@ -130,7 +130,7 @@ mod tests {
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "using Std.IO { a }";
+    const EXAMPLE: &str = "Main (args: List String) { args }";
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.
@@ -150,7 +150,7 @@ mod tests {
         let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
 
         println!("{:#?}", diagnostics);
-        println!("{:#?}", hir.debug_all(&db));
+        println!("{:#?}", hir.into_debug_all(&db));
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {

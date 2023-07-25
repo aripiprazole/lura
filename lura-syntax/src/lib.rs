@@ -56,19 +56,13 @@ pub fn parse(db: &dyn ParseDb, program: SourceFile) -> Source {
         .set_language(tree_sitter_lura::language())
         .expect("Error loading lura language");
 
+    let text = program.source_text(db).clone();
+
     let tree = ParseTree {
-        tree: parser
-            .parse("Main { IO.println \"Hello, world\" }", None)
-            .unwrap()
-            .into(),
+        tree: parser.parse(&text, None).unwrap().into(),
     };
 
-    Source::new(
-        db,
-        program.file_path(db).clone(),
-        program.source_text(db).clone(),
-        tree,
-    )
+    Source::new(db, program.file_path(db).clone(), text, tree)
 }
 
 #[derive(Clone, Debug)]

@@ -91,8 +91,8 @@ impl Location {
             source,
             start: start.into(),
             end: end.into(),
-            file_name: source.source_text(db).clone(),
-            text: source.file_path(db).to_string_lossy().into_owned(),
+            file_name: source.file_path(db).to_string_lossy().into_owned(),
+            text: source.source_text(db).clone(),
         })
     }
 
@@ -1413,9 +1413,7 @@ pub mod expr {
 /// Defines a kind of terms. It does define type representations that can be used in the type level
 /// of the language. These are the base of the language grammar and semantics.
 pub mod type_rep {
-    use lura_diagnostic::{Diagnostics, Report};
-
-    use crate::resolve::{Definition, HirDiagnostic};
+    use crate::resolve::Definition;
 
     use super::*;
 
@@ -1528,17 +1526,9 @@ pub mod type_rep {
         /// error reporting, the location of the `Empty` type representation should be the same as
         /// the location of the context where it's used.
         ///
-        /// TODO: This is not implemented yet.
-        fn default_with_db(db: &dyn crate::HirDb) -> Self {
-            Diagnostics::push(
-                db,
-                Report::new(HirDiagnostic {
-                    message: "Empty type representation is not allowed to be used in any contexts"
-                        .into(),
-                    location: Location::call_site(db),
-                }),
-            );
-
+        /// The `Empty` should unify with any type representation, so it's useful to create `_` like
+        /// types.
+        fn default_with_db(_db: &dyn crate::HirDb) -> Self {
             Self::Empty
         }
     }
