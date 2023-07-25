@@ -119,14 +119,18 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
-    use lura_hir::package::{Package, PackageKind};
+    use lura_diagnostic::{Diagnostic, Diagnostics};
+    use lura_hir::{
+        lower::hir_lower,
+        package::{Package, PackageKind},
+    };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
     use salsa_2022::DebugWithDb;
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "using Std.IO";
+    const EXAMPLE: &str = "using Std.IO { a }";
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.
@@ -141,8 +145,11 @@ mod tests {
         let source = lura_syntax::parse(&db, file);
 
         let local = create_package(&db, source, "local");
-        let hir = lura_hir::lower::hir_lower(&db, local, source);
+        let hir = hir_lower(&db, local, source);
 
+        let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
+
+        println!("{:#?}", diagnostics);
         println!("{:#?}", hir.debug_all(&db));
     }
 

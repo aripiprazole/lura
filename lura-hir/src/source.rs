@@ -189,6 +189,28 @@ pub struct HirPath {
     pub segments: Vec<Identifier>,
 }
 
+#[salsa::tracked]
+impl HirPath {
+    /// Dumps to string the path. It's used to create a string representation of the path for human
+    /// readable diagnostics.
+    ///
+    /// It's just like `a.b.c`, for example.
+    #[salsa::tracked]
+    pub fn to_string(self, db: &dyn crate::HirDb) -> Option<String> {
+        // If the path is empty, it's not a valid path. So, we return `None`.
+        if self.segments(db).is_empty() {
+            return None;
+        }
+
+        self.segments(db)
+            .iter()
+            .map(|segment| segment.contents(db))
+            .collect::<Vec<_>>()
+            .join(".")
+            .into()
+    }
+}
+
 impl DefaultWithDb for HirPath {
     fn default_with_db(db: &dyn crate::HirDb) -> Self {
         Self::new(db, Location::call_site(db), vec![])

@@ -44,7 +44,7 @@ impl Definition {
             db,
             Report::new(HirDiagnostic {
                 location: name.location(db),
-                message: format!("Unresolved {kind:?}"),
+                message: format!("Unresolved {kind:?}: {:?}", name.to_string(db)),
             }),
         );
 

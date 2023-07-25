@@ -20,6 +20,7 @@ pub struct Jar(
     crate::source::HirSource,
     crate::source::HirError,
     crate::source::HirPath,
+    crate::source::HirPath_to_string,
     crate::source::Identifier,
     crate::source::top_level::Clause,
     crate::source::top_level::Signature,
