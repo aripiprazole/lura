@@ -647,10 +647,6 @@ mod term_solver {
             Expr::Abs(AbsExpr::new(self.db, parameters, value, location))
         }
 
-        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr) -> Expr {
-            todo!("Not implemented match expr")
-        }
-
         pub fn app_expr(&mut self, tree: lura_syntax::AppExpr) -> Expr {
             let callee = tree
                 .callee()
@@ -738,6 +734,86 @@ mod term_solver {
             }
         }
 
+        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr) -> Expr {
+            todo!("Not implemented match expr")
+        }
+
+        pub fn if_expr(&mut self, _tree: lura_syntax::IfExpr) -> Expr {
+            todo!("Not implemented if expr")
+        }
+
+        pub fn array_expr(&mut self, tree: lura_syntax::ArrayExpr) -> Expr {
+            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+            let location = self.range(tree.range());
+
+            let items = tree
+                .items(&mut tree.walk())
+                .map(|item| {
+                    item.solve(self.db, |node| {
+                        match node {
+                            // SECTION: expr
+                            Primary(primary) => self.primary(primary, HirLevel::Expr),
+                            AnnExpr(ann_expr) => self.ann_expr(ann_expr),
+                            LamExpr(lam_expr) => self.lam_expr(lam_expr),
+                            MatchExpr(match_expr) => self.match_expr(match_expr),
+                            BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
+                            AppExpr(type_app) => self.app_expr(type_app),
+
+                            // Type level expressions
+                            PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
+                            SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            Expr::Call(CallExpr::new(
+                self.db,
+                /* kind        = */ CallKind::Prefix,
+                /* callee      = */ Callee::Array,
+                /* arguments   = */ items,
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
+        pub fn tuple_expr(&mut self, tree: lura_syntax::TupleExpr) -> Expr {
+            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+            let location = self.range(tree.range());
+
+            let items = tree
+                .children(&mut tree.walk())
+                .map(|item| {
+                    item.solve(self.db, |node| {
+                        match node {
+                            // SECTION: expr
+                            Primary(primary) => self.primary(primary, HirLevel::Expr),
+                            AnnExpr(ann_expr) => self.ann_expr(ann_expr),
+                            LamExpr(lam_expr) => self.lam_expr(lam_expr),
+                            MatchExpr(match_expr) => self.match_expr(match_expr),
+                            BinaryExpr(binary_expr) => self.binary_expr(binary_expr),
+                            AppExpr(type_app) => self.app_expr(type_app),
+
+                            // Type level expressions
+                            PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
+                            SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            Expr::Call(CallExpr::new(
+                self.db,
+                /* kind        = */ CallKind::Prefix,
+                /* callee      = */ Callee::Tuple,
+                /* arguments   = */ items,
+                /* do_notation = */ None,
+                /* location    = */ location,
+            ))
+        }
+
         pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr) -> Expr {
             if !self.scope.is_do_notation_scope() {
                 // TODO: report error if it's outside of a do notation
@@ -770,12 +846,12 @@ mod term_solver {
 
             tree.child().solve(self.db, |node| match node {
                 // SECTION: primary
-                ArrayExpr(_) => todo!(),
-                IfExpr(_) => todo!(),
+                ArrayExpr(array_expr) => self.array_expr(array_expr),
+                IfExpr(if_expr) => self.if_expr(if_expr),
                 Literal(literal) => self.literal(literal).upgrade_expr(location, self.db),
                 MatchExpr(match_expr) => self.match_expr(match_expr),
                 ReturnExpr(return_expr) => self.return_expr(return_expr),
-                TupleExpr(_) => todo!(),
+                TupleExpr(tuple_expr) => self.tuple_expr(tuple_expr),
 
                 // SECTION: identifier
                 // It will match agains't the identifier, and it will create a new [`Expr::Path`]
