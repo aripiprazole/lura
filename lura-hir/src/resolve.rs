@@ -13,10 +13,11 @@ pub enum DefinitionKind {
     Type = 3,
     Variable = 4,
     Module = 5,
+    Command = 6,
 
     /// This is a temporary state that should never be returned by the resolver. Only if there's
     /// an unresolved name.
-    Unresolved = 6,
+    Unresolved = 7,
 }
 
 /// Represents the level of the expression in the High-Level Intermediate Representation. It's

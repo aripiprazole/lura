@@ -19,7 +19,9 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
-use crate::source::top_level::{ClassDecl, Constructor, ConstructorKind, DataDecl, TraitDecl};
+use crate::source::top_level::{
+    ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl,
+};
 use crate::{
     package::Package,
     resolve::{find_function, Definition, DefinitionKind, HirLevel},
@@ -193,23 +195,46 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
         // Creates a new [`TopLevel`] instance.
         let decl = match decl {
-            ClassDecl(class_decl) => return Some(self.hir_class(class_decl)),
+            Command(command) => self.hir_command(command),
+            ClassDecl(class_decl) => return self.hir_class(class_decl).into(),
             Clause(_) => todo!(),
-            Command(_) => todo!(),
-            DataDecl(data_decl) => return Some(self.hir_data(data_decl)),
-            TraitDecl(trait_decl) => return Some(self.hir_trait(trait_decl)),
-            Signature(signature) => return Some(self.hir_signature(signature)),
+            DataDecl(data_decl) => return self.hir_data(data_decl).into(),
+            TraitDecl(trait_decl) => return self.hir_trait(trait_decl).into(),
+            Signature(signature) => return self.hir_signature(signature).into(),
             Using(decl) => {
                 let range = self.range(decl.range());
                 let path = decl.path().solve(self.db, |node| self.path(node));
 
-                TopLevel::Using(UsingTopLevel::new(self.db, self.qualify(path), range))
+                // TODO: search for functions or anything too.
+                let definition = self.qualify(path, DefinitionKind::Module);
+
+                TopLevel::Using(UsingTopLevel::new(self.db, definition, range))
             }
         };
 
         self.decls.push(decl);
 
         None // Not solving a "not resolvable" declaration
+    }
+
+    /// Creates a new high level command top level [`CommandTopLevel`] solver, for the given
+    /// concrete syntax tree [`lura_syntax::Command`].
+    pub fn hir_command(&mut self, tree: lura_syntax::Command) -> TopLevel {
+        let path = tree.command().solve(self.db, |node| self.path(node));
+        let arguments = tree
+            .arguments(&mut tree.walk())
+            .flatten()
+            .filter_map(|node| node.regular())
+            .map(|node| self.expr(node, HirLevel::Expr))
+            .collect();
+
+        let location = self.range(tree.range());
+
+        // Search definition of command in the scope, and if it is not found, it will create a new
+        // definition with the given name, and the given location.
+        let name = self.qualify(path, DefinitionKind::Command);
+
+        TopLevel::Command(CommandTopLevel::new(self.db, name, arguments, location))
     }
 
     /// Creates a new high level class declaration [`ClassDecl`] solver, for the given
@@ -792,8 +817,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// not present in the scope, it will invoke a compiler query to search in the entire package.
     ///
     /// It is useful to search for definitions in the scope, and it will be used in the resolution.
-    pub fn qualify(&self, path: HirPath) -> Definition {
-        Definition::no(self.db, DefinitionKind::Unresolved, path)
+    pub fn qualify(&self, path: HirPath, kind: DefinitionKind) -> Definition {
+        Definition::no(self.db, kind, path)
     }
 
     /// Creates a new [`Location`] from the given [`tree_sitter::Range`]. It does transforms the
@@ -841,7 +866,7 @@ mod pattern_solver {
                         .define(self.db, name, location.clone(), DefinitionKind::Variable);
                 Pattern::Binding(BindingPattern::new(self.db, name, location))
             } else {
-                let name = Constructor::Path(self.qualify(name));
+                let name = Constructor::Path(self.qualify(name, DefinitionKind::Constructor));
 
                 Pattern::Constructor(ConstructorPattern::new(self.db, name, patterns, location))
             }

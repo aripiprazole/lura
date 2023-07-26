@@ -103,6 +103,7 @@ impl Scope {
             DefinitionKind::Type => self.types.insert(name, definition),
             DefinitionKind::Variable => self.variables.insert(name, definition),
             DefinitionKind::Module => todo!("Nested modules are not supported yet"),
+            DefinitionKind::Command => todo!("Nested commands are not supported yet"),
             DefinitionKind::Unresolved => panic!("Illegal definition kind: Unresolved"),
         };
 
@@ -127,6 +128,7 @@ impl Scope {
             DefinitionKind::Type => self.types.get(&name).copied(),
             DefinitionKind::Variable => self.variables.get(&name).copied(),
             DefinitionKind::Module => todo!("Nested modules are not supported yet"),
+            DefinitionKind::Command => todo!("Nested commands are not supported yet"),
             DefinitionKind::Unresolved => None,
         }
     }

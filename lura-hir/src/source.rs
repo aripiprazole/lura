@@ -641,7 +641,7 @@ pub mod top_level {
     /// It does have location, and receives a [`Definition`] and a [`Location`].
     #[salsa::tracked]
     pub struct CommandTopLevel {
-        pub path: HirPath,
+        pub path: Definition,
         pub arguments: Vec<expr::Expr>,
         pub location: Location,
     }
