@@ -1338,8 +1338,40 @@ mod term_solver {
             }
         }
 
-        pub fn match_expr(&mut self, _tree: lura_syntax::MatchExpr, _level: HirLevel) -> Expr {
-            todo!("Not implemented match expr")
+        pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr, level: HirLevel) -> Expr {
+            let scrutinee = tree.scrutinee().solve(self.db, |node| self.expr(node, level));
+
+            let location = self.range(tree.range());
+
+            let clauses = tree.arms(&mut tree.walk())
+                .flatten()
+                .filter_map(|node| node.regular())
+                .map(|node| {
+                    let pattern = node.pattern().solve(self.db, |node| self.pattern(node));
+                    let body = node.body().solve(self.db, |node| {
+                        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+                        match node {
+                            Block(block) => Expr::block(self.db, self.block(block, level)),
+                            _ => self.expr(node.into_node().try_into().unwrap(), level)
+                        }
+                    });
+
+                    MatchArm {
+                        pattern,
+                        value: body,
+                        location: self.range(node.range()),
+                    }
+                })
+                .collect();
+
+            Expr::Match(MatchExpr::new(
+                self.db,
+                /* kind      = */ MatchKind::Match,
+                /* scrutinee = */ scrutinee,
+                /* clauses   = */ clauses,
+                /* location  = */ location,
+            ))
         }
 
         pub fn if_expr(&mut self, tree: lura_syntax::IfExpr, level: HirLevel) -> Expr {
