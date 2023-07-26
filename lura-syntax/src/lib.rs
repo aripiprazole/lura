@@ -1,4 +1,5 @@
 #![feature(trait_upcasting)]
+
 #[allow(clippy::all)]
 #[allow(unused_variables)]
 #[allow(dead_code)]
@@ -10,13 +11,6 @@
 #[rustfmt::skip]
 pub mod generated {
     pub mod lura;
-
-    pub type TreeTypeRep<'tree> = lura::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
-    pub type TreeDecl<'tree> = lura::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>;
-    pub type TreeArguments<'tree> = lura::anon_unions::ExplicitArguments_ImplicitArguments<'tree>;
-    pub type TreeExpr<'tree> = lura::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
-    pub type TreeTypeExpr<'tree> = lura::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
-    pub type TreeIdentifier<'tree> = lura::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
 }
 
 pub use generated::lura::*;

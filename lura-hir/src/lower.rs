@@ -17,7 +17,6 @@ use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, T
 
 use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
-    TreeDecl, TreeIdentifier,
 };
 
 use crate::{
@@ -32,6 +31,12 @@ use crate::{
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
     },
 };
+
+#[rustfmt::skip]
+type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>;
+
+#[rustfmt::skip]
+type SyntaxIdentifier<'tree> = lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
 
 /// Defines the [`hir_declare`] query.
 ///
@@ -179,7 +184,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     ///
     /// It will return `Some` if the declaration is "resolvable", and it will return a solver for
     /// the declaration.
-    pub fn define<'a>(&mut self, decl: TreeDecl<'a>) -> Option<Solver<'a, TopLevel>> {
+    pub fn define<'a>(&mut self, decl: SyntaxDecl<'a>) -> Option<Solver<'a, TopLevel>> {
         use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using::*;
 
         // Creates a new [`TopLevel`] instance.
@@ -432,12 +437,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 };
 
                 new_segments.push(match identifer {
-                    TreeIdentifier::SimpleIdentifier(value) => {
+                    SyntaxIdentifier::SimpleIdentifier(value) => {
                         let string = value.utf8_text(source_text).ok().unwrap_or_default();
 
                         Identifier::new(self.db, string.into(), false, range)
                     }
-                    TreeIdentifier::SymbolIdentifier(value) => {
+                    SyntaxIdentifier::SymbolIdentifier(value) => {
                         let string = value
                             .child()
                             .with_db(self.db, |_, node| node.utf8_text(source_text).ok());
@@ -615,14 +620,14 @@ mod stmt_solver {
         pub fn if_stmt(&mut self, stmt: lura_syntax::IfStmt, level: HirLevel) -> Stmt {
             let scrutinee = stmt
                 .condition()
-                .solve(self.db, |node| self.child_expr(node, level));
+                .solve(self.db, |node| self.expr(node, level));
 
             let then = stmt.then().solve(self.db, |node| {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.child().solve(self.db, |node| match node {
                     Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                    _ => self.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
@@ -632,7 +637,7 @@ mod stmt_solver {
 
                     node.value().solve(self.db, |node| match node {
                         Block(block) => Expr::block(self.db, self.block(block, level)),
-                        _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                        _ => self.expr(node.into_node().try_into().unwrap(), level),
                     })
                 })
             })
@@ -703,7 +708,11 @@ mod term_solver {
 
     use super::*;
 
+    #[rustfmt::skip]
     type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+
+    #[rustfmt::skip]
+    type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
 
     impl LowerHir<'_, '_> {
         pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
@@ -712,7 +721,7 @@ mod term_solver {
                 .solve(self.db, |node| self.type_expr(node))
         }
 
-        pub fn type_expr(&mut self, tree: lura_syntax::TreeTypeRep) -> TypeRep {
+        pub fn type_expr(&mut self, tree: SyntaxTypeRep) -> TypeRep {
             use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
 
             match tree {
@@ -737,7 +746,7 @@ mod term_solver {
             }
         }
 
-        pub fn expr(&mut self, tree: lura_syntax::TreeExpr, level: HirLevel) -> Expr {
+        pub fn expr(&mut self, tree: SyntaxExpr, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
             match tree {
@@ -891,24 +900,6 @@ mod term_solver {
             }
         }
 
-        pub fn child_expr(&mut self, tree: SyntaxExpr, level: HirLevel) -> Expr {
-            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
-
-            match tree {
-                // SECTION: expr
-                Primary(primary) => self.primary(primary, level),
-                AnnExpr(ann_expr) => self.ann_expr(ann_expr, level),
-                LamExpr(lam_expr) => self.lam_expr(lam_expr, level),
-                MatchExpr(match_expr) => self.match_expr(match_expr, level),
-                BinaryExpr(binary_expr) => self.binary_expr(binary_expr, level),
-                AppExpr(app) => self.app_expr(app, level),
-
-                // Type level expressions
-                PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
-                SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
-            }
-        }
-
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
             let parameters = tree
                 .parameters(&mut tree.walk())
@@ -932,14 +923,14 @@ mod term_solver {
         pub fn if_expr(&mut self, tree: lura_syntax::IfExpr, level: HirLevel) -> Expr {
             let scrutinee = tree
                 .condition()
-                .solve(self.db, |node| self.child_expr(node, level));
+                .solve(self.db, |node| self.expr(node, level));
 
             let then = tree.then().solve(self.db, |node| {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.child().solve(self.db, |node| match node {
                     Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                    _ => self.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
@@ -948,7 +939,7 @@ mod term_solver {
 
                 node.value().solve(self.db, |node| match node {
                     Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                    _ => self.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
@@ -981,7 +972,7 @@ mod term_solver {
 
             let items = tree
                 .items(&mut tree.walk())
-                .map(|item| item.solve(self.db, |node| self.child_expr(node, level)))
+                .map(|item| item.solve(self.db, |node| self.expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
@@ -999,7 +990,7 @@ mod term_solver {
 
             let items = tree
                 .children(&mut tree.walk())
-                .map(|item| item.solve(self.db, |node| self.child_expr(node, level)))
+                .map(|item| item.solve(self.db, |node| self.expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
