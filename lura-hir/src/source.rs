@@ -655,8 +655,8 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct ClassDecl {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
+        pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
