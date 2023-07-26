@@ -1198,6 +1198,12 @@ pub mod stmt {
         pub location: Location,
     }
 
+    impl DefaultWithDb for Block {
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            Self::new(db, vec![], Location::call_site(db))
+        }
+    }
+
     impl HirElement for Block {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)

@@ -22,12 +22,12 @@ use lura_syntax::{
 
 use crate::{
     package::Package,
-    resolve::{find_function, Definition, DefinitionKind},
+    resolve::{find_function, Definition, DefinitionKind, HirLevel},
     scope::{Scope, ScopeKind},
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
         expr::{AbsExpr, AnnExpr, CallExpr, CallKind, Callee, Expr},
-        top_level::{BindingGroup, Signature, TopLevel, UsingTopLevel},
+        top_level::{BindingGroup, Clause, Signature, TopLevel, UsingTopLevel},
         type_rep::{AppTypeRep, TypeRep},
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
     },
@@ -221,11 +221,17 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let node = Definition::no(self.db, DefinitionKind::Function, path);
 
         Solver::new(move |db, this| {
-            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
-
             // Creates a new scope for the function, and it will be used to store the parameters,
             // and the variables.
             this.scope = this.scope.fork(ScopeKind::Function);
+
+            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
+
+            // Transforms the parameters into bindings, to be used in the scope.
+            let arguments = parameters
+                .iter()
+                .map(|parameter| parameter.binding(this.db))
+                .collect();
 
             let type_rep = tree
                 .clause_type()
@@ -233,16 +239,43 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .map(|node| this.clause_type(node))
                 .unwrap_or_default_with_db(db);
 
-            let signature =
-                Signature::new(this.db, attrs, docs, vis, node, parameters, type_rep, range);
+            let signature = Signature::new(
+                this.db,
+                /* attributes  = */ attrs,
+                /* docs        = */ docs,
+                /* visibility  = */ vis,
+                /* name        = */ node,
+                /* parameters  = */ parameters,
+                /* return_type = */ type_rep,
+                /* location    = */ range.clone(),
+            );
 
             let clause = this
                 .clauses
                 .entry(path)
                 .or_insert_with(|| BindingGroup::new(db, signature, HashSet::new()));
 
-            // TODO: add the current body to the clause, and solve it
-            let _ = clause;
+            // Adds the current body to the clause, and solve it
+            let mut clauses = clause.clauses(this.db);
+
+            let value = tree
+                .value()
+                .map(|value| value.solve(this.db, |node| this.block(node, HirLevel::Expr)));
+
+            if let Some(value) = value {
+                clauses.insert(Clause::new(
+                    this.db,
+                    /* attributes = */ HashSet::default(),
+                    /* name       = */ node,
+                    /* arguments  = */ arguments,
+                    /* value      = */ Expr::block(this.db, value),
+                    /* location   = */ range,
+                ));
+            }
+
+            // Adds the clause to the scope, and solve it
+            this.clauses
+                .insert(path, BindingGroup::new(db, signature, clauses));
 
             this.scope = *take(&mut this.scope).root();
 
