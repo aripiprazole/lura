@@ -40,7 +40,7 @@ type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_Data
 type SyntaxIdentifier<'tree> = lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
 
 #[rustfmt::skip]
-type SyntaxConstructor<'tree> = lura_syntax::anon_unions::Comma_FunctionConstructor_SignatureConstructor<'tree>;
+type SyntaxVariant<'tree> = lura_syntax::anon_unions::Comma_FunctionConstructor_SignatureConstructor<'tree>;
 
 /// Defines the [`hir_declare`] query.
 ///
@@ -235,6 +235,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .scope
             .define(self.db, path, range.clone(), DefinitionKind::Function);
 
+        let variants = tree
+            .constructors(&mut tree.walk())
+            .flatten()
+            .filter_map(|constructor| constructor.regular())
+            .filter_map(|constructor| self.hir_variant(constructor))
+            .collect::<Vec<_>>();
+
         Solver::new(move |db, this| {
             // Creates a new scope for the function, and it will be used to store the parameters,
             // and the variables.
@@ -253,18 +260,17 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 })
                 .collect::<Vec<_>>();
 
-            let variants = tree
-                .constructors(&mut tree.walk())
-                .flatten()
-                .filter_map(|constructor| constructor.regular())
-                .filter_map(|constructor| this.hir_constructor(constructor))
-                .collect::<Vec<_>>();
-
             let type_rep = tree
                 .clause_type()
                 .flatten()
                 .map(|node| this.clause_type(node))
                 .unwrap_or_default_with_db(db);
+
+            // Solve the variants within the current scope
+            let variants = variants
+                .into_iter()
+                .map(|variant| variant.run_solver(this))
+                .collect();
 
             let data_decl = DataDecl::new(
                 this.db,
@@ -280,8 +286,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             );
 
             // Publish all definitions to parent scope
-            //
-            // TODO: it must be made in the define step too
             this.scope.publish_all_definitions(this.db, node);
             this.scope = *take(&mut this.scope).root();
 
@@ -298,7 +302,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     ///
     /// It will return [`None`] if the constructor is a comma, because it is not a constructor, it
     /// is just a separator.
-    pub fn hir_constructor(&mut self, tree: SyntaxConstructor) -> Option<Constructor> {
+    pub fn hir_variant<'a>(&mut self, tree: SyntaxVariant<'a>) -> Option<Solver<'a, Constructor>> {
         use lura_syntax::anon_unions::Comma_FunctionConstructor_SignatureConstructor::*;
 
         // Creates constructor declarations only if it is not a comma
@@ -308,12 +312,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
                 let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
                 let name = tree.name().solve(self.db, |node| self.path(node));
-                let parameters = tree
-                    .parameters(&mut tree.walk())
-                    .flatten()
-                    .filter_map(|node| node.regular())
-                    .map(|type_rep| Parameter::unnamed(self.db, self.type_expr(type_rep)))
-                    .collect::<Vec<_>>();
 
                 let location = self.range(tree.range());
 
@@ -322,36 +320,39 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
-                // As the function isn't a data constructor, it will be a function constructor, and
-                // it's needed to create a local type representing the function.
-                let type_rep = TypeRep::Pi {
-                    parameters,
-                    // The Self type is used here, to avoid confusion in the resolution.
-                    value: Box::new(TypeRep::This),
-                    location: Location::CallSite,
-                };
+                Some(Solver::new(move |db, this| {
+                    let parameters = tree
+                        .parameters(&mut tree.walk())
+                        .flatten()
+                        .filter_map(|node| node.regular())
+                        .map(|type_rep| Parameter::unnamed(this.db, this.type_expr(type_rep)))
+                        .collect::<Vec<_>>();
 
-                Some(Constructor::new(
-                    self.db,
-                    /* kind        = */ ConstructorKind::Function,
-                    /* attributes  = */ attrs,
-                    /* docs        = */ docs,
-                    /* name        = */ name,
-                    /* return_type = */ type_rep,
-                    /* location    = */ location,
-                ))
+                    // As the function isn't a data constructor, it will be a function constructor, and
+                    // it's needed to create a local type representing the function.
+                    let type_rep = TypeRep::Pi {
+                        parameters,
+                        // The Self type is used here, to avoid confusion in the resolution.
+                        value: Box::new(TypeRep::This),
+                        location: Location::CallSite,
+                    };
+
+                    Constructor::new(
+                        this.db,
+                        /* kind        = */ ConstructorKind::Function,
+                        /* attributes  = */ attrs,
+                        /* docs        = */ docs,
+                        /* name        = */ name,
+                        /* return_type = */ type_rep,
+                        /* location    = */ location,
+                    )
+                }))
             }
             SignatureConstructor(tree) => {
                 let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
                 let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
                 let name = tree.name().solve(self.db, |node| self.path(node));
 
-                // As it's a GADT constructor, it's already defined the type of the constructor, so
-                // it's not needed to create a local type representing the function.
-                let type_rep = tree
-                    .field_type()
-                    .solve(self.db, |node| self.type_expr(node));
-
                 let location = self.range(tree.range());
 
                 // Defines the node on the scope
@@ -359,15 +360,23 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
-                Some(Constructor::new(
-                    self.db,
-                    /* kind        = */ ConstructorKind::Function,
-                    /* attributes  = */ attrs,
-                    /* docs        = */ docs,
-                    /* name        = */ name,
-                    /* return_type = */ type_rep,
-                    /* location    = */ location,
-                ))
+                Some(Solver::new(move |db, this| {
+                    // As it's a GADT constructor, it's already defined the type of the constructor, so
+                    // it's not needed to create a local type representing the function.
+                    let type_rep = tree
+                        .field_type()
+                        .solve(this.db, |node| this.type_expr(node));
+
+                    Constructor::new(
+                        this.db,
+                        /* kind        = */ ConstructorKind::Function,
+                        /* attributes  = */ attrs,
+                        /* docs        = */ docs,
+                        /* name        = */ name,
+                        /* return_type = */ type_rep,
+                        /* location    = */ location,
+                    )
+                }))
             }
         }
     }
