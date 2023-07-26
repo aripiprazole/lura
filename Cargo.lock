@@ -692,6 +692,7 @@ dependencies = [
  "fxhash",
  "im",
  "itertools",
+ "log",
  "lura-diagnostic",
  "lura-driver",
  "lura-hir",
@@ -705,6 +706,7 @@ dependencies = [
  "tokio",
  "tower-lsp",
  "tree-sitter",
+ "tree-sitter-highlight",
  "tree-sitter-lura",
  "type-sitter-lib",
 ]
@@ -1199,6 +1201,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "thiserror"
+version = "1.0.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "611040a08a0439f8248d1990b111c95baa9c704c805fa1f62104b39655fd7f90"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "090198534930841fab3a5d1bb637cde49e339654e606195f8d9c76eeb081dc96"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.27",
+]
+
+[[package]]
 name = "tinyvec"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1354,10 +1376,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-sitter-lura"
-version = "0.1.7"
+name = "tree-sitter-highlight"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dc99887f8b7f81abc234a613881907e1d836e819d9213984046f32600f0c89d"
+checksum = "042342584c5a7a0b833d9fc4e2bdab3f9868ddc6c4b339a1e01451c6720868bc"
+dependencies = [
+ "regex",
+ "thiserror",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-lura"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caba8fa218dcebd6a33145055bf901596c12b7fcfc69bfbdbb8f41146b727592"
 dependencies = [
  "cc",
  "tree-sitter",

@@ -21,12 +21,14 @@ salsa-2022.workspace = true
 tree-sitter.workspace = true
 tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
+tree-sitter-highlight = "0.20.1"
 
 dashmap.workspace = true
 eyre.workspace = true
 im.workspace = true
 fxhash.workspace = true
 itertools.workspace = true
+log.workspace = true
 
 crossbeam-channel = "0.5.8"
 notify-debouncer-mini = "0.3.0"
