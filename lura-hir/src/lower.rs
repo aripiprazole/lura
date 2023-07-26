@@ -19,7 +19,7 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
-use crate::source::top_level::{ClassDecl, Constructor, ConstructorKind, DataDecl};
+use crate::source::top_level::{ClassDecl, Constructor, ConstructorKind, DataDecl, TraitDecl};
 use crate::{
     package::Package,
     resolve::{find_function, Definition, DefinitionKind, HirLevel},
@@ -197,7 +197,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             Clause(_) => todo!(),
             Command(_) => todo!(),
             DataDecl(data_decl) => return Some(self.hir_data(data_decl)),
-            TraitDecl(_) => todo!(),
+            TraitDecl(trait_decl) => return Some(self.hir_trait(trait_decl)),
             Signature(signature) => return Some(self.hir_signature(signature)),
             Using(decl) => {
                 let range = self.range(decl.range());
@@ -286,6 +286,82 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             // The entire next step, is getting the clauses from the scope, and transforms into
             // declarations, so it is not needed to solve the clause here.
             TopLevel::ClassDecl(class_decl)
+        })
+    }
+
+    /// Creates a new high level trait declaration [`TraitDecl`] solver, for the given
+    /// concrete syntax tree [`lura_syntax::TraitDecl`].
+    ///
+    /// It will return a [`Solver`] for the [`Signature`], and it will solve the [`Signature`] in
+    /// the [`hir_lower`] query.
+    pub fn hir_trait<'a>(&mut self, tree: lura_syntax::TraitDecl<'a>) -> Solver<'a, TopLevel> {
+        let range = self.range(tree.range());
+        let path = tree.name().solve(self.db, |node| self.path(node));
+
+        let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
+        let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
+
+        // Converts the visibility to default visibility, if it is not specified.
+        let vis = tree
+            .visibility()
+            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
+            .unwrap_or(Spanned::on_call_site(Vis::Public));
+
+        // Defines the node on the scope
+        let node = self
+            .scope
+            .define(self.db, path, range.clone(), DefinitionKind::Function);
+
+        let methods = tree
+            .fields(&mut tree.walk())
+            .flatten()
+            .filter_map(|method| method.regular())
+            .map(|method| self.hir_signature(method))
+            .collect::<Vec<_>>();
+
+        Solver::new(move |db, this| {
+            // Creates a new scope for the function, and it will be used to store the parameters,
+            // and the variables.
+            this.scope = this.scope.fork(ScopeKind::Class);
+
+            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
+
+            let methods = methods
+                .into_iter()
+                .map(|method| method.run_solver(this))
+                .filter_map(|top_level| match top_level {
+                    TopLevel::BindingGroup(binding_group) => Some(binding_group),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            let type_rep = tree
+                .clause_type()
+                .flatten()
+                .map(|node| this.clause_type(node))
+                .unwrap_or_default_with_db(db);
+
+            let trait_decl = TraitDecl::new(
+                this.db,
+                /* attributes  = */ attrs,
+                /* docs        = */ docs,
+                /* visibility  = */ vis,
+                /* name        = */ node,
+                /* parameters  = */ parameters,
+                /* return_type = */ type_rep,
+                /* methods     = */ methods,
+                /* location    = */ range.clone(),
+            );
+
+            // Publish all definitions to parent scope
+            this.scope.publish_all_definitions(this.db, node);
+            this.scope = *take(&mut this.scope).root();
+
+            // It's not needed to solve the clause, because it is already solved in the next steps.
+            //
+            // The entire next step, is getting the clauses from the scope, and transforms into
+            // declarations, so it is not needed to solve the clause here.
+            TopLevel::TraitDecl(trait_decl)
         })
     }
 
