@@ -1,14 +1,16 @@
 [package]
-edition = "2021"
 name = "lura-syntax"
-version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+documentation.workspace = true
+version.workspace = true
 
 [dependencies]
 lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
 lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
 
-salsa-2022 = {git = "https://github.com/aripiprazole/salsa.git"}
+salsa-2022.workspace = true
 
-tree-sitter = "~0.20.10"
-tree-sitter-lura = "0.1.7"
-type-sitter-lib = {git = "https://github.com/Jakobeha/type-sitter.git"}
+tree-sitter.workspace = true
+tree-sitter-lura.workspace = true
+type-sitter-lib.workspace = true
