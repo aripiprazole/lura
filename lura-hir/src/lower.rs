@@ -197,7 +197,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let decl = match decl {
             Command(command) => self.hir_command(command),
             ClassDecl(class_decl) => return self.hir_class(class_decl).into(),
-            Clause(_) => todo!(),
+            Clause(clause) => return self.hir_clause(clause).into(),
             DataDecl(data_decl) => return self.hir_data(data_decl).into(),
             TraitDecl(trait_decl) => return self.hir_trait(trait_decl).into(),
             Signature(signature) => return self.hir_signature(signature).into(),
@@ -503,7 +503,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
-                Some(Solver::new(move |db, this| {
+                Some(Solver::new(move |_db, this| {
                     let parameters = tree
                         .parameters(&mut tree.walk())
                         .flatten()
@@ -543,7 +543,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
-                Some(Solver::new(move |db, this| {
+                Some(Solver::new(move |_db, this| {
                     // As it's a GADT constructor, it's already defined the type of the constructor, so
                     // it's not needed to create a local type representing the function.
                     let type_rep = tree
@@ -562,6 +562,73 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 }))
             }
         }
+    }
+
+    /// Creates a new high level clause declaration within [`BindingGroup`] for the given concrete
+    /// syntax tree [`lura_syntax::Clause`].
+    ///
+    /// It will return a [`Solver`] for the [`Clause`], and it will solve the [`Clause`] in the
+    /// [`hir_lower`] query.
+    pub fn hir_clause<'a>(&mut self, tree: lura_syntax::Clause<'a>) -> Solver<'a, TopLevel> {
+        let path = tree.name().solve(self.db, |node| self.path(node));
+        let location = self.range(tree.range());
+
+        // Defines in the scope if it is not defined yet, and it will return the definition.
+        let name = self
+            .scope
+            .search(path, DefinitionKind::Function)
+            .unwrap_or_else(|| {
+                // Defines the node on the scope
+                self.scope
+                    .define(self.db, path, location.clone(), DefinitionKind::Function)
+            });
+
+        Solver::new(move |db, this| {
+            //
+            // Creates a new scope for the function, and it will be used to store the parameters,
+            // and the variables.
+            this.scope = this.scope.fork(ScopeKind::Function);
+
+            let patterns = this.patterns(tree.patterns(&mut tree.walk()));
+
+            // Transforms the patterns into bindings, to be used in the scope.
+            let value = tree
+                .value()
+                .map(|value| value.solve(this.db, |node| this.expr(node, HirLevel::Expr)))
+                .unwrap_or_default_with_db(this.db);
+
+            let clause = Clause::new(this.db, name, patterns, value, location.clone());
+
+            let binding_group = this.clauses.entry(path).or_insert_with(|| {
+                // Creates a dummy signature implementation, to be used in the clause.
+                let signature = Signature::new(
+                    this.db,
+                    /* attributes  = */ HashSet::default(),
+                    /* docs        = */ vec![],
+                    /* visibility  = */ Spanned::on_call_site(Vis::Public),
+                    /* name        = */ name,
+                    /* parameters  = */ vec![],
+                    /* return_type = */ TypeRep::Empty,
+                    /* location    = */ location,
+                );
+
+                BindingGroup::new(db, signature, HashSet::new())
+            });
+
+            let signature = binding_group.signature(this.db);
+
+            // Inserts the current clause in the clauses, and solve it
+            let mut clauses = binding_group.clauses(this.db);
+            clauses.insert(clause);
+
+            let group = BindingGroup::new(db, signature, clauses);
+
+            // Adds the clause to the scope, and solve it
+            this.clauses.insert(path, group);
+            this.scope = *take(&mut this.scope).root();
+
+            TopLevel::BindingGroup(group)
+        })
     }
 
     /// Creates a new high level signature declaration [`Signature`] solver, for the given
@@ -598,7 +665,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let arguments = parameters
                 .iter()
                 .map(|parameter| parameter.binding(this.db))
-                .collect();
+                .collect::<Vec<_>>();
 
             let type_rep = tree
                 .clause_type()
@@ -632,7 +699,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             if let Some(value) = value {
                 clauses.insert(Clause::new(
                     this.db,
-                    /* attributes = */ HashSet::default(),
                     /* name       = */ node,
                     /* arguments  = */ arguments,
                     /* value      = */ Expr::block(this.db, value),

@@ -552,7 +552,6 @@ pub mod top_level {
     /// This is a clause, of a signature declaration.
     #[salsa::tracked]
     pub struct Clause {
-        pub attributes: HashSet<declaration::Attribute>,
         pub name: Definition,
         pub arguments: Vec<pattern::Pattern>,
         pub value: expr::Expr,
