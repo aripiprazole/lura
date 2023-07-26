@@ -1195,7 +1195,6 @@ pub mod stmt {
     #[salsa::tracked]
     pub struct Block {
         pub statements: Vec<Stmt>,
-        pub return_value: Option<expr::Expr>,
         pub location: Location,
     }
 
@@ -1292,6 +1291,7 @@ pub mod expr {
         Tuple,
         Unit,
         Pure,
+        Do,
         Definition(Definition),
         Expr(expr::Expr),
     }
@@ -1431,6 +1431,8 @@ pub mod expr {
     }
 
     impl Expr {
+        /// Creates a unit expression. It's used to create a unit expression, that is just like a
+        /// `()` value.
         pub fn call_unit_expr(location: Location, db: &dyn crate::HirDb) -> Self {
             Self::Call(CallExpr::new(
                 db,
@@ -1439,6 +1441,19 @@ pub mod expr {
                 /* arguments   = */ vec![],
                 /* do_notation = */ None,
                 /* location    = */ location,
+            ))
+        }
+
+        /// Creates a block do-notation expression. It's used to create a block expression, that is
+        /// just like a `do { }` value.
+        pub fn block(db: &dyn crate::HirDb, do_notation: stmt::Block) -> Self {
+            Self::Call(CallExpr::new(
+                db,
+                /* kind        = */ CallKind::Prefix,
+                /* callee      = */ Callee::Do,
+                /* arguments   = */ vec![],
+                /* do_notation = */ Some(do_notation),
+                /* location    = */ do_notation.location(db),
             ))
         }
 

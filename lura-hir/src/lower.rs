@@ -518,14 +518,134 @@ mod literal_solver {
     }
 }
 
+/// Defines a module for resolving language "statements", that are the statements, like `let`,
+/// `ask`, and other things. It will be used in the resolution, and it's a helper module for the
+/// [`LowerHir`] struct.
+///
+/// It's only a module, to organization purposes.
+mod stmt_solver {
+    use crate::{
+        resolve::HirLevel,
+        source::{
+            expr::{MatchArm, MatchExpr, MatchKind},
+            literal::Literal,
+            pattern::Pattern,
+            stmt::{AskStmt, Block, LetStmt, Stmt},
+            HirElement,
+        },
+    };
+
+    use super::*;
+
+    type SyntaxStmt<'tree> = lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt<'tree>;
+
+    impl LowerHir<'_, '_> {
+        pub fn stmt(&mut self, stmt: SyntaxStmt, level: HirLevel) -> Stmt {
+            use lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt::*;
+
+            match stmt {
+                AskStmt(ask_stmt) => self.ask_stmt(ask_stmt, level),
+                ExprStmt(expr_stmt) => self.expr_stmt(expr_stmt, level),
+                IfStmt(if_stmt) => self.if_stmt(if_stmt, level),
+                LetStmt(let_stmt) => self.let_stmt(let_stmt, level),
+            }
+        }
+
+        pub fn ask_stmt(&mut self, stmt: lura_syntax::AskStmt, level: HirLevel) -> Stmt {
+            let pattern = stmt.pattern().solve(self.db, |node| self.pattern(node));
+
+            let expr = stmt.value().solve(self.db, |node| self.expr(node, level));
+
+            let location = self.range(stmt.range());
+
+            Stmt::Ask(AskStmt::new(self.db, pattern, expr, location))
+        }
+
+        pub fn expr_stmt(&mut self, stmt: lura_syntax::ExprStmt, level: HirLevel) -> Stmt {
+            let expr = stmt.child().solve(self.db, |node| self.expr(node, level));
+
+            Stmt::Downgrade(expr)
+        }
+
+        pub fn if_stmt(&mut self, stmt: lura_syntax::IfStmt, level: HirLevel) -> Stmt {
+            let scrutinee = stmt
+                .condition()
+                .solve(self.db, |node| self.child_expr(node, level));
+
+            let then = stmt.then().solve(self.db, |node| {
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+                node.child().solve(self.db, |node| match node {
+                    Block(block) => Expr::block(self.db, self.block(block, level)),
+                    _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                })
+            });
+
+            let otherwise = stmt.otherwise().map(|then| {
+                then.solve(self.db, |node| {
+                    use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+
+                    node.value().solve(self.db, |node| match node {
+                        Block(block) => Expr::block(self.db, self.block(block, level)),
+                        _ => self.child_expr(node.into_node().try_into().unwrap(), level),
+                    })
+                })
+            })
+            .unwrap_or_else(|| Expr::call_unit_expr(Location::CallSite, self.db));
+
+            let clauses = vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Spanned::on_call_site(Literal::TRUE)),
+                    location: then.location(self.db),
+                    value: then,
+                },
+                MatchArm {
+                    pattern: Pattern::Literal(Spanned::on_call_site(Literal::FALSE)),
+                    location: otherwise.location(self.db),
+                    value: otherwise,
+                },
+            ];
+
+            let location = self.range(stmt.range());
+
+            Stmt::Downgrade(Expr::Match(MatchExpr::new(
+                self.db,
+                /* kind      = */ MatchKind::StmtLevel(Box::new(MatchKind::If)),
+                /* scrutinee = */ scrutinee,
+                /* clauses   = */ clauses,
+                /* location  = */ location,
+            )))
+        }
+
+        pub fn let_stmt(&mut self, stmt: lura_syntax::LetStmt, level: HirLevel) -> Stmt {
+            let pattern = stmt.pattern().solve(self.db, |node| self.pattern(node));
+
+            let expr = stmt.value().solve(self.db, |node| self.expr(node, level));
+
+            let location = self.range(stmt.range());
+
+            Stmt::Let(LetStmt::new(self.db, pattern, expr, location))
+        }
+
+        pub fn block(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
+            let stmts = block
+                .statements(&mut block.walk())
+                .flatten()
+                .filter_map(|stmt| stmt.regular())
+                .map(|stmt| self.stmt(stmt, level))
+                .collect();
+
+            Block::new(self.db, stmts, self.range(block.range()))
+        }
+    }
+}
+
 /// Defines a module for resolving language "terms", that are the expressions, types, and other
 /// things that are used in the language, like primaries. It will be used in the resolution, and
 /// it's a helper module for the [`LowerHir`] struct.
 ///
 /// It's only a module, to organization purposes.
 mod term_solver {
-    use lura_syntax::anon_unions::Comma_Parameter;
-
     use crate::{
         resolve::{find_type, HirLevel},
         source::{
@@ -660,6 +780,14 @@ mod term_solver {
                 .map(|node| self.primary(node, level))
                 .collect::<Vec<_>>();
 
+            let do_notation = tree
+                .children(&mut tree.walk())
+                .flatten()
+                .filter_map(|node| node.regular())
+                .filter_map(|node| node.block())
+                .map(|node| self.block(node, level))
+                .last();
+
             let location = self.range(tree.range());
 
             Expr::Call(CallExpr::new(
@@ -667,7 +795,7 @@ mod term_solver {
                 /* kind        = */ CallKind::Infix,
                 /* callee      = */ Callee::Expr(callee),
                 /* arguments   = */ arguments,
-                /* do_notation = */ None,
+                /* do_notation = */ do_notation,
                 /* location    = */ location,
             ))
         }
@@ -765,7 +893,7 @@ mod term_solver {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.child().solve(self.db, |node| match node {
-                    Block(_block) => todo!(),
+                    Block(block) => Expr::block(self.db, self.block(block, level)),
                     _ => self.child_expr(node.into_node().try_into().unwrap(), level),
                 })
             });
@@ -774,7 +902,7 @@ mod term_solver {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.value().solve(self.db, |node| match node {
-                    Block(_block) => todo!(),
+                    Block(block) => Expr::block(self.db, self.block(block, level)),
                     _ => self.child_expr(node.into_node().try_into().unwrap(), level),
                 })
             });
@@ -799,7 +927,7 @@ mod term_solver {
                 /* kind      = */ MatchKind::If,
                 /* scrutinee = */ scrutinee,
                 /* clauses   = */ clauses,
-                /* location = */ location,
+                /* location  = */ location,
             ))
         }
 
