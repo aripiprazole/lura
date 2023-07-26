@@ -49,7 +49,7 @@
   },
   "scripts": {
     "prepare": "husky install",
-    "postinstall": "cd editors/vscode && yarn",
+    "postinstall": "sh regen_grammar.sh && cd editors/vscode && yarn",
     "vscode:prepublish": "npm run esbuild-base -- --minify",
     "esbuild-base": "esbuild ./editors/vscode/src/extension.ts --bundle --outfile=editors/vscode/build/main.js --external:vscode --format=cjs --platform=node",
     "esbuild": "yarn run esbuild-base -- --sourcemap",
