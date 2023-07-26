@@ -1,0 +1,15 @@
+{
+  "name": "lura-language-client",
+  "description": "Lura language server's vscode extension",
+  "license": "MIT",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.1"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^17.0.18",
+    "@types/vscode": "~1.65.0",
+    "@vscode/test-electron": "^2.3.3"
+  }
+}

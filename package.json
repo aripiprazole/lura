@@ -1,0 +1,95 @@
+{
+  "name": "lura",
+  "version": "0.0.1",
+  "description": "Lura node packages",
+  "main": "editors/dist/extension.js",
+  "repository": "git@github.com:aripiprazole/lura.git",
+  "author": "Gabrielle Guimarães de Oliveira <gabrielle1guim@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "engineStrict": false,
+  "engines": {
+    "vscode": "^1.80.1"
+  },
+  "enabledApiProposals": [],
+  "activationEvents": [
+    "onLanguage:lura"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lura",
+        "extensions": [
+          ".lura"
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "lura-language-server",
+      "properties": {
+        "lura-language-server.trace.server": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "enumDescriptions": [
+            "No traces",
+            "Error only",
+            "Full log"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "prepare": "husky install",
+    "postinstall": "cd editors/vscode && yarn",
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "esbuild ./editors/vscode/src/extension.ts --bundle --outfile=editors/vscode/build/main.js --external:vscode --format=cjs --platform=node",
+    "esbuild": "yarn run esbuild-base -- --sourcemap",
+    "esbuild-watch": "yarn run esbuild-base -- --sourcemap --watch",
+    "test-compile": "tsc -p ./",
+    "compile": "cross-env NODE_ENV=production tsc -b",
+    "watch": "rm -rf dist && tsc -b -w",
+    "lint": "eslint src --ext ts",
+    "pretest": "npm run compile && npm run lint",
+    "test": "node ./editors/vscode/build/test/runTest.js",
+    "build": "webpack --config webpack.config.js",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.0.3",
+    "@commitlint/config-conventional": "^17.0.3",
+    "@types/glob": "^7.1.3",
+    "@types/mocha": "^8.0.0",
+    "@types/node": "^12.12.0",
+    "@types/vscode": "^1.44.0",
+    "@typescript-eslint/eslint-plugin": "^6.2.0",
+    "@typescript-eslint/parser": "^6.2.0",
+    "@electron/rebuild": "^3.2.13",
+    "@vscode/test-electron": "^2.3.3",
+    "cross-env": "^7.0.2",
+    "esbuild": "^0.15.10",
+    "glob": "^7.1.7",
+    "mocha": "10.1.0",
+    "prettier": "^3.0.0",
+    "typescript": "^4.4.3",
+    "vscode-uri": "^3.0.2",
+    "webpack": "^5.82.1",
+    "eslint": "^8.0.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "husky": "^8.0.1",
+    "lint-staged": "^13.0.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

@@ -98,6 +98,21 @@
       },
       "args": [],
       "cwd": "${workspaceFolder}"
-    }
+    },
+    {
+      "type": "extensionHost",
+      "request": "launch",
+      "name": "Launch IDE Client",
+      "runtimeExecutable": "${execPath}",
+      "args": ["--extensionDevelopmentPath=${workspaceRoot}"],
+      "outFiles": ["${workspaceRoot}/client/out/**/*.js"],
+      "preLaunchTask": {
+        "type": "npm",
+        "script": "watch"
+      },
+      "env": {
+        "SERVER_PATH": "${workspaceRoot}/target/debug/lura-language-server"
+      }
+    },
   ]
 }
