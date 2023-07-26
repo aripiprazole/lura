@@ -752,8 +752,8 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct DataDecl {
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
+        pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
@@ -802,7 +802,6 @@ pub mod top_level {
     pub struct Constructor {
         pub kind: ConstructorKind,
         pub attributes: HashSet<declaration::Attribute>,
-        pub visibility: Spanned<declaration::Vis>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub return_type: type_rep::TypeRep,
@@ -814,8 +813,8 @@ pub mod top_level {
             Self::attributes(*self, db)
         }
 
-        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
-            Self::visibility(*self, db)
+        fn visibility(&self, _db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
+            Spanned::on_call_site(declaration::Vis::Public)
         }
 
         fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
@@ -1568,6 +1567,9 @@ pub mod type_rep {
         /// we don't have an actual type representation, like in [`Self::Error`].
         Empty,
 
+        /// The type representation for Self in Lura language.
+        This,
+
         /// An error type representation, it's used to recover from errors, and to continue the
         /// parsing process.
         Error(HirError),
@@ -1642,6 +1644,7 @@ pub mod type_rep {
             match self {
                 Self::Unit => Location::call_site(db),
                 Self::Empty => Location::call_site(db),
+                Self::This => Location::call_site(db),
                 Self::Pi { location, .. } => location.clone(),
                 Self::Sigma { location, .. } => location.clone(),
                 Self::Error(downcast) => downcast.location(db),

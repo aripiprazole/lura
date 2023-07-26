@@ -14,9 +14,12 @@ pub enum ScopeKind {
     Lambda = 3,
     Match = 4,
     Call = 5,
+    Data = 6,
+    Class = 7,
+    Trait = 8,
 
     #[default]
-    File = 6,
+    File = 9,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
@@ -127,6 +130,11 @@ impl Scope {
             DefinitionKind::Unresolved => None,
         }
     }
+
+    /// Publishes all definitions in the current scope to the parent scope.
+    ///
+    /// TODO: This is not implemented yet.
+    pub fn publish_all_definitions(&mut self, _db: &dyn crate::HirDb, _prefix: Definition) {}
 
     /// Checks if the current scope is a do-notation scope. If it's a do-notation scope, the
     /// return expr is allowed.

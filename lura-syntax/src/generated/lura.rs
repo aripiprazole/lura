@@ -1015,7 +1015,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ConsPattern<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `data_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `clause_type?` ([ClauseType])\n- `constructor`: `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])\n- `constructors`: `{, | attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor])\n- `data_body`: `{, | ; | attribute | doc_string | function_constructor | signature | signature_constructor | { | }}*` ([anon_unions::Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `methods`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `data_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `clause_type?` ([ClauseType])\n- `constructor`: `{, | function_constructor | signature_constructor}*` ([anon_unions::Comma_FunctionConstructor_SignatureConstructor])\n- `data_body`: `{, | ; | function_constructor | signature | signature_constructor | { | }}*` ([anon_unions::Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `method`: `signature*` ([Signature])\n- `name`: `path` ([Path])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct DataDecl<'tree>(tree_sitter::Node<'tree>);
@@ -1062,7 +1062,7 @@ impl<'tree> DataDecl<'tree> {
             .child_by_field_name("clause_type")
             .map(<ClauseType<'tree> as TryFrom<_>>::try_from)
     }
-    #[doc = "Get the field `constructor` which has kind `{attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor])"]
+    #[doc = "Get the field `constructor` which has kind `{, | function_constructor | signature_constructor}*` ([anon_unions::Comma_FunctionConstructor_SignatureConstructor])"]
     #[allow(dead_code)]
     #[inline]
     pub fn constructors<'a>(
@@ -1073,47 +1073,21 @@ impl<'tree> DataDecl<'tree> {
             'tree,
             type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Comma_FunctionConstructor_SignatureConstructor<'tree>,
             >,
         >,
     > + 'a {
         self.0.children_by_field_name("constructor", c).map(|n| {
             <type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>,
+                anon_unions::Comma_FunctionConstructor_SignatureConstructor<'tree>,
             > as TryFrom<_>>::try_from(n)
         })
     }
-    #[doc = "Get the field `constructors` which has kind `{, | attribute | doc_string | function_constructor | signature_constructor}*` ([anon_unions::Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor])"]
+    #[doc = "Get the field `data_body` which has kind `{, | ; | function_constructor | signature | signature_constructor | { | }}*` ([anon_unions::Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace])"]
     #[allow(dead_code)]
-    #[inline]
-    pub fn constructorss<'a>(
-        &self,
-        c: &'a mut tree_sitter::TreeCursor<'tree>,
-    ) -> impl Iterator<
-        Item = type_sitter_lib::NodeResult<
-            'tree,
-            type_sitter_lib::ExtraOr<
-                'tree,
-                anon_unions::Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<
-                    'tree,
-                >,
-            >,
-        >,
-    > + 'a {
-        self.0.children_by_field_name("constructors", c).map(|n| {
-            <type_sitter_lib::ExtraOr<
-                'tree,
-                anon_unions::Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<
-                    'tree,
-                >,
-            > as TryFrom<_>>::try_from(n)
-        })
-    }
-    #[doc = "Get the field `data_body` which has kind `{, | ; | attribute | doc_string | function_constructor | signature | signature_constructor | { | }}*` ([anon_unions::Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace])"]
-    #[allow(dead_code)]
-    #[inline]    pub fn data_bodys < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > > >> + 'a{
-        self . 0 . children_by_field_name ("data_body" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > > as TryFrom < _ >> :: try_from (n))
+    #[inline]    pub fn data_bodys < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > > >> + 'a{
+        self . 0 . children_by_field_name ("data_body" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > > as TryFrom < _ >> :: try_from (n))
     }
     #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
     #[allow(dead_code)]
@@ -1147,10 +1121,10 @@ impl<'tree> DataDecl<'tree> {
             .children_by_field_name("field", c)
             .map(|n| <type_sitter_lib::ExtraOr<'tree, Signature<'tree>> as TryFrom<_>>::try_from(n))
     }
-    #[doc = "Get the field `methods` which has kind `signature*` ([Signature])"]
+    #[doc = "Get the field `method` which has kind `signature*` ([Signature])"]
     #[allow(dead_code)]
     #[inline]
-    pub fn methodss<'a>(
+    pub fn methods<'a>(
         &self,
         c: &'a mut tree_sitter::TreeCursor<'tree>,
     ) -> impl Iterator<
@@ -1160,7 +1134,7 @@ impl<'tree> DataDecl<'tree> {
         >,
     > + 'a {
         self.0
-            .children_by_field_name("methods", c)
+            .children_by_field_name("method", c)
             .map(|n| <type_sitter_lib::ExtraOr<'tree, Signature<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `name` which has kind `path` ([Path])"]
@@ -1447,12 +1421,44 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for F64<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `function_constructor`\n\nThis node has these fields:\n- `name`: `path` ([Path])\n- `parameter`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
+#[doc = "Typed node `function_constructor`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `parameter`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct FunctionConstructor<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> FunctionConstructor<'tree> {
+    #[doc = "Get the field `attribute` which has kind `attribute*` ([Attribute])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn attributes<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("attribute", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, Attribute<'tree>> as TryFrom<_>>::try_from(n))
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
+    }
     #[doc = "Get the field `name` which has kind `path` ([Path])"]
     #[allow(dead_code)]
     #[inline]
@@ -3083,12 +3089,44 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Signature<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `signature_constructor`\n\nThis node has these fields:\n- `field_type`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `name`: `path` ([Path])\n"]
+#[doc = "Typed node `signature_constructor`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `field_type`: `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `name`: `path` ([Path])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct SignatureConstructor<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> SignatureConstructor<'tree> {
+    #[doc = "Get the field `attribute` which has kind `attribute*` ([Attribute])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn attributes<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("attribute", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, Attribute<'tree>> as TryFrom<_>>::try_from(n))
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
+    }
     #[doc = "Get the field `field_type` which has kind `{ann_expr | binary_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
     #[inline]
@@ -7757,127 +7795,16 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{attribute | doc_string | function_constructor | signature_constructor}`:\n- [Attribute]\n- [DocString]\n- [FunctionConstructor]\n- [SignatureConstructor]"]
+    #[doc = "one of `{, | function_constructor | signature_constructor}`:\n- [symbols::Comma]\n- [FunctionConstructor]\n- [SignatureConstructor]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
-        Attribute(Attribute<'tree>),
-        DocString(DocString<'tree>),
-        FunctionConstructor(FunctionConstructor<'tree>),
-        SignatureConstructor(SignatureConstructor<'tree>),
-    }
-    #[automatically_derived]
-    impl<'tree> Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
-        #[doc = "Returns the node if it is of kind `attribute` ([Attribute]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn attribute(self) -> Option<Attribute<'tree>> {
-            match self {
-                Self::Attribute(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `doc_string` ([DocString]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn doc_string(self) -> Option<DocString<'tree>> {
-            match self {
-                Self::DocString(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `function_constructor` ([FunctionConstructor]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn function_constructor(self) -> Option<FunctionConstructor<'tree>> {
-            match self {
-                Self::FunctionConstructor(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `signature_constructor` ([SignatureConstructor]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn signature_constructor(self) -> Option<SignatureConstructor<'tree>> {
-            match self {
-                Self::SignatureConstructor(x) => Some(x),
-                _ => None,
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
-    {
-        type Error = type_sitter_lib::IncorrectKind<'tree>;
-        #[inline]
-        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
-            match node.kind() {
-                "attribute" => Ok(unsafe {
-                    Self :: Attribute (< Attribute < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "doc_string" => Ok(unsafe {
-                    Self :: DocString (< DocString < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "function_constructor" => Ok(unsafe {
-                    Self :: FunctionConstructor (< FunctionConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "signature_constructor" => Ok(unsafe {
-                    Self :: SignatureConstructor (< SignatureConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                _ => Err(type_sitter_lib::IncorrectKind {
-                    node,
-                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
-                }),
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
-    {
-        const KIND: &'static str =
-            "{attribute | doc_string | function_constructor | signature_constructor}";
-        #[inline]
-        fn node(&self) -> &tree_sitter::Node<'tree> {
-            match self {
-                Self::Attribute(x) => x.node(),
-                Self::DocString(x) => x.node(),
-                Self::FunctionConstructor(x) => x.node(),
-                Self::SignatureConstructor(x) => x.node(),
-            }
-        }
-        #[inline]
-        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
-            match self {
-                Self::Attribute(x) => x.node_mut(),
-                Self::DocString(x) => x.node_mut(),
-                Self::FunctionConstructor(x) => x.node_mut(),
-                Self::SignatureConstructor(x) => x.node_mut(),
-            }
-        }
-        #[inline]
-        fn into_node(self) -> tree_sitter::Node<'tree> {
-            match self {
-                Self::Attribute(x) => x.into_node(),
-                Self::DocString(x) => x.into_node(),
-                Self::FunctionConstructor(x) => x.into_node(),
-                Self::SignatureConstructor(x) => x.into_node(),
-            }
-        }
-    }
-    #[doc = "one of `{, | attribute | doc_string | function_constructor | signature_constructor}`:\n- [symbols::Comma]\n- [Attribute]\n- [DocString]\n- [FunctionConstructor]\n- [SignatureConstructor]"]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[allow(non_camel_case_types)]
-    pub enum Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
+    pub enum Comma_FunctionConstructor_SignatureConstructor<'tree> {
         Comma(symbols::Comma<'tree>),
-        Attribute(Attribute<'tree>),
-        DocString(DocString<'tree>),
         FunctionConstructor(FunctionConstructor<'tree>),
         SignatureConstructor(SignatureConstructor<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree> {
+    impl<'tree> Comma_FunctionConstructor_SignatureConstructor<'tree> {
         #[doc = "Returns the node if it is of kind `,` ([symbols::Comma]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -7887,24 +7814,6 @@ pub mod anon_unions {
                 _ => None,
             }
         }
-        #[doc = "Returns the node if it is of kind `attribute` ([Attribute]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn attribute(self) -> Option<Attribute<'tree>> {
-            match self {
-                Self::Attribute(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `doc_string` ([DocString]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn doc_string(self) -> Option<DocString<'tree>> {
-            match self {
-                Self::DocString(x) => Some(x),
-                _ => None,
-            }
-        }
         #[doc = "Returns the node if it is of kind `function_constructor` ([FunctionConstructor]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -7926,7 +7835,7 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
+        for Comma_FunctionConstructor_SignatureConstructor<'tree>
     {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
@@ -7937,12 +7846,6 @@ pub mod anon_unions {
                         'tree,
                     >>::from_node_unchecked(node))
                 }),
-                "attribute" => Ok(unsafe {
-                    Self :: Attribute (< Attribute < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "doc_string" => Ok(unsafe {
-                    Self :: DocString (< DocString < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
                 "function_constructor" => Ok(unsafe {
                     Self :: FunctionConstructor (< FunctionConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
@@ -7958,16 +7861,13 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for Comma_Attribute_DocString_FunctionConstructor_SignatureConstructor<'tree>
+        for Comma_FunctionConstructor_SignatureConstructor<'tree>
     {
-        const KIND: &'static str =
-            "{, | attribute | doc_string | function_constructor | signature_constructor}";
+        const KIND: &'static str = "{, | function_constructor | signature_constructor}";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
                 Self::Comma(x) => x.node(),
-                Self::Attribute(x) => x.node(),
-                Self::DocString(x) => x.node(),
                 Self::FunctionConstructor(x) => x.node(),
                 Self::SignatureConstructor(x) => x.node(),
             }
@@ -7976,8 +7876,6 @@ pub mod anon_unions {
         fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
             match self {
                 Self::Comma(x) => x.node_mut(),
-                Self::Attribute(x) => x.node_mut(),
-                Self::DocString(x) => x.node_mut(),
                 Self::FunctionConstructor(x) => x.node_mut(),
                 Self::SignatureConstructor(x) => x.node_mut(),
             }
@@ -7986,23 +7884,17 @@ pub mod anon_unions {
         fn into_node(self) -> tree_sitter::Node<'tree> {
             match self {
                 Self::Comma(x) => x.into_node(),
-                Self::Attribute(x) => x.into_node(),
-                Self::DocString(x) => x.into_node(),
                 Self::FunctionConstructor(x) => x.into_node(),
                 Self::SignatureConstructor(x) => x.into_node(),
             }
         }
     }
-    #[doc = "one of `{, | ; | attribute | doc_string | function_constructor | signature | signature_constructor | { | }}`:\n- [symbols::Comma]\n- [symbols::Semicolon]\n- [Attribute]\n- [DocString]\n- [FunctionConstructor]\n- [Signature]\n- [SignatureConstructor]\n- [symbols::LBrace]\n- [symbols::RBrace]"]
+    #[doc = "one of `{, | ; | function_constructor | signature | signature_constructor | { | }}`:\n- [symbols::Comma]\n- [symbols::Semicolon]\n- [FunctionConstructor]\n- [Signature]\n- [SignatureConstructor]\n- [symbols::LBrace]\n- [symbols::RBrace]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace<
-        'tree,
-    > {
+    pub enum Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace<'tree> {
         Comma(symbols::Comma<'tree>),
         Semicolon(symbols::Semicolon<'tree>),
-        Attribute(Attribute<'tree>),
-        DocString(DocString<'tree>),
         FunctionConstructor(FunctionConstructor<'tree>),
         Signature(Signature<'tree>),
         SignatureConstructor(SignatureConstructor<'tree>),
@@ -8010,11 +7902,160 @@ pub mod anon_unions {
         RBrace(symbols::RBrace<'tree>),
     }
     #[automatically_derived]
-    impl < 'tree > Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > { # [doc = "Returns the node if it is of kind `,` ([symbols::Comma]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn comma (self) -> Option < symbols :: Comma < 'tree > > { match self { Self :: Comma (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `;` ([symbols::Semicolon]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn semicolon (self) -> Option < symbols :: Semicolon < 'tree > > { match self { Self :: Semicolon (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `attribute` ([Attribute]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn attribute (self) -> Option < Attribute < 'tree > > { match self { Self :: Attribute (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `doc_string` ([DocString]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn doc_string (self) -> Option < DocString < 'tree > > { match self { Self :: DocString (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `function_constructor` ([FunctionConstructor]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn function_constructor (self) -> Option < FunctionConstructor < 'tree > > { match self { Self :: FunctionConstructor (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `signature` ([Signature]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn signature (self) -> Option < Signature < 'tree > > { match self { Self :: Signature (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `signature_constructor` ([SignatureConstructor]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn signature_constructor (self) -> Option < SignatureConstructor < 'tree > > { match self { Self :: SignatureConstructor (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `{` ([symbols::LBrace]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn l_brace (self) -> Option < symbols :: LBrace < 'tree > > { match self { Self :: LBrace (x) => Some (x) , _ => None , } } # [doc = "Returns the node if it is of kind `}` ([symbols::RBrace]), otherwise returns None"] # [inline] # [allow (unused , non_snake_case)] pub fn r_brace (self) -> Option < symbols :: RBrace < 'tree > > { match self { Self :: RBrace (x) => Some (x) , _ => None , } } }
+    impl<'tree>
+        Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace<'tree>
+    {
+        #[doc = "Returns the node if it is of kind `,` ([symbols::Comma]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn comma(self) -> Option<symbols::Comma<'tree>> {
+            match self {
+                Self::Comma(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `;` ([symbols::Semicolon]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn semicolon(self) -> Option<symbols::Semicolon<'tree>> {
+            match self {
+                Self::Semicolon(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `function_constructor` ([FunctionConstructor]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn function_constructor(self) -> Option<FunctionConstructor<'tree>> {
+            match self {
+                Self::FunctionConstructor(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `signature` ([Signature]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn signature(self) -> Option<Signature<'tree>> {
+            match self {
+                Self::Signature(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `signature_constructor` ([SignatureConstructor]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn signature_constructor(self) -> Option<SignatureConstructor<'tree>> {
+            match self {
+                Self::SignatureConstructor(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `{` ([symbols::LBrace]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn l_brace(self) -> Option<symbols::LBrace<'tree>> {
+            match self {
+                Self::LBrace(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `}` ([symbols::RBrace]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn r_brace(self) -> Option<symbols::RBrace<'tree>> {
+            match self {
+                Self::RBrace(x) => Some(x),
+                _ => None,
+            }
+        }
+    }
     #[automatically_derived]
-    impl < 'tree > TryFrom < tree_sitter :: Node < 'tree >> for Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > { type Error = type_sitter_lib :: IncorrectKind < 'tree > ; # [inline] fn try_from (node : tree_sitter :: Node < 'tree >) -> Result < Self , Self :: Error > { match node . kind () { "," => Ok (unsafe { Self :: Comma (< symbols :: Comma < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , ";" => Ok (unsafe { Self :: Semicolon (< symbols :: Semicolon < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "attribute" => Ok (unsafe { Self :: Attribute (< Attribute < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "doc_string" => Ok (unsafe { Self :: DocString (< DocString < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "function_constructor" => Ok (unsafe { Self :: FunctionConstructor (< FunctionConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "signature" => Ok (unsafe { Self :: Signature (< Signature < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "signature_constructor" => Ok (unsafe { Self :: SignatureConstructor (< SignatureConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "{" => Ok (unsafe { Self :: LBrace (< symbols :: LBrace < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "}" => Ok (unsafe { Self :: RBrace (< symbols :: RBrace < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , _ => Err (type_sitter_lib :: IncorrectKind { node , kind : < Self as type_sitter_lib :: TypedNode < 'tree >> :: KIND , }) } } }
+    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
+        for Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace<'tree>
+    {
+        type Error = type_sitter_lib::IncorrectKind<'tree>;
+        #[inline]
+        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+            match node.kind() {
+                "," => Ok(unsafe {
+                    Self::Comma(<symbols::Comma<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
+                ";" => Ok(unsafe {
+                    Self::Semicolon(<symbols::Semicolon<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
+                "function_constructor" => Ok(unsafe {
+                    Self :: FunctionConstructor (< FunctionConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "signature" => Ok(unsafe {
+                    Self :: Signature (< Signature < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "signature_constructor" => Ok(unsafe {
+                    Self :: SignatureConstructor (< SignatureConstructor < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "{" => Ok(unsafe {
+                    Self::LBrace(<symbols::LBrace<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
+                "}" => Ok(unsafe {
+                    Self::RBrace(<symbols::RBrace<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
+                _ => Err(type_sitter_lib::IncorrectKind {
+                    node,
+                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+                }),
+            }
+        }
+    }
     #[automatically_derived]
-    impl < 'tree > type_sitter_lib :: TypedNode < 'tree > for Comma_Semicolon_Attribute_DocString_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace < 'tree > { const KIND : & 'static str = "{, | ; | attribute | doc_string | function_constructor | signature | signature_constructor | { | }}" ; # [inline] fn node (& self) -> & tree_sitter :: Node < 'tree > { match self { Self :: Comma (x) => x . node () , Self :: Semicolon (x) => x . node () , Self :: Attribute (x) => x . node () , Self :: DocString (x) => x . node () , Self :: FunctionConstructor (x) => x . node () , Self :: Signature (x) => x . node () , Self :: SignatureConstructor (x) => x . node () , Self :: LBrace (x) => x . node () , Self :: RBrace (x) => x . node () , } } # [inline] fn node_mut (& mut self) -> & mut tree_sitter :: Node < 'tree > { match self { Self :: Comma (x) => x . node_mut () , Self :: Semicolon (x) => x . node_mut () , Self :: Attribute (x) => x . node_mut () , Self :: DocString (x) => x . node_mut () , Self :: FunctionConstructor (x) => x . node_mut () , Self :: Signature (x) => x . node_mut () , Self :: SignatureConstructor (x) => x . node_mut () , Self :: LBrace (x) => x . node_mut () , Self :: RBrace (x) => x . node_mut () , } } # [inline] fn into_node (self) -> tree_sitter :: Node < 'tree > { match self { Self :: Comma (x) => x . into_node () , Self :: Semicolon (x) => x . into_node () , Self :: Attribute (x) => x . into_node () , Self :: DocString (x) => x . into_node () , Self :: FunctionConstructor (x) => x . into_node () , Self :: Signature (x) => x . into_node () , Self :: SignatureConstructor (x) => x . into_node () , Self :: LBrace (x) => x . into_node () , Self :: RBrace (x) => x . into_node () , } } }
+    impl<'tree> type_sitter_lib::TypedNode<'tree>
+        for Comma_Semicolon_FunctionConstructor_Signature_SignatureConstructor_LBrace_RBrace<'tree>
+    {
+        const KIND: &'static str =
+            "{, | ; | function_constructor | signature | signature_constructor | { | }}";
+        #[inline]
+        fn node(&self) -> &tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.node(),
+                Self::Semicolon(x) => x.node(),
+                Self::FunctionConstructor(x) => x.node(),
+                Self::Signature(x) => x.node(),
+                Self::SignatureConstructor(x) => x.node(),
+                Self::LBrace(x) => x.node(),
+                Self::RBrace(x) => x.node(),
+            }
+        }
+        #[inline]
+        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.node_mut(),
+                Self::Semicolon(x) => x.node_mut(),
+                Self::FunctionConstructor(x) => x.node_mut(),
+                Self::Signature(x) => x.node_mut(),
+                Self::SignatureConstructor(x) => x.node_mut(),
+                Self::LBrace(x) => x.node_mut(),
+                Self::RBrace(x) => x.node_mut(),
+            }
+        }
+        #[inline]
+        fn into_node(self) -> tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.into_node(),
+                Self::Semicolon(x) => x.into_node(),
+                Self::FunctionConstructor(x) => x.into_node(),
+                Self::Signature(x) => x.into_node(),
+                Self::SignatureConstructor(x) => x.into_node(),
+                Self::LBrace(x) => x.into_node(),
+                Self::RBrace(x) => x.into_node(),
+            }
+        }
+    }
     #[doc = "one of `{binary | hex | octal}`:\n- [Binary]\n- [Hex]\n- [Octal]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
