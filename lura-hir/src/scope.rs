@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     resolve::{Definition, DefinitionKind},
-    source::{HirPath, HirSource},
+    source::{HirPath, HirSource, Location},
 };
 
 /// Represents the kind of the scope
@@ -41,6 +41,7 @@ pub struct Scope {
     // The values informations
     pub constructors: HashMap<HirPath, Definition>,
     pub values: HashMap<HirPath, Definition>,
+    pub variables: HashMap<HirPath, Definition>,
     pub types: HashMap<HirPath, Definition>,
 }
 
@@ -53,6 +54,7 @@ impl Scope {
             constructors: HashMap::new(),
             types: HashMap::new(),
             values: HashMap::new(),
+            variables: HashMap::new(),
             imports: HashSet::new(),
         }
     }
@@ -75,19 +77,53 @@ impl Scope {
             constructors: HashMap::new(),
             types: HashMap::new(),
             values: HashMap::new(),
+            variables: HashMap::new(),
             imports: HashSet::new(),
         }
+    }
+
+    /// Defines a name for the given `kind` in the current scope, and returns the definition.
+    ///
+    /// If the name is already defined, it will return the existing definition.
+    pub fn define(
+        &mut self,
+        db: &dyn crate::HirDb,
+        name: HirPath,
+        location: Location,
+        kind: DefinitionKind,
+    ) -> Definition {
+        let definition = Definition::new(db, kind, name, location);
+
+        match kind {
+            DefinitionKind::Function => self.values.insert(name, definition),
+            DefinitionKind::Constructor => self.constructors.insert(name, definition),
+            DefinitionKind::Type => self.types.insert(name, definition),
+            DefinitionKind::Variable => self.variables.insert(name, definition),
+            DefinitionKind::Module => todo!("Nested modules are not supported yet"),
+            DefinitionKind::Unresolved => panic!("Illegal definition kind: Unresolved"),
+        };
+
+        definition
     }
 
     /// Searches a name for the given `kind` in the current scope, and returns the definition if
     /// found.
     pub fn search(&self, name: HirPath, kind: DefinitionKind) -> Option<Definition> {
         match kind {
-            DefinitionKind::Function => self.values.get(&name).copied(),
-            DefinitionKind::Constructor => todo!(),
+            DefinitionKind::Function => self
+                .values
+                .get(&name)
+                .copied() // Searches in the current scope variables and functions
+                .or_else(|| self.search(name, DefinitionKind::Variable))
+                .or_else(|| self.search(name, DefinitionKind::Constructor))
+                .or_else(|| match self.parent.as_ref() {
+                    Some(root) => root.search(name, DefinitionKind::Function),
+                    None => None,
+                }),
+            DefinitionKind::Constructor => self.constructors.get(&name).copied(),
             DefinitionKind::Type => self.types.get(&name).copied(),
-            DefinitionKind::Variable => todo!(),
-            DefinitionKind::Module => todo!(),
+            DefinitionKind::Variable => self.variables.get(&name).copied(),
+            DefinitionKind::Module => todo!("Nested modules are not supported yet"),
             DefinitionKind::Unresolved => None,
         }
     }

@@ -217,8 +217,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
-        // TODO: define the node on the scope
-        let node = Definition::no(self.db, DefinitionKind::Function, path);
+        // Defines the node on the scope
+        let node = self
+            .scope
+            .define(self.db, path, range.clone(), DefinitionKind::Function);
 
         Solver::new(move |db, this| {
             // Creates a new scope for the function, and it will be used to store the parameters,
@@ -490,7 +492,13 @@ mod pattern_solver {
             let patterns = self.patterns(pattern.patterns(&mut pattern.walk()));
             let location = self.range(pattern.range());
 
+            // If the patterns are empty, it's a binding pattern, otherwise, it's a constructor
+            // pattern.
             if patterns.is_empty() {
+                // Defines the node on the scope
+                let name =
+                    self.scope
+                        .define(self.db, name, location.clone(), DefinitionKind::Variable);
                 Pattern::Binding(BindingPattern::new(self.db, name, location))
             } else {
                 let name = Constructor::Path(self.qualify(name));

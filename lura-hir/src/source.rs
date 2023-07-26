@@ -1077,7 +1077,7 @@ pub mod pattern {
     /// defines a name.
     #[salsa::tracked]
     pub struct BindingPattern {
-        pub name: HirPath,
+        pub name: Definition,
         pub location: Location,
     }
 
