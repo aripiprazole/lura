@@ -40,6 +40,10 @@ use crate::{
 /// declarations within the [`HirSource`].
 ///
 /// For solving, see [`hir_lower`].
+///
+/// TODO: This query duplicates resolution errors that aren't made in the Solvers, just like
+/// if i report an error in the resolver, it will report the same error in the lowerer, and it
+/// will duplicate the diagnostics, it should be thinked if it's sound or not.
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
 pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
     let parse_tree = src.syntax_node(db);
