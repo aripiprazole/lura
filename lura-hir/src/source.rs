@@ -199,6 +199,12 @@ pub struct HirSource {
     pub contents: Vec<top_level::TopLevel>,
 }
 
+impl walking::Walker for HirSource {
+    fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+        self.contents(db).clone().accept(db, listener);
+    }
+}
+
 /// A unresolved path in the HIR. It's used to represent a path that is not resolved yet, and will
 /// be resolved as a [`Definition`] later.
 ///
@@ -562,6 +568,7 @@ pub mod top_level {
             self.attributes(db).accept(db, listener);
             self.docs(db).accept(db, listener);
             self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
             self.parameters(db).accept(db, listener);
             self.return_type(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1627,7 +1634,7 @@ pub mod expr {
                 Callee::Unit => {}
                 Callee::Pure => {}
                 Callee::Do => {}
-                Callee::Reference(_) => {}
+                Callee::Reference(reference) => reference.accept(db, listener),
                 Callee::Expr(expr) => expr.accept(db, listener),
             }
         }
@@ -1870,6 +1877,7 @@ pub mod expr {
                 }
                 Expr::Path(path) => {
                     listener.enter_path_expr(path);
+                    path.accept(db, listener);
                     listener.exit_path_expr(path);
                 }
                 Expr::Literal(literal) => {
@@ -2084,6 +2092,7 @@ pub mod type_rep {
                 }
                 TypeRep::Path(definition) => {
                     listener.enter_path_type_rep(definition);
+                    definition.accept(db, listener);
                     listener.exit_path_type_rep(definition);
                 }
                 TypeRep::QPath(qpath) => qpath.accept(db, listener),

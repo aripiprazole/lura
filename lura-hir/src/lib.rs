@@ -63,6 +63,7 @@ impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + s
 
 pub mod lower;
 pub mod package;
+pub mod reference;
 pub mod resolve;
 pub mod scope;
 pub mod source;

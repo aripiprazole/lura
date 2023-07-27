@@ -52,7 +52,9 @@ pub struct Reference {
 }
 
 impl crate::walking::Walker for Reference {
-    fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
+    fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, listener: &mut T) {
+        listener.visit_reference(self)
+    }
 }
 
 /// Represents the diagnostic for High-Level Intermediate Representation. It's intended to be used

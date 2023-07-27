@@ -48,6 +48,9 @@ impl<T: Walker> Walker for Box<T> {
 #[allow(dead_code, unused_variables, clippy::boxed_local)]
 #[rustfmt::skip]
 pub trait HirListener {
+    // SECTION: visitors
+    fn visit_reference(&mut self, reference: Reference) {}
+
     // SECTION: type_rep
     fn enter_unit_type_rep(&mut self) {}
     fn enter_empty_type_rep(&mut self) {}

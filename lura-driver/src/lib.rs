@@ -134,10 +134,11 @@ mod tests {
     use lura_hir::{
         lower::hir_lower,
         package::{Package, PackageKind, Version},
+        reference::ReferenceWalker,
+        walking::Walker,
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
-    use salsa_2022::DebugWithDb;
 
     use crate::RootDb;
 
@@ -160,8 +161,19 @@ mod tests {
 
         let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
 
+        let mut walker = ReferenceWalker::new(&db, |db, reference, _scope| {
+            println!(
+                "reference: {:#?}",
+                reference
+                    .definition(db)
+                    .name(db)
+                    .to_string(db)
+                    .unwrap_or_default()
+            );
+        });
+
         println!("{:#?}", diagnostics);
-        println!("{:#?}", hir.into_debug_all(&db));
+        hir.accept(&db, &mut walker);
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
