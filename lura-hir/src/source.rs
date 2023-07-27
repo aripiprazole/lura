@@ -521,6 +521,8 @@ pub mod declaration {
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod top_level {
+    use std::sync::Arc;
+
     use crate::resolve::{Definition, Reference};
     use crate::walking::HirListener;
 
@@ -610,7 +612,7 @@ pub mod top_level {
     /// f x = x
     /// ```
     ///
-    /// This is a clause, of a signature declaration.
+    /// This is a clause, of a signature declaration. And the scope is the block scope
     #[salsa::tracked]
     pub struct Clause {
         pub name: Definition,
@@ -760,6 +762,7 @@ pub mod top_level {
         pub fields: Vec<Signature>,
         pub methods: Vec<BindingGroup>,
         pub location: Location,
+        pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for ClassDecl {
@@ -824,6 +827,7 @@ pub mod top_level {
         pub return_type: type_rep::TypeRep,
         pub methods: Vec<BindingGroup>,
         pub location: Location,
+        pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for TraitDecl {
@@ -888,6 +892,7 @@ pub mod top_level {
         pub variants: Vec<Constructor>,
         pub methods: Vec<BindingGroup>,
         pub location: Location,
+        pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for DataDecl {
@@ -1371,7 +1376,9 @@ pub mod pattern {
 /// Defines a kind of statements. It does define statements that can be used in a block, and
 /// "do-notations", that are used to do imperative code in a functional language.
 pub mod stmt {
-    use crate::walking::HirListener;
+    use std::sync::Arc;
+
+    use crate::{scope::ScopeKind, walking::HirListener};
 
     use super::*;
 
@@ -1482,6 +1489,7 @@ pub mod stmt {
     pub struct Block {
         pub statements: Vec<Stmt>,
         pub location: Location,
+        pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for Block {
@@ -1495,7 +1503,9 @@ pub mod stmt {
 
     impl DefaultWithDb for Block {
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
-            Self::new(db, vec![], Location::call_site(db))
+            let scope = Scope::new_ref(ScopeKind::Block);
+
+            Self::new(db, vec![], Location::call_site(db), scope)
         }
     }
 
@@ -1570,6 +1580,8 @@ pub mod literal {
 /// Defines a kind of terms. It does define expressions that can be used in a block. These are the
 /// base of the language grammar and semantics.
 pub mod expr {
+    use std::sync::Arc;
+
     use lura_diagnostic::{Diagnostics, Report};
 
     use crate::resolve::{HirDiagnostic, Reference};
@@ -1599,7 +1611,7 @@ pub mod expr {
         Unit,
         Pure,
         Do,
-        Definition(Reference),
+        Reference(Reference),
         Expr(expr::Expr),
     }
 
@@ -1611,7 +1623,7 @@ pub mod expr {
                 Callee::Unit => {}
                 Callee::Pure => {}
                 Callee::Do => {}
-                Callee::Definition(_) => {}
+                Callee::Reference(_) => {}
                 Callee::Expr(expr) => expr.accept(db, listener),
             }
         }
@@ -1639,6 +1651,7 @@ pub mod expr {
         pub parameters: Vec<declaration::Parameter>,
         pub value: expr::Expr,
         pub location: Location,
+        pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for AbsExpr {

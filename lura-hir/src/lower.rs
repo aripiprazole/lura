@@ -8,6 +8,7 @@
 use std::{
     collections::{HashMap, HashSet},
     mem::take,
+    ops::Deref,
     sync::Arc,
 };
 
@@ -290,6 +291,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .map(|node| this.clause_type(node))
                 .unwrap_or_default_with_db(db);
 
+            // Publish all definitions to parent scope
+            this.scope.publish_all_definitions(this.db, node);
+
             let class_decl = ClassDecl::new(
                 this.db,
                 /* attributes  = */ attrs,
@@ -301,11 +305,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 /* fields      = */ vec![], // TODO
                 /* methods     = */ methods,
                 /* location    = */ range.clone(),
+                /* scope       = */ this.pop_scope(),
             );
-
-            // Publish all definitions to parent scope
-            this.scope.publish_all_definitions(this.db, node);
-            this.scope = *take(&mut this.scope).root();
 
             // It's not needed to solve the clause, because it is already solved in the next steps.
             //
@@ -367,6 +368,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .map(|node| this.clause_type(node))
                 .unwrap_or_default_with_db(db);
 
+            // Publish all definitions to parent scope
+            this.scope.publish_all_definitions(this.db, node);
+
             let trait_decl = TraitDecl::new(
                 this.db,
                 /* attributes  = */ attrs,
@@ -377,11 +381,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 /* return_type = */ type_rep,
                 /* methods     = */ methods,
                 /* location    = */ range.clone(),
+                /* scope       = */ this.pop_scope(),
             );
-
-            // Publish all definitions to parent scope
-            this.scope.publish_all_definitions(this.db, node);
-            this.scope = *take(&mut this.scope).root();
 
             // It's not needed to solve the clause, because it is already solved in the next steps.
             //
@@ -456,6 +457,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .map(|variant| variant.run_solver(this))
                 .collect();
 
+            // Publish all definitions to parent scope
+            this.scope.publish_all_definitions(this.db, node);
+
             let data_decl = DataDecl::new(
                 this.db,
                 /* attributes  = */ attrs,
@@ -467,11 +471,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 /* variants    = */ variants,
                 /* methods     = */ methods,
                 /* location    = */ range.clone(),
+                /* scope       = */ this.pop_scope(),
             );
-
-            // Publish all definitions to parent scope
-            this.scope.publish_all_definitions(this.db, node);
-            this.scope = *take(&mut this.scope).root();
 
             // It's not needed to solve the clause, because it is already solved in the next steps.
             //
@@ -577,7 +578,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Defines in the scope if it is not defined yet, and it will return the definition.
         let name = self
             .scope
-            .search(path, DefinitionKind::Function)
+            .search(self.db, path, DefinitionKind::Function)
             .unwrap_or_else(|| {
                 // Defines the node on the scope
                 self.scope
@@ -626,7 +627,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             // Adds the clause to the scope, and solve it
             this.clauses.insert(path, group);
-            this.scope = *take(&mut this.scope).root();
+            this.pop_scope();
 
             TopLevel::BindingGroup(group)
         })
@@ -693,9 +694,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             // Adds the current body to the clause, and solve it
             let mut clauses = clause.clauses(this.db);
 
-            let value = tree
-                .value()
-                .map(|value| value.solve(this.db, |node| this.block(node, HirLevel::Expr)));
+            let value = tree.value().map(|value| {
+                value.solve(this.db, |node| {
+                    // Uses a new scope for the function, and it will be used to store the
+                    // parameters, and the variables.
+                    this.scoped(node, HirLevel::Expr)
+                })
+            });
 
             if let Some(value) = value {
                 clauses.insert(Clause::new(
@@ -711,7 +716,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             this.clauses
                 .insert(path, BindingGroup::new(db, signature, clauses));
 
-            this.scope = *take(&mut this.scope).root();
+            this.pop_scope();
 
             // It's not needed to solve the clause, because it is already solved in the next steps.
             //
@@ -892,6 +897,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// raw location, in a high level location, to be handled within resolution.
     pub fn range(&self, range: tree_sitter::Range) -> Location {
         Location::new(self.db, self.src, range.start_byte, range.end_byte)
+    }
+
+    pub fn pop_scope(&mut self) -> Arc<Scope> {
+        let scope = take(&mut self.scope);
+        self.scope = scope.root().deref().clone();
+        Arc::new(scope)
     }
 }
 
@@ -1103,7 +1114,7 @@ mod stmt_solver {
             Stmt::Let(LetStmt::new(self.db, pattern, expr, location))
         }
 
-        pub fn block(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
+        pub fn scoped(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
             let stmts = block
                 .statements(&mut block.walk())
                 .flatten()
@@ -1111,7 +1122,19 @@ mod stmt_solver {
                 .map(|stmt| self.stmt(stmt, level))
                 .collect();
 
-            Block::new(self.db, stmts, self.range(block.range()))
+            Block::new(
+                self.db,
+                /* statements = */ stmts,
+                /* location   = */ self.range(block.range()),
+                /* scope      = */ self.scope.clone().into(),
+            )
+        }
+
+        pub fn block(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
+            self.scope = self.scope.fork(ScopeKind::Block);
+            let value = self.scoped(block, level);
+            self.pop_scope();
+            value
         }
     }
 }
@@ -1215,7 +1238,7 @@ mod term_solver {
 
             let op = self
                 .scope
-                .search(op, DefinitionKind::Function)
+                .search(self.db, op, DefinitionKind::Function)
                 .unwrap_or_else(|| {
                     // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
                     // will report an error. It's made for doing global lookups, and not local lookups.
@@ -1227,7 +1250,7 @@ mod term_solver {
             Expr::Call(CallExpr::new(
                 self.db,
                 /* kind        = */ CallKind::Infix,
-                /* callee      = */ Callee::Definition(reference),
+                /* callee      = */ Callee::Reference(reference),
                 /* arguments   = */ vec![lhs, rhs],
                 /* do_notation = */ None,
                 /* location    = */ location,
@@ -1235,6 +1258,8 @@ mod term_solver {
         }
 
         pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr, level: HirLevel) -> Expr {
+            self.scope = self.scope.fork(ScopeKind::Lambda);
+
             let parameters = tree
                 .parameters(&mut tree.walk())
                 .flatten()
@@ -1244,10 +1269,11 @@ mod term_solver {
                 .collect::<Vec<_>>();
 
             let value = tree.value().solve(self.db, |node| self.expr(node, level));
-
             let location = self.range(tree.range());
 
-            Expr::Abs(AbsExpr::new(self.db, parameters, value, location))
+            let scope = self.pop_scope();
+
+            Expr::Abs(AbsExpr::new(self.db, parameters, value, location, scope))
         }
 
         pub fn app_expr(&mut self, tree: lura_syntax::AppExpr, level: HirLevel) -> Expr {
@@ -1538,7 +1564,7 @@ mod term_solver {
                     let def = match level {
                         HirLevel::Expr => {
                             self.scope
-                                .search(path, DefinitionKind::Function)
+                                .search(self.db, path, DefinitionKind::Function)
                                 .unwrap_or_else(|| {
                                     // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
                                     // will report an error. It's made for doing global lookups, and not local lookups.
@@ -1547,7 +1573,7 @@ mod term_solver {
                         }
                         HirLevel::Type => {
                             self.scope
-                                .search(path, DefinitionKind::Type)
+                                .search(self.db, path, DefinitionKind::Type)
                                 .unwrap_or_else(|| {
                                     // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
                                     // will report an error. It's made for doing global lookups, and not local lookups.

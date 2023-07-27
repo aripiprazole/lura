@@ -118,7 +118,7 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
             let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
-            if let Some(function) = scope.search(name, DefinitionKind::Function) {
+            if let Some(function) = scope.search(db, name, DefinitionKind::Function) {
                 return function;
             }
         }
@@ -143,7 +143,7 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
             let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
-            if let Some(function) = scope.search(name, DefinitionKind::Constructor) {
+            if let Some(function) = scope.search(db, name, DefinitionKind::Constructor) {
                 return function;
             }
         }
@@ -168,7 +168,7 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
             let source = hir_declare(db, package, file);
             let scope = source.scope(db);
 
-            if let Some(function) = scope.search(name, DefinitionKind::Type) {
+            if let Some(function) = scope.search(db, name, DefinitionKind::Type) {
                 return function;
             }
         }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use fxhash::FxBuildHasher;
 
@@ -19,9 +19,10 @@ pub enum ScopeKind {
     Data = 6,
     Class = 7,
     Trait = 8,
+    Block = 9,
 
     #[default]
-    File = 9,
+    File = 10,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
@@ -38,7 +39,7 @@ pub struct Import {
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
     pub kind: ScopeKind,
-    pub parent: Option<Box<Scope>>,
+    pub parent: Option<Arc<Scope>>,
 
     /// The imports informations
     pub imports: im::HashSet<Import>,
@@ -46,10 +47,10 @@ pub struct Scope {
     pub references: im::HashMap<Definition, im::OrdSet<Reference>, FxBuildHasher>,
 
     // The values informations
-    pub constructors: HashMap<HirPath, Definition, FxBuildHasher>,
-    pub values: HashMap<HirPath, Definition, FxBuildHasher>,
-    pub variables: HashMap<HirPath, Definition, FxBuildHasher>,
-    pub types: HashMap<HirPath, Definition, FxBuildHasher>,
+    pub constructors: HashMap<String, Definition, FxBuildHasher>,
+    pub values: HashMap<String, Definition, FxBuildHasher>,
+    pub variables: HashMap<String, Definition, FxBuildHasher>,
+    pub types: HashMap<String, Definition, FxBuildHasher>,
 }
 
 impl Scope {
@@ -67,10 +68,14 @@ impl Scope {
         }
     }
 
-    pub fn root(self) -> Box<Self> {
+    pub fn new_ref(kind: ScopeKind) -> Arc<Self> {
+        Arc::new(Self::new(kind))
+    }
+
+    pub fn root(&self) -> Arc<Self> {
         match self.parent {
-            Some(parent) => parent,
-            None => Box::new(self),
+            Some(ref parent) => parent.clone(),
+            None => Arc::new(self.clone()),
         }
     }
 
@@ -103,7 +108,7 @@ impl Scope {
     pub fn fork(&self, kind: ScopeKind) -> Self {
         Self {
             kind,
-            parent: Some(Box::new(self.clone())),
+            parent: Some(Arc::new(self.clone())),
             references: im::HashMap::default(),
             constructors: HashMap::default(),
             types: HashMap::default(),
@@ -124,6 +129,10 @@ impl Scope {
         kind: DefinitionKind,
     ) -> Definition {
         let definition = Definition::new(db, kind, name, location);
+        let Some(name) = definition.name(db).to_string(db) else {
+            // TODO: report error
+            return definition;
+        };
 
         match kind {
             DefinitionKind::Function => self.values.insert(name, definition),
@@ -140,16 +149,23 @@ impl Scope {
 
     /// Searches a name for the given `kind` in the current scope, and returns the definition if
     /// found.
-    pub fn search(&self, name: HirPath, kind: DefinitionKind) -> Option<Definition> {
+    pub fn search(
+        &self,
+        db: &dyn crate::HirDb,
+        path: HirPath,
+        kind: DefinitionKind,
+    ) -> Option<Definition> {
+        let name = path.to_string(db).unwrap_or_default();
+
         match kind {
             DefinitionKind::Function => self
                 .values
                 .get(&name)
                 .copied() // Searches in the current scope variables and functions
-                .or_else(|| self.search(name, DefinitionKind::Variable))
-                .or_else(|| self.search(name, DefinitionKind::Constructor))
+                .or_else(|| self.search(db, path, DefinitionKind::Variable))
+                .or_else(|| self.search(db, path, DefinitionKind::Constructor))
                 .or_else(|| match self.parent.as_ref() {
-                    Some(root) => root.search(name, DefinitionKind::Function),
+                    Some(root) => root.search(db, path, DefinitionKind::Function),
                     None => None,
                 }),
             DefinitionKind::Constructor => self.constructors.get(&name).copied(),
