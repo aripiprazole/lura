@@ -51,6 +51,7 @@ pub struct Jar(
     source::type_rep::QPath,
     lower::hir_declare,
     lower::hir_lower,
+    completions::completions,
 );
 
 /// The database that stores all the information about the source code. It is
@@ -63,6 +64,7 @@ pub trait HirDb: HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 
 impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}
 
+pub mod completions;
 pub mod lower;
 pub mod package;
 pub mod reference;

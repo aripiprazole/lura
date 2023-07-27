@@ -19,13 +19,10 @@ use crate::{
 /// the scope of a definition, and to find the scope of a reference. And to be used building a
 /// call graph, or even a IDE.
 #[allow(clippy::type_complexity)]
-pub struct ReferenceWalker<'db, U: Checkable, F>
-where
-    F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
-{
+pub struct ReferenceWalker<'db, U: Checkable> {
     db: &'db dyn crate::HirDb,
     stack: Vec<Arc<Scope>>,
-    visit_reference: F,
+    visit_reference: Box<dyn FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U>,
     enter_scope: Box<dyn FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>)>,
 
     scopes_visited: im::HashSet<Arc<Scope>>,
@@ -40,21 +37,14 @@ where
 /// Defines a builder for a `ReferenceWalker`. It's intended to be used to build a `ReferenceWalker`
 /// within multiple visit functions, to be easier to use.
 #[allow(clippy::type_complexity)]
-pub struct ReferenceWalkerBuilder<'db, U: Checkable, VisitReference>
-where
-    VisitReference: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
-{
+pub struct ReferenceWalkerBuilder<'db, U: Checkable> {
     /// The function that will be called when a reference is visited.
-    visit_reference: VisitReference,
+    visit_reference: Box<dyn FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U>,
     enter_scope: Box<dyn FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>)>,
     phantom: std::marker::PhantomData<&'db ()>,
 }
 
-impl<'db, U, F> ReferenceWalkerBuilder<'db, U, F>
-where
-    U: Checkable,
-    F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
-{
+impl<'db, U: Checkable> ReferenceWalkerBuilder<'db, U> {
     pub fn enter_scope<T>(mut self, enter_scope: T) -> Self
     where
         T: FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>) + 'static,
@@ -63,7 +53,7 @@ where
         self
     }
 
-    pub fn build(self, db: &'db dyn crate::HirDb) -> ReferenceWalker<'db, U, F> {
+    pub fn build(self, db: &'db dyn crate::HirDb) -> ReferenceWalker<'db, U> {
         ReferenceWalker {
             db,
             visited: im::HashSet::default(),
@@ -76,17 +66,27 @@ where
     }
 }
 
-impl<'db, U, F> ReferenceWalker<'db, U, F>
-where
-    U: Checkable,
-    F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
-{
+impl<'db, U: Checkable> ReferenceWalker<'db, U> {
     /// Creates a new `ReferenceWalker` with the given `handle` function. The `handle` function will
     /// be called when a reference is visited.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(handle: F) -> ReferenceWalkerBuilder<'db, U, F> {
+    pub fn new<F>(handle: F) -> ReferenceWalkerBuilder<'db, U>
+    where
+        F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U + 'static,
+    {
         ReferenceWalkerBuilder {
-            visit_reference: handle,
+            visit_reference: Box::new(handle),
+            enter_scope: Box::new(|_, _, _| {}),
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn empty() -> ReferenceWalkerBuilder<'db, ()>
+    where
+        U: Default,
+    {
+        ReferenceWalkerBuilder {
+            visit_reference: Box::new(|_, _, _| ()),
             enter_scope: Box::new(|_, _, _| {}),
             phantom: std::marker::PhantomData,
         }
@@ -111,11 +111,7 @@ where
     }
 }
 
-impl<'db, U, F> HirListener for ReferenceWalker<'db, U, F>
-where
-    U: Checkable,
-    F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
-{
+impl<'db, U: Checkable> HirListener for ReferenceWalker<'db, U> {
     fn visit_reference(&mut self, reference: Reference) {
         // If we already visited this reference, we don't need to visit it again, we can just
         // return.

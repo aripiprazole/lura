@@ -187,4 +187,32 @@ impl Scope {
     pub fn is_do_notation_scope(&self) -> bool {
         todo!()
     }
+
+    pub fn all_definitions(&self) -> im::HashMap<String, Definition, FxBuildHasher> {
+        let mut definitions = im::HashMap::default();
+
+        for (name, definition) in self.constructors.iter() {
+            definitions.insert(name.clone(), *definition);
+        }
+
+        for (name, definition) in self.types.iter() {
+            definitions.insert(name.clone(), *definition);
+        }
+
+        for (name, definition) in self.values.iter() {
+            definitions.insert(name.clone(), *definition);
+        }
+
+        for (name, definition) in self.variables.iter() {
+            definitions.insert(name.clone(), *definition);
+        }
+
+        if let Some(parent) = self.parent.as_ref() {
+            for (name, definition) in parent.all_definitions().iter() {
+                definitions.insert(name.clone(), *definition);
+            }
+        }
+
+        definitions
+    }
 }

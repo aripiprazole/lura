@@ -1,11 +1,16 @@
+#![feature(async_closure)]
+
+use lura_hir::source::DefaultWithDb;
 use std::sync::Arc;
 use tower_lsp::lsp_types::SemanticTokenType;
 use tower_lsp::{LspService, Server};
+use workspace::Workspace;
 
 use crate::backend::Backend;
 use lura_driver::RootDb;
 
 mod backend;
+mod completion;
 mod highlighter;
 mod workspace;
 
@@ -33,8 +38,8 @@ async fn main() {
 
     let (service, socket) = LspService::build(|client| Backend {
         client,
+        workspace: Arc::new(Workspace::default_with_db(&db)),
         db: Arc::new(db),
-        workspace: Arc::default(),
     })
     .finish();
 

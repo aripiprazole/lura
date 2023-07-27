@@ -18,6 +18,7 @@ type-sitter-lib.workspace = true
 eyre.workspace = true
 im.workspace = true
 fxhash.workspace = true
+dashmap.workspace = true
 
 if_chain = "1.0.2"
 petgraph = "0.6.3"

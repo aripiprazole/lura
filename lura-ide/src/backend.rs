@@ -1,5 +1,9 @@
+use crate::completion::{hir_completion_kind, hir_detail, hir_docs};
 use crate::highlighter::semantic_highlight;
 use itertools::Itertools;
+use lura_diagnostic::Offset;
+use lura_hir::completions::{completions, Position};
+use lura_hir::source::HirSource;
 use std::sync::Arc;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -16,10 +20,10 @@ pub struct Backend {
 
 /// This struct represents a file that is opened in the editor.
 #[allow(dead_code)]
-struct TextDocumentItem {
-    uri: Url,
-    text: String,
-    version: i32,
+pub struct TextDocumentItem {
+    pub text: String,
+    pub uri: Url,
+    pub version: i32,
 }
 
 // TODO: remove this
@@ -32,9 +36,49 @@ impl Backend {
     /// This function is called when a file is opened or changed. It will parse the file and
     /// send the diagnostics to the client.
     async fn on_change(&self, params: TextDocumentItem) {
-        let rope = ropey::Rope::from_str(&params.text);
+        self.client
+            .log_message(MessageType::INFO, format!("on_change: {}", params.uri))
+            .await;
+        self.get_or_create_file(params);
+    }
 
-        self.workspace.file_map.insert(params.uri.to_string(), rope);
+    async fn completions(
+        &self,
+        params: TextDocumentPositionParams,
+        hir_source: HirSource,
+    ) -> Option<CompletionResponse> {
+        let path = params.text_document.uri.to_string();
+        let text_file = self.workspace.file_map.get(&path).unwrap();
+        let searching_for_name = Default::default();
+        let offset = text_file
+            .try_line_to_char(params.position.line as usize)
+            .ok()?;
+        let position = Position {
+            offset: Offset(offset + (params.position.character as usize)),
+        };
+
+        // log for client
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("trying completions at {:?}", position.offset.0),
+            )
+            .await;
+
+        let completions = completions(&*self.db, hir_source, searching_for_name, position);
+
+        let new_completions = completions
+            .into_iter()
+            .map(|c| CompletionItem {
+                label: c.name.clone(),
+                kind: Some(hir_completion_kind(&c)),
+                detail: Some(hir_detail(&c)),
+                documentation: hir_docs(&self.db, &c),
+                ..CompletionItem::default()
+            })
+            .collect();
+
+        Some(CompletionResponse::Array(new_completions))
     }
 }
 
@@ -224,10 +268,21 @@ impl LanguageServer for Backend {
         .await
     }
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        Ok(Some(CompletionResponse::Array(vec![
-            CompletionItem::new_simple("Hello".into(), "World".into()),
-        ])))
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let new_completions = vec![CompletionItem::new_simple("Hello".into(), "World".into())];
+
+        let path = params.text_document_position.text_document.uri.clone();
+        self.client
+            .log_message(MessageType::INFO, format!("completion: {}", path))
+            .await;
+
+        if let Some(hir_source) = self.hir_source(path.clone()) {
+            return Ok(self
+                .completions(params.text_document_position, hir_source)
+                .await);
+        }
+
+        Ok(Some(CompletionResponse::Array(new_completions)))
     }
 }
 

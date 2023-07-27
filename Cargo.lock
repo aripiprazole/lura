@@ -669,6 +669,7 @@ dependencies = [
 name = "lura-hir"
 version = "0.0.1"
 dependencies = [
+ "dashmap",
  "eyre",
  "fxhash",
  "if_chain",

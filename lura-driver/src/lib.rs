@@ -130,8 +130,9 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
-    use lura_diagnostic::Diagnostics;
+    use lura_diagnostic::{Diagnostics, Offset};
     use lura_hir::{
+        completions::{completions, Position},
         lower::hir_lower,
         package::{Package, PackageKind, Version},
         reference::ReferenceWalker,
@@ -160,19 +161,10 @@ mod tests {
 
         let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
 
-        ReferenceWalker::new(|db, reference, _scope| {
-            let name = reference
-                .definition(db)
-                .name(db)
-                .to_string(db)
-                .unwrap_or_default();
-
-            println!("reference: {:#?}", name);
-        })
-        .build(&db)
-        .collect(hir);
-
-        println!("{:#?}", diagnostics);
+        println!(
+            "{:#?}",
+            completions(&db, hir, "ar".into(), Position { offset: Offset(29) })
+        );
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
