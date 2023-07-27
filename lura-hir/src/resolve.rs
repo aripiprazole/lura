@@ -1,3 +1,4 @@
+use im::OrdSet;
 use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 
 use crate::{
@@ -39,6 +40,18 @@ pub struct Definition {
 }
 
 impl crate::walking::Walker for Definition {
+    fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
+}
+
+/// It's a reference to a definition in the High-Level Intermediate Representation. It's intended
+/// to be used as a resolved path or definition, and to be used to create the HIR.
+#[salsa::tracked]
+pub struct Reference {
+    pub definition: Definition,
+    pub location: Location,
+}
+
+impl crate::walking::Walker for Reference {
     fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
 }
 
@@ -163,4 +176,24 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 
     // TODO: report error
     Definition::no(db, DefinitionKind::Type, name)
+}
+
+/// Defines the [`references`] query.
+///
+/// It does search for all references to the given `definition` in all packages, and returns it as
+/// a [`im::OrdSet<Reference>`].
+#[salsa::tracked]
+pub fn references(db: &dyn crate::HirDb, definition: Definition) -> OrdSet<Reference> {
+    let mut references = OrdSet::new();
+
+    for package in db.all_packages() {
+        for file in package.all_files(db) {
+            let source = hir_declare(db, package, file);
+            let mut scope = source.scope(db);
+
+            references.extend(scope.references(definition));
+        }
+    }
+
+    references
 }

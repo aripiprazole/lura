@@ -1,7 +1,7 @@
 //! Defines a module for walking throughout the AST, searching all fields for
 //! a given pattern.
 
-use crate::resolve::Definition;
+use crate::resolve::Reference;
 use crate::source::*;
 use std::collections::HashSet;
 
@@ -55,7 +55,7 @@ pub trait HirListener {
     fn enter_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
     fn enter_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
     fn enter_error_type_rep(&mut self, error: HirError) {}
-    fn enter_path_type_rep(&mut self, definition: Definition) {}
+    fn enter_path_type_rep(&mut self, definition: Reference) {}
     fn enter_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}
     fn enter_app_type_rep(&mut self, app: type_rep::AppTypeRep) {}
     fn enter_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}
@@ -63,7 +63,7 @@ pub trait HirListener {
     // SECTION: expr
     fn enter_empty_expr(&mut self) {}
     fn enter_error_expr(&mut self, error: HirError) {}
-    fn enter_path_expr(&mut self, definition: Definition) {}
+    fn enter_path_expr(&mut self, definition: Reference) {}
     fn enter_literal_expr(&mut self, literal: Spanned<literal::Literal>) {}
     fn enter_call_expr(&mut self, call_expr: expr::CallExpr) {}
     fn enter_ann_expr(&mut self, call_expr: expr::AnnExpr) {}
@@ -105,7 +105,7 @@ pub trait HirListener {
     fn exit_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
     fn exit_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
     fn exit_error_type_rep(&mut self, error: HirError) {}
-    fn exit_path_type_rep(&mut self, definition: Definition) {}
+    fn exit_path_type_rep(&mut self, definition: Reference) {}
     fn exit_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}
     fn exit_app_type_rep(&mut self, app: type_rep::AppTypeRep) {}
     fn exit_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}
@@ -113,7 +113,7 @@ pub trait HirListener {
     // SECTION: expr
     fn exit_empty_expr(&mut self) {}
     fn exit_error_expr(&mut self, error: HirError) {}
-    fn exit_path_expr(&mut self, definition: Definition) {}
+    fn exit_path_expr(&mut self, definition: Reference) {}
     fn exit_literal_expr(&mut self, literal: Spanned<literal::Literal>) {}
     fn exit_call_expr(&mut self, call_expr: expr::CallExpr) {}
     fn exit_ann_expr(&mut self, call_expr: expr::AnnExpr) {}

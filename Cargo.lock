@@ -670,7 +670,9 @@ name = "lura-hir"
 version = "0.0.1"
 dependencies = [
  "eyre",
+ "fxhash",
  "if_chain",
+ "im",
  "lura-diagnostic",
  "lura-syntax",
  "petgraph",

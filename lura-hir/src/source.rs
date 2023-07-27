@@ -521,7 +521,7 @@ pub mod declaration {
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod top_level {
-    use crate::resolve::Definition;
+    use crate::resolve::{Definition, Reference};
     use crate::walking::HirListener;
 
     use super::*;
@@ -702,7 +702,7 @@ pub mod top_level {
     /// It does have location, and receives a [`Definition`] and a [`Location`].
     #[salsa::tracked]
     pub struct UsingTopLevel {
-        pub path: Definition,
+        pub path: Reference,
         pub location: Location,
     }
 
@@ -1213,7 +1213,7 @@ pub mod top_level {
 ///
 /// It can be known as the name of eliminating a value.
 pub mod pattern {
-    use crate::resolve::Definition;
+    use crate::resolve::{Definition, Reference};
     use crate::walking::HirListener;
 
     use super::*;
@@ -1225,7 +1225,7 @@ pub mod pattern {
         Array,
         Tuple,
         Unit,
-        Path(Definition),
+        Path(Reference),
     }
 
     impl walking::Walker for Constructor {
@@ -1572,7 +1572,7 @@ pub mod literal {
 pub mod expr {
     use lura_diagnostic::{Diagnostics, Report};
 
-    use crate::resolve::{Definition, HirDiagnostic};
+    use crate::resolve::{HirDiagnostic, Reference};
 
     use super::*;
 
@@ -1599,7 +1599,7 @@ pub mod expr {
         Unit,
         Pure,
         Do,
-        Definition(Definition),
+        Definition(Reference),
         Expr(expr::Expr),
     }
 
@@ -1787,7 +1787,7 @@ pub mod expr {
         Empty,
 
         Error(HirError),
-        Path(Definition),
+        Path(Reference),
         Literal(Spanned<literal::Literal>),
         Call(CallExpr),
         Ann(AnnExpr),
@@ -1915,7 +1915,7 @@ pub mod expr {
 /// Defines a kind of terms. It does define type representations that can be used in the type level
 /// of the language. These are the base of the language grammar and semantics.
 pub mod type_rep {
-    use crate::resolve::Definition;
+    use crate::resolve::{Definition, Reference};
 
     use super::*;
 
@@ -1994,7 +1994,7 @@ pub mod type_rep {
         Error(HirError),
 
         /// A path to a type, it can be either a type alias, a type parameter, or a type definition.
-        Path(Definition),
+        Path(Reference),
 
         /// A qualified path, it's used to define a type that is qualified by a trait type, like
         /// `Foo.Bar.Baz`.

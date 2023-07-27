@@ -206,9 +206,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 let path = decl.path().solve(self.db, |node| self.path(node));
 
                 // TODO: search for functions or anything too.
-                let definition = self.qualify(path, DefinitionKind::Module);
+                let def = self.qualify(path, DefinitionKind::Module);
+                let reference = self.scope.using(self.db, def, path.location(self.db));
 
-                TopLevel::Using(UsingTopLevel::new(self.db, definition, range))
+                TopLevel::Using(UsingTopLevel::new(self.db, reference, range))
             }
         };
 
@@ -930,9 +931,12 @@ mod pattern_solver {
                 let name =
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Variable);
+
                 Pattern::Binding(BindingPattern::new(self.db, name, location))
             } else {
-                let name = Constructor::Path(self.qualify(name, DefinitionKind::Constructor));
+                let def = self.qualify(name, DefinitionKind::Constructor);
+                let reference = self.scope.using(self.db, def, name.location(self.db));
+                let name = Constructor::Path(reference);
 
                 Pattern::Constructor(ConstructorPattern::new(self.db, name, patterns, location))
             }
@@ -1218,10 +1222,12 @@ mod term_solver {
                     find_function(self.db, op)
                 });
 
+            let reference = self.scope.using(self.db, op, location.clone());
+
             Expr::Call(CallExpr::new(
                 self.db,
                 /* kind        = */ CallKind::Infix,
-                /* callee      = */ Callee::Definition(op),
+                /* callee      = */ Callee::Definition(reference),
                 /* arguments   = */ vec![lhs, rhs],
                 /* do_notation = */ None,
                 /* location    = */ location,
@@ -1339,7 +1345,9 @@ mod term_solver {
         }
 
         pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr, level: HirLevel) -> Expr {
-            let scrutinee = tree.scrutinee().solve(self.db, |node| self.expr(node, level));
+            let scrutinee = tree
+                .scrutinee()
+                .solve(self.db, |node| self.expr(node, level));
 
             let location = self.range(tree.range());
 
@@ -1525,9 +1533,9 @@ mod term_solver {
                     // Create a new path with the identifier, and search for the definition in the
                     // scope, and if it is not present in the scope, it will invoke a compiler query
                     // to search in the entire package.
-                    let path = HirPath::new(self.db, location, vec![identifier]);
+                    let path = HirPath::new(self.db, location.clone(), vec![identifier]);
 
-                    let definition = match level {
+                    let def = match level {
                         HirLevel::Expr => {
                             self.scope
                                 .search(path, DefinitionKind::Function)
@@ -1548,8 +1556,11 @@ mod term_solver {
                         }
                     };
 
+                    // Creates a new [`Reference`] from the [`Definition`] and the location.
+                    let reference = self.scope.using(self.db, def, location.clone());
+
                     // Creates a new [`Expr`] with the [`Definition`] as the callee.
-                    Expr::Path(definition)
+                    Expr::Path(reference)
                 }),
             })
         }

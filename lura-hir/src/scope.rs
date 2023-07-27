@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+
+use fxhash::FxBuildHasher;
 
 use crate::{
-    resolve::{Definition, DefinitionKind},
+    resolve::{Definition, DefinitionKind, Reference},
     source::{HirPath, HirSource, Location},
 };
 
@@ -39,13 +41,15 @@ pub struct Scope {
     pub parent: Option<Box<Scope>>,
 
     /// The imports informations
-    pub imports: HashSet<Import>,
+    pub imports: im::HashSet<Import>,
+
+    pub references: im::HashMap<Definition, im::OrdSet<Reference>, FxBuildHasher>,
 
     // The values informations
-    pub constructors: HashMap<HirPath, Definition>,
-    pub values: HashMap<HirPath, Definition>,
-    pub variables: HashMap<HirPath, Definition>,
-    pub types: HashMap<HirPath, Definition>,
+    pub constructors: HashMap<HirPath, Definition, FxBuildHasher>,
+    pub values: HashMap<HirPath, Definition, FxBuildHasher>,
+    pub variables: HashMap<HirPath, Definition, FxBuildHasher>,
+    pub types: HashMap<HirPath, Definition, FxBuildHasher>,
 }
 
 impl Scope {
@@ -54,11 +58,12 @@ impl Scope {
         Self {
             kind,
             parent: None,
-            constructors: HashMap::new(),
-            types: HashMap::new(),
-            values: HashMap::new(),
-            variables: HashMap::new(),
-            imports: HashSet::new(),
+            references: im::HashMap::default(),
+            constructors: HashMap::default(),
+            types: HashMap::default(),
+            values: HashMap::default(),
+            variables: HashMap::default(),
+            imports: im::HashSet::default(),
         }
     }
 
@@ -69,6 +74,28 @@ impl Scope {
         }
     }
 
+    /// Returns the references to the given `definition` in the current scope. It will search in the
+    /// current scope, and in the parent scope.
+    pub fn references(&mut self, definition: Definition) -> im::OrdSet<Reference> {
+        self.references
+            .entry(definition)
+            .or_insert_with(im::OrdSet::new)
+            .clone()
+    }
+
+    /// Adds a reference to the given `definition` in the current scope.
+    pub fn using(&mut self, db: &dyn crate::HirDb, it: Definition, loc: Location) -> Reference {
+        // Create a new reference to [it] and insert it in the current scope
+        let reference = Reference::new(db, it, loc);
+        self.references
+            .entry(it)
+            .or_insert_with(im::OrdSet::new)
+            .insert(reference);
+
+        // Return the reference
+        reference
+    }
+
     /// Creates a new `Scope` with the given `kind`, `parent`, `constructors`, `types`, `values`,
     /// forking the current environment.
     ///
@@ -77,11 +104,12 @@ impl Scope {
         Self {
             kind,
             parent: Some(Box::new(self.clone())),
-            constructors: HashMap::new(),
-            types: HashMap::new(),
-            values: HashMap::new(),
-            variables: HashMap::new(),
-            imports: HashSet::new(),
+            references: im::HashMap::default(),
+            constructors: HashMap::default(),
+            types: HashMap::default(),
+            values: HashMap::default(),
+            variables: HashMap::default(),
+            imports: im::HashSet::new(),
         }
     }
 
