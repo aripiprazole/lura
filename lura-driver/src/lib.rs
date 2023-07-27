@@ -161,19 +161,19 @@ mod tests {
 
         let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
 
-        let mut walker = ReferenceWalker::new(&db, |db, reference, _scope| {
-            println!(
-                "reference: {:#?}",
-                reference
-                    .definition(db)
-                    .name(db)
-                    .to_string(db)
-                    .unwrap_or_default()
-            );
-        });
+        ReferenceWalker::new(|db, reference, _scope| {
+            let name = reference
+                .definition(db)
+                .name(db)
+                .to_string(db)
+                .unwrap_or_default();
+
+            println!("reference: {:#?}", name);
+        })
+        .build(&db)
+        .collect(hir);
 
         println!("{:#?}", diagnostics);
-        hir.accept(&db, &mut walker);
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
