@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
 
-use crate::{package::Package, scope::Scope};
+use crate::{package::Package, scope::Scope, walking};
 
 pub trait OptionExt<T> {
     /// Returns the contained [`Some`] value or a default.
@@ -116,6 +116,10 @@ impl Location {
     }
 }
 
+impl walking::Walker for Location {
+    fn accept<T: walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
+}
+
 impl TextRange for Location {
     /// Returns the start offset of the source file.
     fn start(&self) -> Offset {
@@ -163,6 +167,12 @@ pub trait HirElement {
 pub struct HirError {
     /// The location of the error.
     pub location: Location,
+}
+
+impl walking::Walker for HirError {
+    fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+        self.location(db).accept(db, listener);
+    }
 }
 
 /// Defines the tracking of a HIR source code file. It's the base struct of the HIR.
@@ -220,6 +230,13 @@ impl HirPath {
     }
 }
 
+impl walking::Walker for HirPath {
+    fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+        self.location(db).accept(db, listener);
+        self.segments(db).clone().accept(db, listener);
+    }
+}
+
 impl DefaultWithDb for HirPath {
     fn default_with_db(db: &dyn crate::HirDb) -> Self {
         Self::new(db, Location::call_site(db), vec![])
@@ -237,6 +254,12 @@ pub struct Identifier {
 
     /// The location of the identifier.
     pub location: Location,
+}
+
+impl walking::Walker for Identifier {
+    fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+        self.location(db).accept(db, listener);
+    }
 }
 
 impl Identifier {
@@ -348,6 +371,14 @@ pub mod declaration {
         pub location: Location,
     }
 
+    impl walking::Walker for Attribute {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.name(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+        }
+    }
+
     impl DefaultWithDb for Attribute {
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
             let name = default_with_db(db);
@@ -363,6 +394,12 @@ pub mod declaration {
     #[salsa::tracked]
     pub struct DocString {
         pub range: Location,
+    }
+
+    impl walking::Walker for DocString {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.range(db).accept(db, listener);
+        }
     }
 
     /// Defines a visibility for a declaration. It's used to rule "who" can access this
@@ -383,6 +420,10 @@ pub mod declaration {
         /// The declaration is private to the package that defines it, and can only be accessed by
         /// the package that defines it.
         Internal,
+    }
+
+    impl walking::Walker for Spanned<Vis> {
+        fn accept<T: walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
     }
 
     /// Defines a parameter for a declaration. It's a function parameter, and it's used to type
@@ -455,6 +496,14 @@ pub mod declaration {
         }
     }
 
+    impl walking::Walker for Parameter {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.binding(db).accept(db, listener);
+            self.parameter_type(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+        }
+    }
+
     impl DefaultWithDb for Parameter {
         /// Creates a new unit parameter. Just like `(): ()`, for default and error recovery
         /// purposes.
@@ -473,6 +522,7 @@ pub mod declaration {
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod top_level {
     use crate::resolve::Definition;
+    use crate::walking::HirListener;
 
     use super::*;
 
@@ -499,6 +549,17 @@ pub mod top_level {
         pub parameters: Vec<declaration::Parameter>,
         pub return_type: type_rep::TypeRep,
         pub location: Location,
+    }
+
+    impl walking::Walker for Signature {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+        }
     }
 
     impl declaration::Declaration for Signature {
@@ -558,6 +619,15 @@ pub mod top_level {
         pub location: Location,
     }
 
+    impl walking::Walker for Clause {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.name(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.value(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+        }
+    }
+
     impl HirElement for Clause {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
@@ -579,6 +649,15 @@ pub mod top_level {
     pub struct BindingGroup {
         pub signature: Signature,
         pub clauses: HashSet<Clause>,
+    }
+
+    impl walking::Walker for BindingGroup {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_binding_top_level(self);
+            self.signature(db).accept(db, listener);
+            self.clauses(db).accept(db, listener);
+            listener.exit_binding_top_level(self);
+        }
     }
 
     impl declaration::Declaration for BindingGroup {
@@ -627,6 +706,15 @@ pub mod top_level {
         pub location: Location,
     }
 
+    impl walking::Walker for UsingTopLevel {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_using_top_level(self);
+            self.path(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_using_top_level(self);
+        }
+    }
+
     impl HirElement for UsingTopLevel {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
@@ -643,6 +731,16 @@ pub mod top_level {
         pub path: Definition,
         pub arguments: Vec<expr::Expr>,
         pub location: Location,
+    }
+
+    impl walking::Walker for CommandTopLevel {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_command_top_level(self);
+            self.path(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_command_top_level(self);
+        }
     }
 
     impl HirElement for CommandTopLevel {
@@ -662,6 +760,22 @@ pub mod top_level {
         pub fields: Vec<Signature>,
         pub methods: Vec<BindingGroup>,
         pub location: Location,
+    }
+
+    impl walking::Walker for ClassDecl {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_class_top_level(self);
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.fields(db).accept(db, listener);
+            self.methods(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_class_top_level(self);
+        }
     }
 
     impl declaration::Declaration for ClassDecl {
@@ -710,6 +824,21 @@ pub mod top_level {
         pub return_type: type_rep::TypeRep,
         pub methods: Vec<BindingGroup>,
         pub location: Location,
+    }
+
+    impl walking::Walker for TraitDecl {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_trait_top_level(self);
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.methods(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_trait_top_level(self);
+        }
     }
 
     impl declaration::Declaration for TraitDecl {
@@ -761,6 +890,22 @@ pub mod top_level {
         pub location: Location,
     }
 
+    impl walking::Walker for DataDecl {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_data_top_level(self);
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.variants(db).accept(db, listener);
+            self.methods(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_data_top_level(self);
+        }
+    }
+
     impl declaration::Declaration for DataDecl {
         fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
             Self::attributes(*self, db)
@@ -805,6 +950,16 @@ pub mod top_level {
         pub name: Definition,
         pub return_type: type_rep::TypeRep,
         pub location: Location,
+    }
+
+    impl walking::Walker for Constructor {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+        }
     }
 
     impl declaration::Declaration for Constructor {
@@ -875,6 +1030,28 @@ pub mod top_level {
         ClassDecl(ClassDecl),
         TraitDecl(TraitDecl),
         DataDecl(DataDecl),
+    }
+
+    impl walking::Walker for TopLevel {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                TopLevel::Empty => {
+                    listener.enter_empty_top_level();
+                    listener.exit_empty_top_level();
+                }
+                TopLevel::Error(error) => {
+                    listener.enter_error_top_level(error);
+                    error.accept(db, listener);
+                    listener.exit_error_top_level(error);
+                }
+                TopLevel::Using(using) => using.accept(db, listener),
+                TopLevel::Command(command) => command.accept(db, listener),
+                TopLevel::BindingGroup(binding) => binding.accept(db, listener),
+                TopLevel::ClassDecl(class_decl) => class_decl.accept(db, listener),
+                TopLevel::TraitDecl(trait_decl) => trait_decl.accept(db, listener),
+                TopLevel::DataDecl(data_decl) => data_decl.accept(db, listener),
+            }
+        }
     }
 
     impl HirElement for TopLevel {
@@ -1037,6 +1214,7 @@ pub mod top_level {
 /// It can be known as the name of eliminating a value.
 pub mod pattern {
     use crate::resolve::Definition;
+    use crate::walking::HirListener;
 
     use super::*;
 
@@ -1050,6 +1228,19 @@ pub mod pattern {
         Path(Definition),
     }
 
+    impl walking::Walker for Constructor {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                Self::Array => {}
+                Self::Tuple => {}
+                Self::Unit => {}
+                Self::Path(path) => {
+                    path.accept(db, listener);
+                }
+            }
+        }
+    }
+
     /// Defines a constructor pattern. It's a pattern that can be used to match agains't a
     /// constructor. It's matching agains't a constructor, and it's arguments.
     ///
@@ -1058,8 +1249,18 @@ pub mod pattern {
     #[salsa::tracked]
     pub struct ConstructorPattern {
         pub name: Constructor,
-        pub arguments: Vec<pattern::Pattern>,
+        pub arguments: Vec<Pattern>,
         pub location: Location,
+    }
+
+    impl walking::Walker for ConstructorPattern {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_constructor_pattern(self);
+            self.name(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_constructor_pattern(self);
+        }
     }
 
     impl HirElement for ConstructorPattern {
@@ -1077,6 +1278,15 @@ pub mod pattern {
     pub struct BindingPattern {
         pub name: Definition,
         pub location: Location,
+    }
+
+    impl walking::Walker for BindingPattern {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_binding_pattern(self);
+            self.name(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_binding_pattern(self);
+        }
     }
 
     impl HirElement for BindingPattern {
@@ -1110,6 +1320,39 @@ pub mod pattern {
         Binding(BindingPattern),
     }
 
+    impl walking::Walker for Pattern {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                Pattern::Empty => {
+                    listener.enter_empty_pattern();
+                    listener.exit_empty_pattern();
+                }
+                Pattern::Literal(literal) => {
+                    listener.enter_literal_pattern(literal.clone());
+                    literal.clone().accept(db, listener);
+                    listener.exit_literal_pattern(literal);
+                }
+                Pattern::Wildcard(location) => {
+                    listener.enter_wildcard_pattern(location.clone());
+                    location.clone().accept(db, listener);
+                    listener.exit_wildcard_pattern(location);
+                }
+                Pattern::Rest(location) => {
+                    listener.enter_rest_pattern(location.clone());
+                    location.clone().accept(db, listener);
+                    listener.exit_rest_pattern(location);
+                }
+                Pattern::Error(error) => {
+                    listener.enter_error_pattern(error);
+                    error.accept(db, listener);
+                    listener.exit_error_pattern(error);
+                }
+                Pattern::Constructor(constructor) => constructor.accept(db, listener),
+                Pattern::Binding(binding) => binding.accept(db, listener),
+            }
+        }
+    }
+
     impl HirElement for Pattern {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
@@ -1128,6 +1371,8 @@ pub mod pattern {
 /// Defines a kind of statements. It does define statements that can be used in a block, and
 /// "do-notations", that are used to do imperative code in a functional language.
 pub mod stmt {
+    use crate::walking::HirListener;
+
     use super::*;
 
     /// Defines a ask statement, it will bind the value to a pattern, and it will return the value
@@ -1140,6 +1385,16 @@ pub mod stmt {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
         pub location: Location,
+    }
+
+    impl walking::Walker for AskStmt {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_ask_stmt(self);
+            self.pattern(db).accept(db, listener);
+            self.value(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_ask_stmt(self);
+        }
     }
 
     impl HirElement for AskStmt {
@@ -1158,6 +1413,16 @@ pub mod stmt {
         pub location: Location,
     }
 
+    impl walking::Walker for LetStmt {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_let_stmt(self);
+            self.pattern(db).accept(db, listener);
+            self.value(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_let_stmt(self);
+        }
+    }
+
     impl HirElement for LetStmt {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
@@ -1172,6 +1437,29 @@ pub mod stmt {
         Ask(AskStmt),
         Let(LetStmt),
         Downgrade(expr::Expr),
+    }
+
+    impl walking::Walker for Stmt {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                Stmt::Empty => {
+                    listener.enter_empty_stmt();
+                    listener.exit_empty_stmt();
+                }
+                Stmt::Error(error) => {
+                    listener.enter_error_stmt(error);
+                    error.accept(db, listener);
+                    listener.exit_error_stmt(error);
+                }
+                Stmt::Ask(ask_stmt) => ask_stmt.accept(db, listener),
+                Stmt::Let(let_stmt) => let_stmt.accept(db, listener),
+                Stmt::Downgrade(expr) => {
+                    listener.enter_downgrade_stmt(expr.clone());
+                    expr.clone().accept(db, listener);
+                    listener.exit_downgrade_stmt(expr);
+                }
+            }
+        }
     }
 
     impl HirElement for Stmt {
@@ -1196,6 +1484,15 @@ pub mod stmt {
         pub location: Location,
     }
 
+    impl walking::Walker for Block {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_block(self);
+            self.statements(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_block(self);
+        }
+    }
+
     impl DefaultWithDb for Block {
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
             Self::new(db, vec![], Location::call_site(db))
@@ -1212,6 +1509,8 @@ pub mod stmt {
 /// Defines a kind of primaries. It does define terms that are literally literals, and it's used
 /// as numbers, strings, etc... These are the base of the base of the base of the language
 pub mod literal {
+    use crate::walking::HirListener;
+
     use super::*;
 
     /// Defines a literal element in the HIR.
@@ -1237,6 +1536,10 @@ pub mod literal {
 
         /// Defines a character literal. It's used to represent a character value.
         Char(char),
+    }
+
+    impl walking::Walker for Spanned<Literal> {
+        fn accept<T: HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
     }
 
     impl Literal {
@@ -1300,6 +1603,20 @@ pub mod expr {
         Expr(expr::Expr),
     }
 
+    impl walking::Walker for Callee {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                Callee::Array => {}
+                Callee::Tuple => {}
+                Callee::Unit => {}
+                Callee::Pure => {}
+                Callee::Do => {}
+                Callee::Definition(_) => {}
+                Callee::Expr(expr) => expr.accept(db, listener),
+            }
+        }
+    }
+
     /// Defines a kind of call. It's used to define the kind of a call expression, and to improve
     /// pretty printing.
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -1324,6 +1641,16 @@ pub mod expr {
         pub location: Location,
     }
 
+    impl walking::Walker for AbsExpr {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_abs_expr(self);
+            self.parameters(db).accept(db, listener);
+            self.value(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_abs_expr(self);
+        }
+    }
+
     impl HirElement for AbsExpr {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
@@ -1339,6 +1666,16 @@ pub mod expr {
         pub value: expr::Expr,
         pub type_rep: type_rep::TypeRep,
         pub location: Location,
+    }
+
+    impl walking::Walker for AnnExpr {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_ann_expr(self);
+            self.value(db).accept(db, listener);
+            self.type_rep(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_ann_expr(self);
+        }
     }
 
     impl HirElement for AnnExpr {
@@ -1360,6 +1697,14 @@ pub mod expr {
         pub location: Location,
     }
 
+    impl walking::Walker for MatchArm {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            self.pattern.accept(db, listener);
+            self.value.accept(db, listener);
+            self.location.accept(db, listener);
+        }
+    }
+
     impl HirElement for MatchArm {
         fn location(&self, _db: &dyn crate::HirDb) -> Location {
             // As it's not tracked by salsa, it's not possible to get the location from the salsa
@@ -1378,6 +1723,16 @@ pub mod expr {
         pub scrutinee: expr::Expr,
         pub clauses: Vec<MatchArm>,
         pub location: Location,
+    }
+
+    impl walking::Walker for MatchExpr {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_match_expr(self);
+            self.scrutinee(db).accept(db, listener);
+            self.clauses(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_match_expr(self);
+        }
     }
 
     impl HirElement for MatchExpr {
@@ -1402,6 +1757,17 @@ pub mod expr {
         pub do_notation: Option<stmt::Block>,
 
         pub location: Location,
+    }
+
+    impl walking::Walker for CallExpr {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_call_expr(self);
+            self.callee(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.do_notation(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_call_expr(self);
+        }
     }
 
     impl HirElement for CallExpr {
@@ -1473,6 +1839,40 @@ pub mod expr {
         }
     }
 
+    impl walking::Walker for Expr {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                Expr::Empty => {
+                    listener.enter_empty_expr();
+                    listener.exit_empty_expr();
+                }
+                Expr::Error(error) => {
+                    listener.enter_error_expr(error);
+                    error.accept(db, listener);
+                    listener.exit_error_expr(error);
+                }
+                Expr::Path(path) => {
+                    listener.enter_path_expr(path);
+                    listener.exit_path_expr(path);
+                }
+                Expr::Literal(literal) => {
+                    listener.enter_literal_expr(literal.clone());
+                    literal.clone().accept(db, listener);
+                    listener.exit_literal_expr(literal);
+                }
+                Expr::Call(call_expr) => call_expr.accept(db, listener),
+                Expr::Ann(ann_expr) => ann_expr.accept(db, listener),
+                Expr::Abs(abs_expr) => abs_expr.accept(db, listener),
+                Expr::Match(match_expr) => match_expr.accept(db, listener),
+                Expr::Upgrade(type_rep) => {
+                    listener.enter_upgrade_expr(type_rep.clone());
+                    type_rep.clone().accept(db, listener);
+                    listener.exit_upgrade_expr(type_rep);
+                }
+            }
+        }
+    }
+
     impl DefaultWithDb for Expr {
         /// The default expression is `Empty`. But it's not allowed to be used in any
         /// contexts, so this function should report it as an error, and return `Empty`. For better
@@ -1533,6 +1933,16 @@ pub mod type_rep {
         pub location: Location,
     }
 
+    impl walking::Walker for QPath {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_qpath_type_rep(self);
+            self.qualifier(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_qpath_type_rep(self);
+        }
+    }
+
     impl HirElement for QPath {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             Self::location(*self, db)
@@ -1545,6 +1955,16 @@ pub mod type_rep {
         pub callee: TypeRep,
         pub arguments: Vec<type_rep::TypeRep>,
         pub location: Location,
+    }
+
+    impl walking::Walker for AppTypeRep {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_app_type_rep(self);
+            self.callee(db).accept(db, listener);
+            self.arguments(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_app_type_rep(self);
+        }
     }
 
     impl HirElement for AppTypeRep {
@@ -1622,6 +2042,67 @@ pub mod type_rep {
             // TODO: report error
 
             expr::Expr::Upgrade(Box::new(self))
+        }
+    }
+
+    impl walking::Walker for TypeRep {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            match self {
+                TypeRep::Unit => {
+                    listener.enter_unit_type_rep();
+                    listener.exit_unit_type_rep();
+                }
+                TypeRep::Empty => {
+                    listener.enter_empty_type_rep();
+                    listener.exit_empty_type_rep();
+                }
+                TypeRep::This => {
+                    listener.enter_this_type_rep();
+                    listener.exit_this_type_rep();
+                }
+                TypeRep::Error(error) => {
+                    listener.enter_error_type_rep(error);
+                    error.accept(db, listener);
+                    listener.exit_error_type_rep(error);
+                }
+                TypeRep::Path(definition) => {
+                    listener.enter_path_type_rep(definition);
+                    listener.exit_path_type_rep(definition);
+                }
+                TypeRep::QPath(qpath) => qpath.accept(db, listener),
+                TypeRep::App(app) => app.accept(db, listener),
+                TypeRep::Pi {
+                    parameters,
+                    value,
+                    location,
+                } => {
+                    listener.enter_pi_type_rep(parameters.clone(), value.clone(), location.clone());
+                    parameters.clone().accept(db, listener);
+                    value.clone().accept(db, listener);
+                    location.clone().accept(db, listener);
+                    listener.exit_pi_type_rep(parameters, value, location);
+                }
+                TypeRep::Sigma {
+                    parameters,
+                    value,
+                    location,
+                } => {
+                    listener.enter_sigma_type_rep(
+                        parameters.clone(),
+                        value.clone(),
+                        location.clone(),
+                    );
+                    parameters.clone().accept(db, listener);
+                    value.clone().accept(db, listener);
+                    location.clone().accept(db, listener);
+                    listener.exit_sigma_type_rep(parameters, value, location);
+                }
+                TypeRep::Downgrade(expr) => {
+                    listener.enter_downgrade_type_rep(expr.clone());
+                    expr.clone().accept(db, listener);
+                    listener.exit_downgrade_type_rep(expr);
+                }
+            }
         }
     }
 

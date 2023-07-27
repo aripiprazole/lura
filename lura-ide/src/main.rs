@@ -2,15 +2,16 @@ use std::sync::Arc;
 use tower_lsp::lsp_types::SemanticTokenType;
 use tower_lsp::{LspService, Server};
 
-use lura_driver::RootDb;
 use crate::backend::Backend;
+use lura_driver::RootDb;
 
 mod backend;
-mod workspace;
 mod highlighter;
+mod workspace;
 
 const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::FUNCTION,
+    SemanticTokenType::METHOD,
     SemanticTokenType::VARIABLE,
     SemanticTokenType::STRING,
     SemanticTokenType::COMMENT,

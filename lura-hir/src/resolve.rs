@@ -38,6 +38,10 @@ pub struct Definition {
     pub location: Location,
 }
 
+impl crate::walking::Walker for Definition {
+    fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, _listener: &mut T) {}
+}
+
 /// Represents the diagnostic for High-Level Intermediate Representation. It's intended to be used
 /// to report errors to the diagnostic database, by this crate, only.
 #[derive(Debug)]
