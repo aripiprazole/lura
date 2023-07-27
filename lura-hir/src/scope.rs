@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use fxhash::FxBuildHasher;
 
@@ -36,7 +36,7 @@ pub struct Import {
 /// to store context-sensitive information, like imports, and definitions.
 ///
 /// It's also used to store parameters, variables, functions, types and more.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
     pub kind: ScopeKind,
     pub parent: Option<Arc<Scope>>,
@@ -47,10 +47,10 @@ pub struct Scope {
     pub references: im::HashMap<Definition, im::OrdSet<Reference>, FxBuildHasher>,
 
     // The values informations
-    pub constructors: HashMap<String, Definition, FxBuildHasher>,
-    pub values: HashMap<String, Definition, FxBuildHasher>,
-    pub variables: HashMap<String, Definition, FxBuildHasher>,
-    pub types: HashMap<String, Definition, FxBuildHasher>,
+    pub constructors: im::HashMap<String, Definition, FxBuildHasher>,
+    pub values: im::HashMap<String, Definition, FxBuildHasher>,
+    pub variables: im::HashMap<String, Definition, FxBuildHasher>,
+    pub types: im::HashMap<String, Definition, FxBuildHasher>,
 }
 
 impl Scope {
@@ -60,10 +60,10 @@ impl Scope {
             kind,
             parent: None,
             references: im::HashMap::default(),
-            constructors: HashMap::default(),
-            types: HashMap::default(),
-            values: HashMap::default(),
-            variables: HashMap::default(),
+            constructors: im::HashMap::default(),
+            types: im::HashMap::default(),
+            values: im::HashMap::default(),
+            variables: im::HashMap::default(),
             imports: im::HashSet::default(),
         }
     }
@@ -110,10 +110,10 @@ impl Scope {
             kind,
             parent: Some(Arc::new(self.clone())),
             references: im::HashMap::default(),
-            constructors: HashMap::default(),
-            types: HashMap::default(),
-            values: HashMap::default(),
-            variables: HashMap::default(),
+            constructors: im::HashMap::default(),
+            types: im::HashMap::default(),
+            values: im::HashMap::default(),
+            variables: im::HashMap::default(),
             imports: im::HashSet::new(),
         }
     }

@@ -18,6 +18,7 @@ use crate::{
 /// and collect all references in the abstract syntax tree. It's also intended to be used to find
 /// the scope of a definition, and to find the scope of a reference. And to be used building a
 /// call graph, or even a IDE.
+#[allow(clippy::type_complexity)]
 pub struct ReferenceWalker<'db, U: Checkable, F>
 where
     F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
@@ -25,6 +26,9 @@ where
     db: &'db dyn crate::HirDb,
     stack: Vec<Arc<Scope>>,
     visit_reference: F,
+    enter_scope: Box<dyn FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>)>,
+
+    scopes_visited: im::HashSet<Arc<Scope>>,
 
     /// The references that were already visited. It's used to avoid infinite loops
     visited: im::HashSet<Reference>,
@@ -35,27 +39,39 @@ where
 
 /// Defines a builder for a `ReferenceWalker`. It's intended to be used to build a `ReferenceWalker`
 /// within multiple visit functions, to be easier to use.
+#[allow(clippy::type_complexity)]
 pub struct ReferenceWalkerBuilder<'db, U: Checkable, VisitReference>
 where
     VisitReference: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
 {
     /// The function that will be called when a reference is visited.
-    pub visit_reference: VisitReference,
-    pub phantom: std::marker::PhantomData<&'db ()>,
+    visit_reference: VisitReference,
+    enter_scope: Box<dyn FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>)>,
+    phantom: std::marker::PhantomData<&'db ()>,
 }
 
-impl<'db, U, VisitReference> ReferenceWalkerBuilder<'db, U, VisitReference>
+impl<'db, U, F> ReferenceWalkerBuilder<'db, U, F>
 where
     U: Checkable,
-    VisitReference: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
+    F: FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U,
 {
-    pub fn build(self, db: &'db dyn crate::HirDb) -> ReferenceWalker<'db, U, VisitReference> {
+    pub fn enter_scope<T>(mut self, enter_scope: T) -> Self
+    where
+        T: FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>) + 'static,
+    {
+        self.enter_scope = Box::new(enter_scope);
+        self
+    }
+
+    pub fn build(self, db: &'db dyn crate::HirDb) -> ReferenceWalker<'db, U, F> {
         ReferenceWalker {
             db,
             visited: im::HashSet::default(),
             stack: vec![Scope::new_ref(ScopeKind::File)],
             visit_reference: self.visit_reference,
+            enter_scope: self.enter_scope,
             collected: im::HashSet::default(),
+            scopes_visited: im::HashSet::default(),
         }
     }
 }
@@ -71,6 +87,7 @@ where
     pub fn new(handle: F) -> ReferenceWalkerBuilder<'db, U, F> {
         ReferenceWalkerBuilder {
             visit_reference: handle,
+            enter_scope: Box::new(|_, _, _| {}),
             phantom: std::marker::PhantomData,
         }
     }
@@ -80,6 +97,17 @@ where
 
         // Return the collected references
         self.collected
+    }
+
+    fn enter_scope(&mut self, db: &'db dyn crate::HirDb, location: Location, scope: Arc<Scope>) {
+        if self.scopes_visited.contains(&scope) {
+            return;
+        }
+
+        (self.enter_scope)(db, location, scope.clone());
+
+        // Mark the scope as visited
+        self.scopes_visited.insert(scope);
     }
 }
 
@@ -107,6 +135,7 @@ where
     }
 
     fn enter_data_top_level(&mut self, decl: top_level::DataDecl) {
+        self.enter_scope(self.db, decl.location(self.db), decl.scope(self.db));
         self.stack.push(decl.scope(self.db));
     }
 
@@ -115,6 +144,7 @@ where
     }
 
     fn enter_class_top_level(&mut self, decl: top_level::ClassDecl) {
+        self.enter_scope(self.db, decl.location(self.db), decl.scope(self.db));
         self.stack.push(decl.scope(self.db));
     }
 
@@ -123,6 +153,7 @@ where
     }
 
     fn enter_trait_top_level(&mut self, decl: top_level::TraitDecl) {
+        self.enter_scope(self.db, decl.location(self.db), decl.scope(self.db));
         self.stack.push(decl.scope(self.db));
     }
 
@@ -131,6 +162,7 @@ where
     }
 
     fn enter_block(&mut self, block: stmt::Block) {
+        self.enter_scope(self.db, block.location(self.db), block.scope(self.db));
         self.stack.push(block.scope(self.db));
     }
 
@@ -139,6 +171,7 @@ where
     }
 
     fn enter_abs_expr(&mut self, abs_expr: expr::AbsExpr) {
+        self.enter_scope(self.db, abs_expr.location(self.db), abs_expr.scope(self.db));
         self.stack.push(abs_expr.scope(self.db));
     }
 
