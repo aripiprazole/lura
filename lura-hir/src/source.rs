@@ -9,6 +9,7 @@ use std::collections::HashSet;
 
 use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
+use tree_sitter::Node;
 
 use crate::{package::Package, scope::Scope, walking};
 
@@ -31,15 +32,18 @@ pub trait DefaultWithDb {
     /// Default values are often some kind of initial value, identity value, or anything else that
     /// may make sense as a default.
     fn default_with_db(db: &dyn crate::HirDb) -> Self;
-}
 
-/// A trait for recovering to default value, but with a database and reporting errors.
-pub trait RecoverWithDb {
-    /// Returns the "default value" for a type.
-    ///
-    /// Default values are often some kind of initial value, identity value, or anything else that
-    /// may make sense as a default.
-    fn recover_with_db(db: &dyn crate::HirDb, value: &str) -> Self;
+    /// Returns a sentinel value for this type that signals that the value is
+    /// not available.
+    fn recover_with_db(db: &dyn crate::HirDb, node: Node, location: Location) -> Self
+    where
+        Self: Sized,
+    {
+        let _ = node;
+        let _ = location;
+
+        Self::default_with_db(db)
+    }
 }
 
 impl<T: DefaultWithDb> OptionExt<T> for Option<T> {
