@@ -135,7 +135,6 @@ mod tests {
         completions::{completions, Position},
         lower::hir_lower,
         package::{Package, PackageKind, Version},
-        reference::ReferenceWalker,
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
@@ -161,6 +160,9 @@ mod tests {
 
         let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
 
+        if !diagnostics.is_empty() {
+            println!("{:#?}", diagnostics);
+        }
         println!(
             "{:#?}",
             completions(&db, hir, "ar".into(), Position { offset: Offset(29) })

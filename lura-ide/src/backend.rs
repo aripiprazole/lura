@@ -4,7 +4,7 @@ use itertools::Itertools;
 use lura_diagnostic::Offset;
 use lura_hir::completions::{completions, Position};
 use lura_hir::source::HirSource;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{async_trait, LanguageServer};
@@ -14,7 +14,7 @@ use crate::LEGEND_TYPE;
 #[derive(Clone)]
 pub struct Backend {
     pub client: tower_lsp::Client,
-    pub db: Arc<lura_driver::RootDb>,
+    pub db: Arc<RwLock<lura_driver::RootDb>>,
     pub workspace: Arc<crate::workspace::Workspace>,
 }
 
@@ -33,6 +33,10 @@ unsafe impl Sync for Backend {}
 unsafe impl Send for Backend {}
 
 impl Backend {
+    pub fn db(&self) -> RwLockReadGuard<lura_driver::RootDb> {
+        self.db.read().unwrap()
+    }
+
     /// This function is called when a file is opened or changed. It will parse the file and
     /// send the diagnostics to the client.
     async fn on_change(&self, params: TextDocumentItem) {
@@ -65,7 +69,7 @@ impl Backend {
             )
             .await;
 
-        let completions = completions(&*self.db, hir_source, searching_for_name, position);
+        let completions = completions(&*self.db(), hir_source, searching_for_name, position);
 
         let new_completions = completions
             .into_iter()
@@ -73,7 +77,7 @@ impl Backend {
                 label: c.name.clone(),
                 kind: Some(hir_completion_kind(&c)),
                 detail: Some(hir_detail(&c)),
-                documentation: hir_docs(&self.db, &c),
+                documentation: hir_docs(&self.db(), &c),
                 ..CompletionItem::default()
             })
             .collect();

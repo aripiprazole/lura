@@ -21,7 +21,8 @@
         "id": "lura",
         "extensions": [
           ".lura"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "configuration": {

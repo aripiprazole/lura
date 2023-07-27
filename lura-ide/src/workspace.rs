@@ -40,21 +40,17 @@ pub struct Workspace {
 
 impl Backend {
     pub fn get_or_create_file(&self, item: TextDocumentItem) -> HirSource {
-        if let Some(value) = self.workspace.hir_map.get(&item.uri.to_string()) {
-            return *value;
-        }
-
         self.workspace
             .file_map
             .insert(item.uri.to_string(), item.text.clone().into());
 
         let path = PathBuf::from(item.uri.to_string());
-        let file = SourceFile::new(&*self.db, path, item.text.clone());
-        let source = lura_syntax::parse(&*self.db, file);
+        let file = SourceFile::new(&*self.db(), path, item.text.clone());
+        let source = lura_syntax::parse(&*self.db(), file);
 
-        let package = create_default_package(&self.db, source, "main");
+        let package = create_default_package(&self.db(), source, "main");
 
-        let hir = hir_lower(&*self.db, package, source);
+        let hir = hir_lower(&*self.db(), package, source);
         self.workspace.hir_map.insert(item.uri.to_string(), hir);
         hir
     }

@@ -1,7 +1,7 @@
 #![feature(async_closure)]
 
 use lura_hir::source::DefaultWithDb;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tower_lsp::lsp_types::SemanticTokenType;
 use tower_lsp::{LspService, Server};
 use workspace::Workspace;
@@ -39,7 +39,7 @@ async fn main() {
     let (service, socket) = LspService::build(|client| Backend {
         client,
         workspace: Arc::new(Workspace::default_with_db(&db)),
-        db: Arc::new(db),
+        db: Arc::new(RwLock::new(db)),
     })
     .finish();
 
