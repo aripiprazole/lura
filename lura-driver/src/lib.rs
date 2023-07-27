@@ -135,7 +135,6 @@ mod tests {
         lower::hir_lower,
         package::{Package, PackageKind, Version},
         reference::ReferenceWalker,
-        walking::Walker,
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;

@@ -15,6 +15,8 @@ pub struct Jar(
     package::Package_all_files,
     resolve::Definition,
     resolve::Reference,
+    resolve::Reference_is_type_level,
+    resolve::Reference_name,
     resolve::find_constructor,
     resolve::find_function,
     resolve::find_type,

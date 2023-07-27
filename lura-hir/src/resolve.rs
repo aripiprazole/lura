@@ -51,6 +51,26 @@ pub struct Reference {
     pub location: Location,
 }
 
+#[salsa::tracked]
+impl Reference {
+    /// Checks if the reference is a type level. It's intended to be used to check if the reference
+    /// is defined as a type.
+    #[salsa::tracked]
+    pub fn is_type_level(self, db: &dyn crate::HirDb) -> bool {
+        // This is splited in two lines to avoid a salsa bug.
+        let v = self;
+
+        matches!(v.definition(db).kind(db), DefinitionKind::Type)
+    }
+
+    /// Gets the definition of the reference. It's intended to be used to get the definition of the
+    /// reference.
+    #[salsa::tracked]
+    pub fn name(self, db: &dyn crate::HirDb) -> HirPath {
+        self.definition(db).name(db)
+    }
+}
+
 impl crate::walking::Walker for Reference {
     fn accept<T: crate::walking::HirListener>(self, _db: &dyn crate::HirDb, listener: &mut T) {
         listener.visit_reference(self)
