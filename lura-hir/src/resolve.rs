@@ -104,12 +104,15 @@ impl Definition {
     /// Creates a new `Definition` with the given `kind`, `name`, and `location`, and reports
     /// an error to the diagnostic database.
     pub fn no(db: &dyn crate::HirDb, kind: DefinitionKind, name: HirPath) -> Self {
+        let kind_str = format!("{:?}", kind).to_lowercase();
+        let name_str = name.to_string(db).unwrap_or("~INTERNAL ERROR~".into());
+
         // Reports an error to the diagnostic database.
         Diagnostics::push(
             db,
             Report::new(HirDiagnostic {
                 location: name.location(db),
-                message: format!("Unresolved {kind:?}: {:?}", name.to_string(db)),
+                message: format!("unresolved {kind_str} {:?}", name_str),
             }),
         );
 

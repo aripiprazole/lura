@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Debug, hash::Hash, sync::Arc};
+use std::{any::Any, fmt::Debug, hash::Hash, ops::Deref, sync::Arc};
 
 use salsa::DbWithJar;
 
@@ -100,6 +100,14 @@ impl Report {
     }
 }
 
+impl Deref for Report {
+    type Target = Arc<dyn DiagnosticDyn>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.diagnostic
+    }
+}
+
 impl Hash for Report {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.diagnostic.error_kind().hash(state);
@@ -162,6 +170,30 @@ pub trait DiagnosticDyn: Any + Debug + Send + Sync {
     fn error_kind(&self) -> ErrorKind;
     fn text(&self) -> Vec<ErrorText>;
     fn location(&self) -> Option<Box<dyn TextRange>>;
+}
+
+impl dyn DiagnosticDyn {
+    pub fn file_name(&self) -> String {
+        self.location()
+            .map(|it| it.file_name().to_string())
+            .unwrap_or("~INTERNAL ERROR~".into())
+    }
+
+    pub fn range(&self) -> Option<std::ops::Range<usize>> {
+        self.location().map(|it| it.start().0..it.end().0)
+    }
+
+    pub fn markdown_text(&self) -> String {
+        self.text()
+            .into_iter()
+            .map(|it| match it {
+                ErrorText::Text(it) => it,
+                ErrorText::Code(it) => format!("`{}`", it),
+                ErrorText::Break => "\n".to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    }
 }
 
 impl Hash for dyn DiagnosticDyn {
