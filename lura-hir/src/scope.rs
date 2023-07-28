@@ -3,7 +3,7 @@ use std::sync::Arc;
 use fxhash::FxBuildHasher;
 
 use crate::{
-    resolve::{Definition, DefinitionKind, Reference},
+    resolve::{Definition, DefinitionId, DefinitionKind, Reference},
     source::{HirPath, HirSource, Location},
 };
 
@@ -128,7 +128,8 @@ impl Scope {
         location: Location,
         kind: DefinitionKind,
     ) -> Definition {
-        let definition = Definition::new(db, kind, name, location);
+        let id = DefinitionId::new(db, location);
+        let definition = Definition::new(db, id, kind, name);
         let Some(name) = definition.name(db).to_string(db) else {
             // TODO: report error
             return definition;

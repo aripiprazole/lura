@@ -31,13 +31,27 @@ pub enum HirLevel {
     Type = 2,
 }
 
+#[salsa::interned]
+pub struct DefinitionId {
+    #[return_ref]
+    pub location: Location,
+}
+
 /// Defines a definition in the High-Level Intermediate Representation. It's intended to be used
 /// as a resolved path or definition, and to be used to create the HIR.
 #[salsa::tracked]
 pub struct Definition {
+    pub id: DefinitionId,
     pub kind: DefinitionKind,
     pub name: HirPath,
-    pub location: Location,
+}
+
+#[salsa::tracked]
+impl Definition {
+    #[salsa::tracked]
+    pub fn location(self, db: &dyn crate::HirDb) -> Location {
+        self.name(db).location(db)
+    }
 }
 
 impl crate::walking::Walker for Definition {
@@ -99,8 +113,10 @@ impl Definition {
             }),
         );
 
+        let id = DefinitionId::new(db, name.location(db));
+
         // Creates a new `Definition` with the given `kind`, `name`, and `location`.
-        Self::new(db, DefinitionKind::Unresolved, name, name.location(db))
+        Self::new(db, id, DefinitionKind::Unresolved, name)
     }
 }
 
@@ -215,9 +231,7 @@ pub fn references(db: &dyn crate::HirDb, definition: Definition) -> OrdSet<Refer
             // TODO: fixme, for some reason it's not working with same references for the
             // definitions, the lower is duplicating the references, and creating new instances
             let local_references = ReferenceWalker::new(move |db, reference, _| {
-                // println!("{:?}", reference.definition(db).name(db).to_string(db));
-                // println!(" == {:?}", definition);
-                reference.definition(db) == definition
+                reference.definition(db).id(db) == definition.id(db)
             })
             .build(db)
             .collect(hir_source);
