@@ -5,7 +5,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Debug, sync::Arc};
 
 use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
@@ -82,16 +82,30 @@ pub struct HirTextRange {
     pub end: Offset,
 
     pub file_name: String,
-    pub text: String,
+    pub text: Arc<String>,
 }
 
 /// A location in a source file. It can be either a text range or a lazy location to be evaluated
 /// in the `call_site`.
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Location {
     /// A text range in a source file.
     TextRange(HirTextRange),
     CallSite,
+}
+
+impl Debug for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TextRange(range) => f
+                .debug_struct("TextRange")
+                .field("start", &range.start)
+                .field("end", &range.end)
+                .field("file_name", &range.file_name)
+                .finish(),
+            Self::CallSite => write!(f, "CallSite"),
+        }
+    }
 }
 
 #[salsa::input]
@@ -101,16 +115,16 @@ pub struct HirLocation {
 
 impl Location {
     /// Creates a new [Location] with the given [`source`] and range of [`start`] and [`end`].
-    pub fn new<I>(db: &dyn crate::HirDb, source: Source, start: I, end: I) -> Self
+    pub fn new<I>(db: &dyn crate::HirDb, src: Source, text: Arc<String>, start: I, end: I) -> Self
     where
         I: Into<Offset>,
     {
         Self::TextRange(HirTextRange {
-            source,
+            source: src,
             start: start.into(),
             end: end.into(),
-            file_name: source.file_path(db).to_string_lossy().into_owned(),
-            text: source.source_text(db).clone(),
+            file_name: src.file_path(db).to_string_lossy().into_owned(),
+            text,
         })
     }
 

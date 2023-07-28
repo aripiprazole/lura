@@ -39,7 +39,7 @@ impl RootDb {
         let old_location = name.location(&*self);
         let Offset(end_offset) = old_location.end();
         let location = old_location.ending(Offset(end_offset + new_name.len()));
-        let hir_location = HirLocation::new(&*self, location.clone());
+        let hir_location = HirLocation::new(&*self, location);
         let segments = reparse_hir_path(&*self, hir_location, new_name.to_string());
 
         // Update the references to the definition
@@ -50,16 +50,20 @@ impl RootDb {
             .to(segments);
 
         for reference in references {
-            reference
-                .set_location(&mut *self)
-                .with_durability(Durability::LOW)
-                .to(location.clone());
-
             // Create a proper text edit to apply to the source code.
             edits.push(TextEdit {
                 old_location: reference.location(&*self),
                 new_text: new_name.to_string(),
             });
+
+            // Set the name within new location
+            let location = reference.location(&*self);
+            let Offset(end_offset) = location.end();
+
+            reference
+                .set_location(&mut *self)
+                .with_durability(Durability::LOW)
+                .to(location.ending(Offset(end_offset + new_name.len())));
         }
 
         RenamesResult {

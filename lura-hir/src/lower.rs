@@ -64,6 +64,7 @@ pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSourc
         db,
         src,
         pkg,
+        txt: Arc::new(src.source_text(db).to_string()),
         decls: vec![],
         scope: Scope::new(ScopeKind::File),
         tree: parse_tree.tree.clone(),
@@ -88,6 +89,7 @@ pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource 
         db,
         src,
         pkg,
+        txt: Arc::new(src.source_text(db).to_string()),
         decls: vec![],
         scope: Scope::new(ScopeKind::File),
         tree: parse_tree.tree.clone(),
@@ -118,6 +120,7 @@ pub fn rec_hir_lower(db: &dyn crate::HirDb, cycle: &Cycle, _: Package, _: Source
 struct LowerHir<'db, 'tree> {
     db: &'db dyn crate::HirDb,
     src: Source,
+    txt: Arc<String>,
     tree: Arc<Tree>,
     decls: Vec<TopLevel>,
     pkg: Package,
@@ -896,7 +899,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// Creates a new [`Location`] from the given [`tree_sitter::Range`]. It does transforms the
     /// raw location, in a high level location, to be handled within resolution.
     pub fn range(&self, range: tree_sitter::Range) -> Location {
-        Location::new(self.db, self.src, range.start_byte, range.end_byte)
+        Location::new(
+            self.db,
+            self.src,
+            self.txt.clone(),
+            range.start_byte,
+            range.end_byte,
+        )
     }
 
     pub fn pop_scope(&mut self) -> Arc<Scope> {
@@ -1539,6 +1548,8 @@ mod term_solver {
                 Identifier(identifier) => identifier.child().solve(self.db, |node| {
                     let source_text = self.src.source_text(self.db).as_bytes();
 
+                    let location = self.range(identifier.range());
+
                     // Matches agains't node to check if it is a symbol or a simple identifier to
                     // create proper identifier.
                     let identifier = match node {
@@ -1583,7 +1594,7 @@ mod term_solver {
                     };
 
                     // Creates a new [`Reference`] from the [`Definition`] and the location.
-                    let reference = self.scope.using(self.db, def, location.clone());
+                    let reference = self.scope.using(self.db, def, location);
 
                     // Creates a new [`Expr`] with the [`Definition`] as the callee.
                     Expr::Path(reference)
