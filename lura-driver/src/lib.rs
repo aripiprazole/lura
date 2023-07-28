@@ -137,14 +137,14 @@ mod tests {
         lower::hir_lower,
         package::{Package, PackageKind, Version},
         resolve::find_function,
-        source::{new_path, HirPath, VirtualPath},
+        source::HirPath,
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "Main (args: List String) { args }";
+    const EXAMPLE: &str = "Main (args: List String) { Main }";
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.

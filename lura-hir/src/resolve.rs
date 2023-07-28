@@ -2,7 +2,8 @@ use im::OrdSet;
 use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 
 use crate::{
-    lower::hir_declare,
+    lower::{hir_declare, hir_lower},
+    reference::ReferenceWalker,
     source::{DefaultWithDb, HirPath, Location},
 };
 
@@ -210,10 +211,18 @@ pub fn references(db: &dyn crate::HirDb, definition: Definition) -> OrdSet<Refer
 
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, package, file);
-            let mut scope = source.scope(db);
+            let hir_source = hir_lower(db, package, file);
+            // TODO: fixme, for some reason it's not working with same references for the
+            // definitions, the lower is duplicating the references, and creating new instances
+            let local_references = ReferenceWalker::new(move |db, reference, _| {
+                // println!("{:?}", reference.definition(db).name(db).to_string(db));
+                // println!(" == {:?}", definition);
+                reference.definition(db) == definition
+            })
+            .build(db)
+            .collect(hir_source);
 
-            references.extend(scope.references(definition));
+            references.extend(local_references);
         }
     }
 
