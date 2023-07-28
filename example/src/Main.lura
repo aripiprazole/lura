@@ -1,3 +1,5 @@
+using Std
+
 Main (args: List String) {
   List.head args
 }
