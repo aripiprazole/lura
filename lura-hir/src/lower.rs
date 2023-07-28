@@ -207,7 +207,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             Signature(signature) => return self.hir_signature(signature).into(),
             Using(decl) => {
                 let range = self.range(decl.range());
-                let path = decl.path().solve(self.db, |node| self.path(node));
+                let path = decl.path().solve(self, |this, node| this.path(node));
 
                 // TODO: search for functions or anything too.
                 let def = self.qualify(path, DefinitionKind::Module);
@@ -225,7 +225,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// Creates a new high level command top level [`CommandTopLevel`] solver, for the given
     /// concrete syntax tree [`lura_syntax::Command`].
     pub fn hir_command(&mut self, tree: lura_syntax::Command) -> TopLevel {
-        let path = tree.command().solve(self.db, |node| self.path(node));
+        let path = tree.command().solve(self, |this, node| this.path(node));
         let arguments = tree
             .arguments(&mut tree.walk())
             .flatten()
@@ -249,7 +249,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// the [`hir_lower`] query.
     pub fn hir_class<'a>(&mut self, tree: lura_syntax::ClassDecl<'a>) -> Solver<'a, TopLevel> {
         let range = self.range(tree.range());
-        let path = tree.name().solve(self.db, |node| self.path(node));
+        let path = tree.name().solve(self, |this, node| this.path(node));
 
         let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
         let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
@@ -257,7 +257,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Converts the visibility to default visibility, if it is not specified.
         let vis = tree
             .visibility()
-            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
         // Defines the node on the scope
@@ -326,7 +326,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// the [`hir_lower`] query.
     pub fn hir_trait<'a>(&mut self, tree: lura_syntax::TraitDecl<'a>) -> Solver<'a, TopLevel> {
         let range = self.range(tree.range());
-        let path = tree.name().solve(self.db, |node| self.path(node));
+        let path = tree.name().solve(self, |this, path| this.path(path));
 
         let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
         let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
@@ -334,7 +334,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Converts the visibility to default visibility, if it is not specified.
         let vis = tree
             .visibility()
-            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
         // Defines the node on the scope
@@ -402,7 +402,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// the [`hir_lower`] query.
     pub fn hir_data<'a>(&mut self, tree: lura_syntax::DataDecl<'a>) -> Solver<'a, TopLevel> {
         let range = self.range(tree.range());
-        let path = tree.name().solve(self.db, |node| self.path(node));
+        let path = tree.name().solve(self, |this, path| this.path(path));
 
         let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
         let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
@@ -410,7 +410,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Converts the visibility to default visibility, if it is not specified.
         let vis = tree
             .visibility()
-            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
         // Defines the node on the scope
@@ -499,7 +499,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             FunctionConstructor(tree) => {
                 let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
                 let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
-                let name = tree.name().solve(self.db, |node| self.path(node));
+                let name = tree.name().solve(self, |this, path| this.path(path));
 
                 let location = self.range(tree.range());
 
@@ -539,7 +539,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             SignatureConstructor(tree) => {
                 let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
                 let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
-                let name = tree.name().solve(self.db, |node| self.path(node));
+                let name = tree.name().solve(self, |this, path| this.path(path));
 
                 let location = self.range(tree.range());
 
@@ -553,7 +553,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     // it's not needed to create a local type representing the function.
                     let type_rep = tree
                         .field_type()
-                        .solve(this.db, |node| this.type_expr(node));
+                        .solve(this, |this, expr| this.type_expr(expr));
 
                     Constructor::new(
                         this.db,
@@ -575,7 +575,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// It will return a [`Solver`] for the [`Clause`], and it will solve the [`Clause`] in the
     /// [`hir_lower`] query.
     pub fn hir_clause<'a>(&mut self, tree: lura_syntax::Clause<'a>) -> Solver<'a, TopLevel> {
-        let path = tree.name().solve(self.db, |node| self.path(node));
+        let path = tree.name().solve(self, |this, path| this.path(path));
         let location = self.range(tree.range());
 
         // Defines in the scope if it is not defined yet, and it will return the definition.
@@ -599,7 +599,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             // Transforms the patterns into bindings, to be used in the scope.
             let value = tree
                 .value()
-                .map(|value| value.solve(this.db, |node| this.expr(node, HirLevel::Expr)))
+                .map(|value| value.solve(this, |this, node| this.expr(node, HirLevel::Expr)))
                 .unwrap_or_default_with_db(this.db);
 
             let clause = Clause::new(this.db, name, patterns, value, location.clone());
@@ -643,7 +643,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// the [`hir_lower`] query.
     pub fn hir_signature<'a>(&mut self, tree: lura_syntax::Signature<'a>) -> Solver<'a, TopLevel> {
         let range = self.range(tree.range());
-        let path = tree.name().solve(self.db, |node| self.path(node));
+        let path = tree.name().solve(self, |this, node| this.path(node));
 
         let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
         let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
@@ -651,7 +651,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Converts the visibility to default visibility, if it is not specified.
         let vis = tree
             .visibility()
-            .map(|vis| vis.solve(self.db, |node| self.hir_visibility(node)))
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
         // Defines the node on the scope
@@ -698,7 +698,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let mut clauses = clause.clauses(this.db);
 
             let value = tree.value().map(|value| {
-                value.solve(this.db, |node| {
+                value.solve(this, |this, node| {
                     // Uses a new scope for the function, and it will be used to store the
                     // parameters, and the variables.
                     this.scoped(node, HirLevel::Expr)
@@ -777,11 +777,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         rigid: bool,
         tree: lura_syntax::Parameter,
     ) -> Parameter {
-        let binding = tree.pattern().solve(self.db, |node| self.pattern(node));
+        let binding = tree
+            .pattern()
+            .solve(self, |this, pattern| this.pattern(pattern));
 
         let type_rep = tree
             .parameter_type()
-            .map(|node| node.solve(self.db, |node| self.type_expr(node)))
+            .map(|node| node.solve(self, |this, expr| this.type_expr(expr)))
             .unwrap_or_default_with_db(self.db);
 
         let location = self.range(tree.range());
@@ -822,7 +824,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .flatten()
             .filter_map(|attribute| {
                 let value = attribute.regular()?;
-                let name = value.name().solve(self.db, |path| self.path(path));
+                let name = value.name().solve(self, |this, path| this.path(path));
                 let arguments = vec![];
                 let range = self.range(attribute.range());
 
@@ -859,8 +861,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let range = self.range(path.range());
 
         for segment in path.segments(&mut path.walk()) {
-            segment.or_default_error(self.db, |segment: lura_syntax::Identifier| {
-                let range = self.range(segment.range());
+            segment.or_default_error(self, |this, segment: lura_syntax::Identifier| {
+                let range = this.range(segment.range());
 
                 let identifer = match segment.child() {
                     Ok(name) => name,
@@ -871,14 +873,14 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     SyntaxIdentifier::SimpleIdentifier(value) => {
                         let string = value.utf8_text(source_text).ok().unwrap_or_default();
 
-                        Identifier::new(self.db, string.into(), false, range)
+                        Identifier::new(this.db, string.into(), false, range)
                     }
                     SyntaxIdentifier::SymbolIdentifier(value) => {
                         let string = value
                             .child()
-                            .with_db(self.db, |_, node| node.utf8_text(source_text).ok());
+                            .with_db(this, |_, node| node.utf8_text(source_text).ok());
 
-                        Identifier::new(self.db, string.into(), true, range)
+                        Identifier::new(this.db, string.into(), true, range)
                     }
                 });
             });
@@ -940,7 +942,7 @@ mod pattern_solver {
         }
 
         pub fn cons_pattern(&mut self, pattern: lura_syntax::ConsPattern) -> Pattern {
-            let name = pattern.name().solve(self.db, |node| self.path(node));
+            let name = pattern.name().solve(self, |this, node| this.path(node));
             let patterns = self.patterns(pattern.patterns(&mut pattern.walk()));
             let location = self.range(pattern.range());
 
@@ -993,7 +995,7 @@ mod literal_solver {
                 .utf8_text(self.src.source_text(self.db).as_bytes())
                 .unwrap_or_default();
 
-            tree.child().with_db(self.db, |_, node| match node {
+            tree.child().with_db(self, |_, node| match node {
                 Char(..) => todo!("Not implemented Char literal"),
                 F32(..) => todo!("Not implemented F32 literal"),
                 F64(..) => todo!("Not implemented F64 literal"),
@@ -1048,9 +1050,10 @@ mod stmt_solver {
         }
 
         pub fn ask_stmt(&mut self, stmt: lura_syntax::AskStmt, level: HirLevel) -> Stmt {
-            let pattern = stmt.pattern().solve(self.db, |node| self.pattern(node));
-
-            let expr = stmt.value().solve(self.db, |node| self.expr(node, level));
+            let pattern = stmt.pattern().solve(self, |this, node| this.pattern(node));
+            let expr = stmt
+                .value()
+                .solve(self, |this, node| this.expr(node, level));
 
             let location = self.range(stmt.range());
 
@@ -1058,7 +1061,9 @@ mod stmt_solver {
         }
 
         pub fn expr_stmt(&mut self, stmt: lura_syntax::ExprStmt, level: HirLevel) -> Stmt {
-            let expr = stmt.child().solve(self.db, |node| self.expr(node, level));
+            let expr = stmt
+                .child()
+                .solve(self, |this, node| this.expr(node, level));
 
             Stmt::Downgrade(expr)
         }
@@ -1066,24 +1071,24 @@ mod stmt_solver {
         pub fn if_stmt(&mut self, stmt: lura_syntax::IfStmt, level: HirLevel) -> Stmt {
             let scrutinee = stmt
                 .condition()
-                .solve(self.db, |node| self.expr(node, level));
+                .solve(self, |this, node| this.expr(node, level));
 
-            let then = stmt.then().solve(self.db, |node| {
+            let then = stmt.then().solve(self, |this, node| {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.child().solve(self.db, |node| match node {
-                    Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.expr(node.into_node().try_into().unwrap(), level),
+                node.child().solve(this, |this, node| match node {
+                    Block(block) => Expr::block(this.db, this.block(block, level)),
+                    _ => this.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
             let otherwise = stmt.otherwise().map(|then| {
-                then.solve(self.db, |node| {
+                then.solve(self, |this, node| {
                     use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                    node.value().solve(self.db, |node| match node {
-                        Block(block) => Expr::block(self.db, self.block(block, level)),
-                        _ => self.expr(node.into_node().try_into().unwrap(), level),
+                    node.value().solve(this, |this, node| match node {
+                        Block(block) => Expr::block(this.db, this.block(block, level)),
+                        _ => this.expr(node.into_node().try_into().unwrap(), level),
                     })
                 })
             })
@@ -1114,9 +1119,10 @@ mod stmt_solver {
         }
 
         pub fn let_stmt(&mut self, stmt: lura_syntax::LetStmt, level: HirLevel) -> Stmt {
-            let pattern = stmt.pattern().solve(self.db, |node| self.pattern(node));
-
-            let expr = stmt.value().solve(self.db, |node| self.expr(node, level));
+            let pattern = stmt.pattern().solve(self, |this, node| this.pattern(node));
+            let expr = stmt
+                .value()
+                .solve(self, |this, node| this.expr(node, level));
 
             let location = self.range(stmt.range());
 
@@ -1176,7 +1182,7 @@ mod term_solver {
         pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
             clause
                 .clause_type()
-                .solve(self.db, |node| self.type_expr(node))
+                .solve(self, |this, node| this.type_expr(node))
         }
 
         pub fn type_expr(&mut self, tree: SyntaxTypeRep) -> TypeRep {
@@ -1223,25 +1229,29 @@ mod term_solver {
         }
 
         pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr, level: HirLevel) -> Expr {
-            let value = tree.value().solve(self.db, |node| self.expr(node, level));
-            let type_rep = tree.against().solve(self.db, |node| self.type_expr(node));
+            let value = tree
+                .value()
+                .solve(self, |this, node| this.expr(node, level));
+            let type_rep = tree
+                .against()
+                .solve(self, |this, expr| this.type_expr(expr));
             let location = self.range(tree.range());
 
             Expr::Ann(AnnExpr::new(self.db, value, type_rep, location))
         }
 
         pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr, level: HirLevel) -> Expr {
-            let lhs = tree.lhs().solve(self.db, |node| self.expr(node, level));
-            let rhs = tree.rhs().solve(self.db, |node| self.expr(node, level));
-            let op = tree.op().solve(self.db, |node| {
-                let location = self.range(node.range());
+            let lhs = tree.lhs().solve(self, |this, node| this.expr(node, level));
+            let rhs = tree.rhs().solve(self, |this, node| this.expr(node, level));
+            let op = tree.op().solve(self, |this, node| {
+                let location = this.range(node.range());
                 let identifier = node
-                    .utf8_text(self.src.source_text(self.db).as_bytes())
+                    .utf8_text(this.src.source_text(this.db).as_bytes())
                     .unwrap_or_default();
 
-                let identifier = Identifier::symbol(self.db, identifier, location.clone());
+                let identifier = Identifier::symbol(this.db, identifier, location.clone());
 
-                HirPath::new(self.db, location, vec![identifier])
+                HirPath::new(this.db, location, vec![identifier])
             });
             let location = self.range(tree.range());
 
@@ -1277,7 +1287,9 @@ mod term_solver {
                 .map(|parameter| self.parameter(false, false, parameter))
                 .collect::<Vec<_>>();
 
-            let value = tree.value().solve(self.db, |node| self.expr(node, level));
+            let value = tree
+                .value()
+                .solve(self, |this, node| this.expr(node, level));
             let location = self.range(tree.range());
 
             let scope = self.pop_scope();
@@ -1288,7 +1300,7 @@ mod term_solver {
         pub fn app_expr(&mut self, tree: lura_syntax::AppExpr, level: HirLevel) -> Expr {
             let callee = tree
                 .callee()
-                .solve(self.db, |node| self.primary(node, level));
+                .solve(self, |this, node| this.primary(node, level));
 
             let arguments = tree
                 .arguments(&mut tree.walk())
@@ -1318,8 +1330,8 @@ mod term_solver {
         }
 
         pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
-            let callee = tree.callee().solve(self.db, |node| {
-                self.primary(node, HirLevel::Type).upgrade(self.db)
+            let callee = tree.callee().solve(self, |this, node| {
+                this.primary(node, HirLevel::Type).upgrade(this.db)
             });
 
             let arguments = tree
@@ -1337,7 +1349,7 @@ mod term_solver {
         pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
             use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
 
-            let parameters = tree.parameter().solve(self.db, |node| {
+            let parameters = tree.parameter().solve(self, |this, node| {
                 let type_rep = match node {
                     PiNamedParameterSet(tree) => {
                         return tree
@@ -1345,20 +1357,20 @@ mod term_solver {
                             .flatten()
                             .filter_map(|node| node.regular())
                             .filter_map(|node| node.parameter())
-                            .map(|parameter| self.parameter(false, true, parameter))
+                            .map(|parameter| this.parameter(false, true, parameter))
                             .collect::<Vec<_>>();
                     }
-                    _ => self.type_expr(node.into_node().try_into().unwrap()),
+                    _ => this.type_expr(node.into_node().try_into().unwrap()),
                 };
 
                 // This handles the case where the parameter is unnamed, and only haves a type. The name
                 // should not be shown in the IDE in this case.
-                vec![Parameter::unnamed(self.db, type_rep)]
+                vec![Parameter::unnamed(this.db, type_rep)]
             });
 
             TypeRep::Pi {
                 parameters,
-                value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
                 location: self.range(tree.range()),
             }
         }
@@ -1374,7 +1386,7 @@ mod term_solver {
 
             TypeRep::Sigma {
                 parameters,
-                value: Box::new(tree.value().solve(self.db, |node| self.type_expr(node))),
+                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
                 location: self.range(tree.range()),
             }
         }
@@ -1382,7 +1394,7 @@ mod term_solver {
         pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr, level: HirLevel) -> Expr {
             let scrutinee = tree
                 .scrutinee()
-                .solve(self.db, |node| self.expr(node, level));
+                .solve(self, |this, node| this.expr(node, level));
 
             let location = self.range(tree.range());
 
@@ -1390,13 +1402,13 @@ mod term_solver {
                 .flatten()
                 .filter_map(|node| node.regular())
                 .map(|node| {
-                    let pattern = node.pattern().solve(self.db, |node| self.pattern(node));
-                    let body = node.body().solve(self.db, |node| {
+                    let pattern = node.pattern().solve(self, |this, pattern| this.pattern(pattern));
+                    let body = node.body().solve(self, |this, node| {
                         use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                         match node {
-                            Block(block) => Expr::block(self.db, self.block(block, level)),
-                            _ => self.expr(node.into_node().try_into().unwrap(), level)
+                            Block(block) => Expr::block(this.db, this.block(block, level)),
+                            _ => this.expr(node.into_node().try_into().unwrap(), level)
                         }
                     });
 
@@ -1420,23 +1432,23 @@ mod term_solver {
         pub fn if_expr(&mut self, tree: lura_syntax::IfExpr, level: HirLevel) -> Expr {
             let scrutinee = tree
                 .condition()
-                .solve(self.db, |node| self.expr(node, level));
+                .solve(self, |this, node| this.expr(node, level));
 
-            let then = tree.then().solve(self.db, |node| {
+            let then = tree.then().solve(self, |this, node| {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.child().solve(self.db, |node| match node {
-                    Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.expr(node.into_node().try_into().unwrap(), level),
+                node.child().solve(this, |this, node| match node {
+                    Block(block) => Expr::block(this.db, this.block(block, level)),
+                    _ => this.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
-            let otherwise = tree.otherwise().solve(self.db, |node| {
+            let otherwise = tree.otherwise().solve(self, |this, node| {
                 use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.value().solve(self.db, |node| match node {
-                    Block(block) => Expr::block(self.db, self.block(block, level)),
-                    _ => self.expr(node.into_node().try_into().unwrap(), level),
+                node.value().solve(this, |this, node| match node {
+                    Block(block) => Expr::block(this.db, this.block(block, level)),
+                    _ => this.expr(node.into_node().try_into().unwrap(), level),
                 })
             });
 
@@ -1469,7 +1481,7 @@ mod term_solver {
 
             let items = tree
                 .items(&mut tree.walk())
-                .map(|item| item.solve(self.db, |node| self.expr(node, level)))
+                .map(|item| item.solve(self, |this, node| this.expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
@@ -1487,7 +1499,7 @@ mod term_solver {
 
             let items = tree
                 .children(&mut tree.walk())
-                .map(|item| item.solve(self.db, |node| self.expr(node, level)))
+                .map(|item| item.solve(self, |this, node| this.expr(node, level)))
                 .collect::<Vec<_>>();
 
             Expr::Call(CallExpr::new(
@@ -1511,7 +1523,7 @@ mod term_solver {
             // will return a default value.
             let value = tree
                 .value()
-                .map(|node| node.solve(self.db, |node| self.expr(node, level)))
+                .map(|node| node.solve(self, |this, node| this.expr(node, level)))
                 .unwrap_or_else(|| Expr::call_unit_expr(location.clone(), self.db));
 
             Expr::Call(CallExpr::new(
@@ -1530,14 +1542,14 @@ mod term_solver {
 
             let location = self.range(tree.range());
 
-            tree.child().solve(self.db, |node| match node {
+            tree.child().solve(self, |this, node| match node {
                 // SECTION: primary
-                ArrayExpr(array_expr) => self.array_expr(array_expr, level),
-                IfExpr(if_expr) => self.if_expr(if_expr, level),
-                Literal(literal) => self.literal(literal).upgrade_expr(location, self.db),
-                MatchExpr(match_expr) => self.match_expr(match_expr, level),
-                ReturnExpr(return_expr) => self.return_expr(return_expr, level),
-                TupleExpr(tuple_expr) => self.tuple_expr(tuple_expr, level),
+                ArrayExpr(array_expr) => this.array_expr(array_expr, level),
+                IfExpr(if_expr) => this.if_expr(if_expr, level),
+                Literal(literal) => this.literal(literal).upgrade_expr(location, this.db),
+                MatchExpr(match_expr) => this.match_expr(match_expr, level),
+                ReturnExpr(return_expr) => this.return_expr(return_expr, level),
+                TupleExpr(tuple_expr) => this.tuple_expr(tuple_expr, level),
 
                 // SECTION: identifier
                 // It will match agains't the identifier, and it will create a new [`Expr::Path`]
@@ -1545,10 +1557,10 @@ mod term_solver {
                 //
                 // It will search for the definition in the scope, and if it is not present in the
                 // it will query the compiler.
-                Identifier(identifier) => identifier.child().solve(self.db, |node| {
-                    let source_text = self.src.source_text(self.db).as_bytes();
+                Identifier(identifier) => identifier.child().solve(this, |this, node| {
+                    let source_text = this.src.source_text(this.db).as_bytes();
 
-                    let location = self.range(identifier.range());
+                    let location = this.range(identifier.range());
 
                     // Matches agains't node to check if it is a symbol or a simple identifier to
                     // create proper identifier.
@@ -1556,45 +1568,45 @@ mod term_solver {
                         SimpleIdentifier(value) => {
                             let string = value.utf8_text(source_text).ok().unwrap_or_default();
 
-                            self::Identifier::new(self.db, string.into(), false, location.clone())
+                            self::Identifier::new(this.db, string.into(), false, location.clone())
                         }
                         SymbolIdentifier(value) => {
                             let string = value
                                 .child()
-                                .with_db(self.db, |_, node| node.utf8_text(source_text).ok());
+                                .with_db(this, |_, node| node.utf8_text(source_text).ok());
 
-                            self::Identifier::new(self.db, string.into(), true, location.clone())
+                            self::Identifier::new(this.db, string.into(), true, location.clone())
                         }
                     };
 
                     // Create a new path with the identifier, and search for the definition in the
                     // scope, and if it is not present in the scope, it will invoke a compiler query
                     // to search in the entire package.
-                    let path = HirPath::new(self.db, location.clone(), vec![identifier]);
+                    let path = HirPath::new(this.db, location.clone(), vec![identifier]);
 
                     let def = match level {
                         HirLevel::Expr => {
-                            self.scope
-                                .search(self.db, path, DefinitionKind::Function)
+                            this.scope
+                                .search(this.db, path, DefinitionKind::Function)
                                 .unwrap_or_else(|| {
                                     // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
                                     // will report an error. It's made for doing global lookups, and not local lookups.
-                                    find_function(self.db, path)
+                                    find_function(this.db, path)
                                 })
                         }
                         HirLevel::Type => {
-                            self.scope
-                                .search(self.db, path, DefinitionKind::Type)
+                            this.scope
+                                .search(this.db, path, DefinitionKind::Type)
                                 .unwrap_or_else(|| {
                                     // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
                                     // will report an error. It's made for doing global lookups, and not local lookups.
-                                    find_type(self.db, path)
+                                    find_type(this.db, path)
                                 })
                         }
                     };
 
                     // Creates a new [`Reference`] from the [`Definition`] and the location.
-                    let reference = self.scope.using(self.db, def, location);
+                    let reference = this.scope.using(this.db, def, location);
 
                     // Creates a new [`Expr`] with the [`Definition`] as the callee.
                     Expr::Path(reference)
@@ -1634,31 +1646,31 @@ trait NodeResultExt<'tree, N, T: Default> {
 
 trait DbNodeResultExt<'tree, N> {
     #[inline]
-    fn solve<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn solve<F, T>(self, db: &mut LowerHir, f: F) -> T
     where
         Self: Sized,
         T: DefaultWithDb,
-        F: FnOnce(N) -> T,
+        F: FnOnce(&mut LowerHir, N) -> T,
     {
-        self.with_db(db, |_, node| Some(f(node)))
+        self.with_db(db, |db, node| Some(f(db, node)))
     }
 
     #[inline]
-    fn or_default_error<F>(self, db: &dyn crate::HirDb, f: F)
+    fn or_default_error<F>(self, db: &mut LowerHir, f: F)
     where
         Self: Sized,
-        F: FnOnce(N),
+        F: FnOnce(&mut LowerHir, N),
     {
-        self.with_db(db, |_db, node| {
-            f(node);
+        self.with_db(db, |db, node| {
+            f(db, node);
             Some(())
         })
     }
 
-    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, db: &mut LowerHir, f: F) -> T
     where
         T: DefaultWithDb,
-        F: FnOnce(&dyn crate::HirDb, N) -> Option<T>;
+        F: FnOnce(&mut LowerHir, N) -> Option<T>;
 }
 
 impl<'tree, N, T: Default> NodeResultExt<'tree, N, T> for Result<N, IncorrectKind<'tree>> {
@@ -1691,29 +1703,43 @@ impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
     #[inline]
-    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
     where
         T: DefaultWithDb,
-        F: FnOnce(&dyn crate::HirDb, N) -> Option<T>,
+        F: FnOnce(&mut LowerHir, N) -> Option<T>,
     {
         match self {
-            Ok(node) => f(db, node).unwrap_or_else(|| T::default_with_db(db)),
-            Err(..) => T::default_with_db(db),
+            Ok(node) => f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db)),
+            Err(err) => {
+                let location = lower.range(err.node.range());
+
+                T::incorrect_kind(lower.db, err.node, err.kind, location)
+            }
         }
     }
 }
 
 impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
     #[inline]
-    fn with_db<F, T>(self, db: &dyn crate::HirDb, f: F) -> T
+    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
     where
         T: DefaultWithDb,
-        F: FnOnce(&dyn crate::HirDb, N) -> Option<T>,
+        F: FnOnce(&mut LowerHir, N) -> Option<T>,
     {
         match self {
-            Ok(ExtraOr::Extra(..)) => T::default_with_db(db),
-            Ok(ExtraOr::Regular(node)) => f(db, node).unwrap_or_else(|| T::default_with_db(db)),
-            Err(..) => T::default_with_db(db),
+            Ok(ExtraOr::Regular(node)) => {
+                f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db))
+            }
+            Ok(ExtraOr::Extra(extra)) => {
+                let location = lower.range(extra.range());
+
+                T::extra_data(lower.db, extra, location)
+            }
+            Err(err) => {
+                let location = lower.range(err.node.range());
+
+                T::incorrect_kind(lower.db, err.node, err.kind, location)
+            }
         }
     }
 }

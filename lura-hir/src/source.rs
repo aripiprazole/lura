@@ -39,12 +39,32 @@ pub trait DefaultWithDb {
 
     /// Returns a sentinel value for this type that signals that the value is
     /// not available.
-    fn recover_with_db(db: &dyn crate::HirDb, node: Node, location: Location) -> Self
+    fn extra_data(db: &dyn crate::HirDb, node: Node, location: Location) -> Self
     where
         Self: Sized,
     {
         let _ = node;
         let _ = location;
+
+        Self::default_with_db(db)
+    }
+
+    /// Returns a sentinel value for this type that signals that the value is
+    /// not available.
+    fn incorrect_kind(db: &dyn crate::HirDb, _node: Node, kind: &str, location: Location) -> Self
+    where
+        Self: Sized,
+    {
+        let error = HirError::new(db, location, HirErrorKind::Kind(kind.into()));
+
+        Self::error(db, error)
+    }
+
+    fn error(db: &dyn crate::HirDb, error: HirError) -> Self
+    where
+        Self: Sized,
+    {
+        let _ = error;
 
         Self::default_with_db(db)
     }
@@ -206,6 +226,16 @@ pub trait HirElement {
 pub struct HirError {
     /// The location of the error.
     pub location: Location,
+    pub kind: HirErrorKind,
+}
+
+/// The kind of the error. It can be anything that can be reported to the diagnostic database.
+/// It's used to distinguish between different kinds of errors.
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+pub enum HirErrorKind {
+    ExtraData,
+    Unknown,
+    Kind(String),
 }
 
 impl walking::Walker for HirError {
@@ -1405,7 +1435,7 @@ pub mod pattern {
     }
 
     /// Defines the pattern element in the HIR.
-    #[derive(Default, Clone, Hash, PartialEq, Eq, Debug)]
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum Pattern {
         /// The empty parameter should work as a wildcard, it's just like a `_` pattern. But it's
         /// splitted into a different variant to make it easier to work with, when we don't have
@@ -1419,7 +1449,6 @@ pub mod pattern {
         /// patterns, these are:
         /// - [`Pattern::Error`]
         /// - [`Pattern::Binding`]
-        #[default]
         Empty,
         Literal(Spanned<literal::Literal>),
         Wildcard(Location),
@@ -1427,6 +1456,16 @@ pub mod pattern {
         Error(HirError),
         Constructor(ConstructorPattern),
         Binding(BindingPattern),
+    }
+
+    impl DefaultWithDb for Pattern {
+        fn default_with_db(_db: &dyn crate::HirDb) -> Self {
+            Self::Empty
+        }
+
+        fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
+            Self::Error(error)
+        }
     }
 
     impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Pattern {
@@ -1562,6 +1601,16 @@ pub mod stmt {
         Ask(AskStmt),
         Let(LetStmt),
         Downgrade(expr::Expr),
+    }
+
+    impl DefaultWithDb for Stmt {
+        fn default_with_db(_db: &dyn crate::HirDb) -> Self {
+            Self::Empty
+        }
+
+        fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
+            Self::Error(error)
+        }
     }
 
     impl walking::Walker for Stmt {
@@ -1981,6 +2030,32 @@ pub mod expr {
         }
     }
 
+    impl DefaultWithDb for Expr {
+        /// The default expression is `Empty`. But it's not allowed to be used in any
+        /// contexts, so this function should report it as an error, and return `Empty`. For better
+        /// error reporting, the location of the `Empty` expression should be the same as
+        /// the location of the context where it's used.
+        ///
+        /// TODO: This is not implemented yet.
+        fn default_with_db(db: &dyn crate::HirDb) -> Self {
+            Diagnostics::push(
+                db,
+                Report::new(HirDiagnostic {
+                    message:
+                        "Empty expression representation is not allowed to be used in any contexts"
+                            .into(),
+                    location: Location::call_site(db),
+                }),
+            );
+
+            Self::Empty
+        }
+
+        fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
+            Self::Error(error)
+        }
+    }
+
     impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Expr {
         fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
             match self {
@@ -2029,28 +2104,6 @@ pub mod expr {
                     listener.exit_upgrade_expr(type_rep);
                 }
             }
-        }
-    }
-
-    impl DefaultWithDb for Expr {
-        /// The default expression is `Empty`. But it's not allowed to be used in any
-        /// contexts, so this function should report it as an error, and return `Empty`. For better
-        /// error reporting, the location of the `Empty` expression should be the same as
-        /// the location of the context where it's used.
-        ///
-        /// TODO: This is not implemented yet.
-        fn default_with_db(db: &dyn crate::HirDb) -> Self {
-            Diagnostics::push(
-                db,
-                Report::new(HirDiagnostic {
-                    message:
-                        "Empty expression representation is not allowed to be used in any contexts"
-                            .into(),
-                    location: Location::call_site(db),
-                }),
-            );
-
-            Self::Empty
         }
     }
 
@@ -2325,6 +2378,10 @@ pub mod type_rep {
         /// types.
         fn default_with_db(_db: &dyn crate::HirDb) -> Self {
             Self::Empty
+        }
+
+        fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
+            Self::Error(error)
         }
     }
 

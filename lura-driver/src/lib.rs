@@ -168,7 +168,7 @@ mod tests {
             println!("{:#?}", diagnostics);
         }
 
-        println!("{:#?}", hir.debug_all(&db));
+        println!("{:#?}", hir.debug(&db));
         let main_def = find_function(&db, HirPath::create(&db, "Main"));
         println!("{:#?}", db.rename(main_def, "Pindamanhogaba"));
     }
