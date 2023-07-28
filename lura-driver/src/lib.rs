@@ -132,11 +132,12 @@ impl lura_vfs::VfsDb for RootDb {
 mod tests {
     use std::path::PathBuf;
 
-    use lura_diagnostic::{Diagnostics, Offset};
+    use lura_diagnostic::Diagnostics;
     use lura_hir::{
-        completions::{completions, Position},
         lower::hir_lower,
         package::{Package, PackageKind, Version},
+        resolve::find_function,
+        source::{new_path, HirPath, VirtualPath},
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
@@ -152,8 +153,9 @@ mod tests {
     #[test]
     fn pipeline_tests() {
         let (tx, _) = crossbeam_channel::unbounded();
-        let db = RootDb::new(tx);
+        let mut db = RootDb::new(tx);
 
+        let path = VirtualPath::new(&db, "Main".into());
         let file = SourceFile::new(&db, PathBuf::from("repl"), EXAMPLE.into());
         let source = lura_syntax::parse(&db, file);
 
@@ -165,10 +167,13 @@ mod tests {
         if !diagnostics.is_empty() {
             println!("{:#?}", diagnostics);
         }
-        println!(
-            "{:#?}",
-            completions(&db, hir, "ar".into(), Position { offset: Offset(29) })
-        );
+
+        let path = new_path(&db, path);
+        let main_def = find_function(&db, path);
+
+        println!("{:#?}", db.rename(main_def, "Pindamanhogaba"));
+
+        println!("{:#?}", hir);
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {

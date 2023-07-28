@@ -11,7 +11,7 @@ use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
 use tree_sitter::Node;
 
-use crate::{package::Package, scope::Scope, walking};
+use crate::{package::Package, reparse::reparse_hir_path, scope::Scope, walking};
 
 pub trait OptionExt<T> {
     /// Returns the contained [`Some`] value or a default.
@@ -94,6 +94,11 @@ pub enum Location {
     CallSite,
 }
 
+#[salsa::input]
+pub struct HirLocation {
+    pub location: Location,
+}
+
 impl Location {
     /// Creates a new [Location] with the given [`source`] and range of [`start`] and [`end`].
     pub fn new<I>(db: &dyn crate::HirDb, source: Source, start: I, end: I) -> Self
@@ -117,6 +122,18 @@ impl Location {
     /// method signature, and the call sites.
     pub fn call_site(_db: &dyn crate::HirDb) -> Self {
         Self::CallSite
+    }
+
+    /// Sets the [`end`] of the location. It's useful when we don't know the end of the location
+    /// when we create it, but we know it later.
+    pub fn ending(self, end: Offset) -> Self {
+        match self {
+            Self::TextRange(mut range) => {
+                range.end = end;
+                Self::TextRange(range)
+            }
+            Self::CallSite => Self::CallSite,
+        }
     }
 }
 
@@ -216,6 +233,21 @@ pub struct HirPath {
 
     #[return_ref]
     pub segments: Vec<Identifier>,
+}
+
+#[salsa::input]
+pub struct VirtualPath {
+    pub path: String,
+}
+
+/// Creates a new artificial path. It's used to create a path from a string, and it's used for
+/// diagnostics.
+#[salsa::tracked]
+pub fn new_path(db: &dyn crate::HirDb, new_name: VirtualPath) -> HirPath {
+    let base = HirLocation::new(db, Location::CallSite);
+    let segments = reparse_hir_path(db, base, new_name.path(db));
+
+    HirPath::new(db, Location::call_site(db), segments)
 }
 
 #[salsa::tracked]

@@ -45,7 +45,7 @@ impl crate::walking::Walker for Definition {
 
 /// It's a reference to a definition in the High-Level Intermediate Representation. It's intended
 /// to be used as a resolved path or definition, and to be used to create the HIR.
-#[salsa::tracked]
+#[salsa::input]
 pub struct Reference {
     pub definition: Definition,
     pub location: Location,

@@ -24,6 +24,9 @@ pub struct Jar(
     source::HirSource,
     source::HirError,
     source::HirPath,
+    source::HirLocation,
+    source::VirtualPath,
+    source::new_path,
     source::HirPath_to_string,
     source::Identifier,
     source::top_level::Clause,
@@ -52,6 +55,7 @@ pub struct Jar(
     lower::hir_declare,
     lower::hir_lower,
     completions::completions,
+    reparse::reparse_hir_path,
 );
 
 /// The database that stores all the information about the source code. It is
