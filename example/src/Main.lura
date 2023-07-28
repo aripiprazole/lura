@@ -1,0 +1,3 @@
+Main (args: List String) {
+  List.head args
+}

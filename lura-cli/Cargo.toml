@@ -1,0 +1,42 @@
+[package]
+name = "lura-cli"
+edition.workspace = true
+authors.workspace = true
+documentation.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "lura"
+path = "src/main.rs"
+
+[dependencies]
+lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
+lura-hir = {version = "0.0.1", path = "../lura-hir"}
+lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
+lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
+lura-driver = {version = "0.0.1", path = "../lura-driver"}
+
+salsa-2022.workspace = true
+
+tree-sitter.workspace = true
+tree-sitter-lura.workspace = true
+type-sitter-lib.workspace = true
+tree-sitter-highlight = "0.20.1"
+
+dashmap.workspace = true
+eyre.workspace = true
+im.workspace = true
+fxhash.workspace = true
+itertools.workspace = true
+log.workspace = true
+
+crossbeam-channel = "0.5.8"
+notify-debouncer-mini = "0.3.0"
+
+colored = "2"
+env_logger = "0.9.0"
+ropey = "1.5.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.78"
+clap = { version = "4.3.19", features = ["derive"] }
+toml = "0.7.6"

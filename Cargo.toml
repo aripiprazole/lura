@@ -6,6 +6,7 @@ members = [
   "lura-diagnostic",
   "lura-vfs",
   "lura-ide",
+  "lura-cli",
 ]
 
 [workspace.dependencies]

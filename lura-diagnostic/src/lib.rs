@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Debug, sync::Arc};
+use std::{any::Any, fmt::Debug, hash::Hash, sync::Arc};
 
 use salsa::DbWithJar;
 
@@ -81,6 +81,8 @@ pub struct Report {
 }
 
 impl Report {
+    /// Creates a new diagnostic report. This is the only way to create
+    /// a diagnostic report.
     #[track_caller]
     pub fn new(diagnostic: impl Diagnostic + 'static) -> Self {
         Self {
@@ -91,8 +93,18 @@ impl Report {
         }
     }
 
+    /// Gets a dynamic reference to the diagnostic. This is useful
+    /// when you want to downcast the diagnostic to a specific type.
     pub fn into_inner(self) -> Arc<dyn DiagnosticDyn> {
         self.diagnostic
+    }
+}
+
+impl Hash for Report {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.diagnostic.error_kind().hash(state);
+        self.diagnostic.text().hash(state);
+        self.diagnostic.location().hash(state);
     }
 }
 
@@ -102,11 +114,39 @@ impl Debug for Report {
     }
 }
 
+impl Eq for Report {}
+
+impl PartialEq for Report {
+    fn eq(&self, other: &Self) -> bool {
+        self.diagnostic.error_kind() == other.diagnostic.error_kind()
+            && self.diagnostic.text() == other.diagnostic.text()
+            && self.diagnostic.location() == other.diagnostic.location()
+    }
+}
+
 pub trait TextRange {
     fn file_name(&self) -> &str;
     fn start(&self) -> Offset;
     fn end(&self) -> Offset;
     fn source(&self) -> &str;
+}
+
+impl Hash for dyn TextRange {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.file_name().hash(state);
+        self.start().hash(state);
+        self.end().hash(state);
+        self.source().hash(state);
+    }
+}
+
+impl PartialEq for dyn TextRange {
+    fn eq(&self, other: &Self) -> bool {
+        self.file_name() == other.file_name()
+            && self.start() == other.start()
+            && self.end() == other.end()
+            && self.source() == other.source()
+    }
 }
 
 pub trait Diagnostic: Any + Debug + Send + Sync {
@@ -122,6 +162,14 @@ pub trait DiagnosticDyn: Any + Debug + Send + Sync {
     fn error_kind(&self) -> ErrorKind;
     fn text(&self) -> Vec<ErrorText>;
     fn location(&self) -> Option<Box<dyn TextRange>>;
+}
+
+impl Hash for dyn DiagnosticDyn {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.error_kind().hash(state);
+        self.text().hash(state);
+        self.location().hash(state);
+    }
 }
 
 impl<T: Diagnostic> DiagnosticDyn for T {
