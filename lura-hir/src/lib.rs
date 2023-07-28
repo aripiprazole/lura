@@ -68,6 +68,7 @@ pub mod completions;
 pub mod lower;
 pub mod package;
 pub mod reference;
+pub mod reparse;
 pub mod resolve;
 pub mod scope;
 pub mod source;

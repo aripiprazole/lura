@@ -18,6 +18,8 @@ use salsa::DebugWithDb;
 /// Defines watcher strategies for [`RootDb`].
 pub mod watcher;
 
+pub mod rename;
+
 extern crate salsa_2022 as salsa;
 
 /// The root database implementation for the Lura frontend, after the frontend, there's the
