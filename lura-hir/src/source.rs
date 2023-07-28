@@ -5,7 +5,11 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use std::{collections::HashSet, fmt::Debug, sync::Arc};
+use std::{
+    collections::HashSet,
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
@@ -383,6 +387,14 @@ impl<T: Default> Default for Spanned<T> {
         }
     }
 }
+impl<T> salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Spanned<T>
+where
+    T: for<'a> salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'a>>::DynDb>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+        self.value.debug_all(db).fmt(f)
+    }
+}
 
 /// Defines a kind of definition. The declarations are definitions that can have a name, and can be
 /// referenced by other definitions.
@@ -594,6 +606,7 @@ pub mod declaration {
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod top_level {
+    use std::fmt::Formatter;
     use std::sync::Arc;
 
     use crate::resolve::{Definition, Reference};
@@ -1111,6 +1124,21 @@ pub mod top_level {
         DataDecl(DataDecl),
     }
 
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for TopLevel {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                TopLevel::Empty => write!(f, "Empty"),
+                TopLevel::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
+                TopLevel::Using(using) => using.debug_all(db).fmt(f),
+                TopLevel::Command(command) => command.debug_all(db).fmt(f),
+                TopLevel::BindingGroup(binding) => binding.debug_all(db).fmt(f),
+                TopLevel::ClassDecl(class_decl) => class_decl.debug_all(db).fmt(f),
+                TopLevel::TraitDecl(trait_decl) => trait_decl.debug_all(db).fmt(f),
+                TopLevel::DataDecl(data_decl) => data_decl.debug_all(db).fmt(f),
+            }
+        }
+    }
+
     impl walking::Walker for TopLevel {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
@@ -1292,6 +1320,8 @@ pub mod top_level {
 ///
 /// It can be known as the name of eliminating a value.
 pub mod pattern {
+    use std::fmt::Formatter;
+
     use crate::resolve::{Definition, Reference};
     use crate::walking::HirListener;
 
@@ -1399,6 +1429,20 @@ pub mod pattern {
         Binding(BindingPattern),
     }
 
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Pattern {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                Pattern::Empty => write!(f, "Empty"),
+                Pattern::Literal(literal) => write!(f, "Literal({literal:?})"),
+                Pattern::Wildcard(wildcard) => write!(f, "Wildcard(location: {wildcard:?})"),
+                Pattern::Rest(rest) => write!(f, "Rest(location: {rest:?})"),
+                Pattern::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
+                Pattern::Constructor(constructor) => constructor.debug_all(db).fmt(f),
+                Pattern::Binding(binding) => binding.debug_all(db).fmt(f),
+            }
+        }
+    }
+
     impl walking::Walker for Pattern {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
@@ -1450,7 +1494,7 @@ pub mod pattern {
 /// Defines a kind of statements. It does define statements that can be used in a block, and
 /// "do-notations", that are used to do imperative code in a functional language.
 pub mod stmt {
-    use std::sync::Arc;
+    use std::{fmt::Formatter, sync::Arc};
 
     use crate::{scope::ScopeKind, walking::HirListener};
 
@@ -1539,6 +1583,17 @@ pub mod stmt {
                     expr.clone().accept(db, listener);
                     listener.exit_downgrade_stmt(expr);
                 }
+            }
+        }
+    }
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Stmt {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                Stmt::Empty => write!(f, "Empty"),
+                Stmt::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
+                Stmt::Ask(ask_stmt) => ask_stmt.debug_all(db).fmt(f),
+                Stmt::Let(let_stmt) => let_stmt.debug_all(db).fmt(f),
+                Stmt::Downgrade(expr) => expr.debug_all(db).fmt(f),
             }
         }
     }
@@ -1654,7 +1709,7 @@ pub mod literal {
 /// Defines a kind of terms. It does define expressions that can be used in a block. These are the
 /// base of the language grammar and semantics.
 pub mod expr {
-    use std::sync::Arc;
+    use std::{fmt::Formatter, sync::Arc};
 
     use lura_diagnostic::{Diagnostics, Report};
 
@@ -1926,6 +1981,22 @@ pub mod expr {
         }
     }
 
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Expr {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                Expr::Empty => write!(f, "Empty"),
+                Expr::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
+                Expr::Literal(literal) => write!(f, "Literal({literal:?})"),
+                Expr::Path(reference) => reference.debug_all(db).fmt(f),
+                Expr::Call(call_expr) => call_expr.debug_all(db).fmt(f),
+                Expr::Ann(ann_expr) => ann_expr.debug_all(db).fmt(f),
+                Expr::Abs(abs_expr) => abs_expr.debug_all(db).fmt(f),
+                Expr::Match(match_expr) => match_expr.debug_all(db).fmt(f),
+                Expr::Upgrade(type_rep) => type_rep.debug_all(db).fmt(f),
+            }
+        }
+    }
+
     impl walking::Walker for Expr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
@@ -2003,6 +2074,8 @@ pub mod expr {
 /// Defines a kind of terms. It does define type representations that can be used in the type level
 /// of the language. These are the base of the language grammar and semantics.
 pub mod type_rep {
+    use std::fmt::Formatter;
+
     use crate::resolve::{Definition, Reference};
 
     use super::*;
@@ -2130,6 +2203,53 @@ pub mod type_rep {
             // TODO: report error
 
             expr::Expr::Upgrade(Box::new(self))
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for TypeRep {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                TypeRep::Unit => write!(f, "Unit"),
+                TypeRep::Empty => write!(f, "Empty"),
+                TypeRep::This => write!(f, "This"),
+                TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
+                TypeRep::Path(path) => path.debug_all(db).fmt(f),
+                TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
+                TypeRep::App(app) => app.debug_all(db).fmt(f),
+                TypeRep::Downgrade(expr) => expr.debug_all(db).fmt(f),
+                TypeRep::Pi {
+                    parameters,
+                    value,
+                    location,
+                } => f
+                    .debug_struct("Pi")
+                    .field(
+                        "parameters",
+                        &parameters
+                            .iter()
+                            .map(|parameter| parameter.debug_all(db))
+                            .collect::<Vec<_>>(),
+                    )
+                    .field("value", &value.debug_all(db))
+                    .field("location", &location)
+                    .finish(),
+                TypeRep::Sigma {
+                    parameters,
+                    value,
+                    location,
+                } => f
+                    .debug_struct("Sigma")
+                    .field(
+                        "parameters",
+                        &parameters
+                            .iter()
+                            .map(|parameter| parameter.debug_all(db))
+                            .collect::<Vec<_>>(),
+                    )
+                    .field("value", &value.debug_all(db))
+                    .field("location", &location)
+                    .finish(),
+            }
         }
     }
 

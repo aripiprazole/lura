@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use fxhash::FxBuildHasher;
 
@@ -36,7 +36,7 @@ pub struct Import {
 /// to store context-sensitive information, like imports, and definitions.
 ///
 /// It's also used to store parameters, variables, functions, types and more.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
     pub kind: ScopeKind,
     pub parent: Option<Arc<Scope>>,
@@ -215,5 +215,11 @@ impl Scope {
         }
 
         definitions
+    }
+}
+
+impl Debug for Scope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Scope({:?})", self.kind)
     }
 }

@@ -71,6 +71,7 @@ pub trait HirDb: HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}
 
 pub mod completions;
+pub mod debug;
 pub mod lower;
 pub mod package;
 pub mod reference;

@@ -141,6 +141,7 @@ mod tests {
     };
     use lura_syntax::Source;
     use lura_vfs::SourceFile;
+    use salsa_2022::DebugWithDb;
 
     use crate::RootDb;
 
@@ -167,10 +168,9 @@ mod tests {
             println!("{:#?}", diagnostics);
         }
 
+        println!("{:#?}", hir.debug_all(&db));
         let main_def = find_function(&db, HirPath::create(&db, "Main"));
-
         println!("{:#?}", db.rename(main_def, "Pindamanhogaba"));
-        println!("{:#?}", hir);
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
