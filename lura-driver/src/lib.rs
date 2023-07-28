@@ -155,7 +155,6 @@ mod tests {
         let (tx, _) = crossbeam_channel::unbounded();
         let mut db = RootDb::new(tx);
 
-        let path = VirtualPath::new(&db, "Main".into());
         let file = SourceFile::new(&db, PathBuf::from("repl"), EXAMPLE.into());
         let source = lura_syntax::parse(&db, file);
 
@@ -168,7 +167,7 @@ mod tests {
             println!("{:#?}", diagnostics);
         }
 
-        let path = new_path(&db, path);
+        let path = HirPath::create(&db, "Main");
         let main_def = find_function(&db, path);
 
         println!("{:#?}", db.rename(main_def, "Pindamanhogaba"));

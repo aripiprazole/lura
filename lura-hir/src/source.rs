@@ -235,6 +235,23 @@ pub struct HirPath {
     pub segments: Vec<Identifier>,
 }
 
+impl HirPath {
+    /// Creates a new artificial path. It's used to create a path from a string, and it's used for
+    /// diagnostics.
+    ///
+    /// It takes a [`db`] argument, just to be consistent with the other methods. And if sometime
+    /// it will need the db argument, it will be already there, and we won't need to change the
+    /// method signature, and the call sites.
+    ///
+    /// It does calls the [`new_path`] query, that is the actual implementation of the method. It's
+    /// only a bridge between the query and the method.
+    pub fn create(db: &dyn crate::HirDb, text: &str) -> Self {
+        let input = VirtualPath::new(db, text.into());
+
+        new_path(db, input)
+    }
+}
+
 #[salsa::input]
 pub struct VirtualPath {
     pub path: String,
