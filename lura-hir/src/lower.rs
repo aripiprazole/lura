@@ -20,14 +20,9 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
-use crate::source::{
-    pattern::{BindingPattern, Pattern},
-    top_level::{ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl},
-    type_rep::{ArrowKind, ArrowTypeRep},
-};
 use crate::{
     package::Package,
-    resolve::{find_function, Definition, DefinitionKind, HirLevel},
+    resolve::{find_function, find_type, Definition, DefinitionKind, HirLevel},
     scope::{Scope, ScopeKind},
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
@@ -35,6 +30,16 @@ use crate::{
         top_level::{BindingGroup, Clause, Signature, TopLevel, UsingTopLevel},
         type_rep::{AppTypeRep, TypeRep},
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
+    },
+};
+use crate::{
+    resolve::find_constructor,
+    source::{
+        pattern::{BindingPattern, Pattern},
+        top_level::{
+            ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl,
+        },
+        type_rep::{ArrowKind, ArrowTypeRep},
     },
 };
 
@@ -964,7 +969,20 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     ///
     /// It is useful to search for definitions in the scope, and it will be used in the resolution.
     pub fn qualify(&self, path: HirPath, kind: DefinitionKind) -> Definition {
-        Definition::no(self.db, kind, path)
+        let definition = self.scope.search(self.db, path, kind);
+
+        // Seach in the scope, or query the compiler query-system to search in the entire package.
+        //
+        // If the definition is not found, it will return a [`Definition::no`].
+        definition.unwrap_or_else(|| match kind {
+            DefinitionKind::Function => find_function(self.db, path),
+            DefinitionKind::Constructor => find_constructor(self.db, path),
+            DefinitionKind::Type => find_type(self.db, path),
+            DefinitionKind::Variable => Definition::no(self.db, kind, path),
+            DefinitionKind::Module => Definition::no(self.db, kind, path),
+            DefinitionKind::Command => Definition::no(self.db, kind, path),
+            DefinitionKind::Unresolved => Definition::no(self.db, kind, path),
+        })
     }
 
     /// Creates a new [`Location`] from the given [`tree_sitter::Range`]. It does transforms the

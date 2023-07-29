@@ -198,8 +198,8 @@ impl Scope {
                         None => None,
                     })
             }
-            DefinitionKind::Module => todo!("Nested modules are not supported yet"),
-            DefinitionKind::Command => todo!("Nested commands are not supported yet"),
+            DefinitionKind::Module => None,
+            DefinitionKind::Command => None,
             DefinitionKind::Unresolved => None,
         }
     }
