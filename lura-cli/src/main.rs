@@ -75,16 +75,24 @@ fn main() -> eyre::Result<()> {
                 type Span = (String, Range<usize>);
                 ariadne::Report::<Span>::build(Error, file.path.clone(), 0)
                     .with_code("E0001")
-                    .with_message(format!("found {} resolution errors", diagnostics.len()))
+                    .with_message(format!("found {} errors", diagnostics.len()))
                     .with_config(
                         ariadne::Config::default()
                             .with_char_set(ariadne::CharSet::Ascii)
                             .with_label_attach(ariadne::LabelAttach::Start),
                     )
                     .with_labels(diagnostics.into_iter().map(|d| {
+                        let kind = match d.error_kind() {
+                            lura_diagnostic::ErrorKind::ParseError => "parse error",
+                            lura_diagnostic::ErrorKind::TypeError => "type error",
+                            lura_diagnostic::ErrorKind::ResolutionError => "resolution error",
+                            lura_diagnostic::ErrorKind::RuntimeError => "runtime error",
+                            lura_diagnostic::ErrorKind::InternalError(_) => "internal error",
+                        };
+                        let message = d.markdown_text();
                         ariadne::Label::new((d.file_name(), d.range().unwrap()))
                             .with_color(ariadne::Color::Red)
-                            .with_message(d.markdown_text().fg(ariadne::Color::Red))
+                            .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red))
                     }))
                     .finish()
                     .eprint((file.path, ariadne::Source::from(&file.content)))

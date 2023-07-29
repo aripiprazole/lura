@@ -213,19 +213,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             TraitDecl(trait_decl) => return self.hir_trait(trait_decl).into(),
             TypeDecl(type_decl) => return self.hir_type(type_decl).into(),
             Signature(signature) => return self.hir_signature(signature).into(),
-            Using(decl) => {
-                let range = self.range(decl.range());
-                let path = decl.path().solve(self, |this, node| this.path(node));
-
-                // TODO: search for functions or anything too.
-                let (scope, def) = query_module(self.db, path);
-                let reference = self.scope.using(self.db, def, path.location(self.db));
-
-                // Extends the scope with the new scope.
-                self.scope.extend(scope);
-
-                TopLevel::Using(UsingTopLevel::new(self.db, reference, range))
-            }
+            Using(decl) => return self.hir_using(decl).into(),
         };
 
         self.decls.push(decl);
@@ -251,6 +239,27 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let name = self.qualify(path, DefinitionKind::Command);
 
         TopLevel::Command(CommandTopLevel::new(self.db, name, arguments, location))
+    }
+
+    /// Creates a new high level type declaration [`UsingTopLevel`] solver, for the given
+    /// concrete syntax tree [`lura_syntax::Using`].
+    ///
+    /// It will return a [`Solver`] for the [`Signature`], and it will solve the [`Signature`] in
+    /// the [`hir_lower`] query.
+    pub fn hir_using<'a>(&mut self, tree: lura_syntax::Using<'a>) -> Solver<'a, TopLevel> {
+        let range = self.range(tree.range());
+        let path = tree.path().solve(self, |this, node| this.path(node));
+
+        Solver::new(move |db, this| {
+            // TODO: search for functions or anything too.
+            let (scope, def) = query_module(db, path);
+            let reference = this.scope.using(db, def, path.location(db));
+
+            // Extends the scope with the new scope.
+            this.scope.extend(scope);
+
+            TopLevel::Using(UsingTopLevel::new(db, reference, range))
+        })
     }
 
     /// Creates a new high level type declaration [`TypeDecl`] solver, for the given

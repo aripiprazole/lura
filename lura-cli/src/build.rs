@@ -50,7 +50,7 @@ impl<'db> Manifest<'db> {
         })
     }
 
-    pub fn read_file(&self, folder: PathBuf, path: PathBuf) -> eyre::Result<Source> {
+    pub fn read_file(&mut self, folder: PathBuf, path: PathBuf) -> eyre::Result<Source> {
         let path = folder.join(path);
         let contents = std::fs::read_to_string(&path)
             .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
@@ -77,10 +77,11 @@ impl<'db> Manifest<'db> {
 
         let file = SourceFile::new(self.db, path, name, contents);
         let cst = lura_syntax::parse(self.db, file);
+
         Ok(cst)
     }
 
-    pub fn manifest(&self) -> eyre::Result<Package> {
+    pub fn as_package(&mut self) -> eyre::Result<Package> {
         let version = parse_version(&self.config.version)?;
         let source = self.root_folder.join(&self.config.source);
 
@@ -96,17 +97,17 @@ impl<'db> Manifest<'db> {
         ))
     }
 
-    pub fn register_packages(&self) -> eyre::Result<()> {
+    pub fn register_packages(&mut self) -> eyre::Result<()> {
         for dependency in self.config.dependencies.values() {
             let folder = self.root_folder.join(&dependency.path).canonicalize()?;
-            let manifest = Manifest::load_in_folder(self.db, folder)?;
-            let package = manifest.manifest()?;
+            let mut manifest = Manifest::load_in_folder(self.db, folder)?;
+            let package = manifest.as_package()?;
 
             self.db.register_package(package);
         }
         // Self-registering
 
-        let package = self.manifest()?;
+        let package = self.as_package()?;
         self.db.register_package(package);
 
         Ok(())
@@ -119,8 +120,21 @@ impl<'db> Manifest<'db> {
         let mut files = im::HashMap::new();
         for package in self.db.all_packages() {
             for file in package.all_files(self.db) {
+                // Gets the diagnostics from the CST
+                let diagnostics = file
+                    .errors(self.db)
+                    .iter()
+                    .map(|error| error.diagnostic(self.db))
+                    .map(Report::new)
+                    .collect_vec();
+
+                // Add syntax errors' diagnostics to the manifest
+                self.diagnostics.extend(diagnostics.into_iter());
+
                 let hir = hir_lower(self.db, package, file);
                 let diagnostics = hir_lower::accumulated::<Diagnostics>(self.db, package, file);
+
+                // Add HIR errors' diagnostics to the manifest
                 self.diagnostics.extend(diagnostics.into_iter());
 
                 files.insert(package, hir);

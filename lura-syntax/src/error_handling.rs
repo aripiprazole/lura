@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lura_diagnostic::{Diagnostic, ErrorKind, ErrorText, Offset, TextRange};
+use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Offset, Report, TextRange};
 
 use crate::Source;
 
@@ -85,20 +85,29 @@ impl Source {
             };
 
             match true {
-                _ if node.is_error() => {
+                _ if node.has_error() && node.is_missing() => {
                     errors.push(SyntaxError::new(
                         db,
                         SyntaxDiagnostic {
-                            message: format!("unexpected {:?}", node.kind()),
+                            // The error message is the node's S-expression.
+                            message: node.to_sexp().to_lowercase(),
                             location,
                         },
                     ));
                 }
-                _ if node.is_missing() => {
+                _ if node.is_error() => {
+                    let mut cursor = node.walk();
+                    let unexpected = node
+                        .children(&mut cursor)
+                        .flat_map(|node| node.utf8_text(text.as_bytes()))
+                        .map(|pao| pao.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+
                     errors.push(SyntaxError::new(
                         db,
                         SyntaxDiagnostic {
-                            message: format!("missing {:?}", node.kind()),
+                            message: format!("unexpected token(s): {unexpected}"),
                             location,
                         },
                     ));
@@ -108,5 +117,20 @@ impl Source {
         }
 
         errors
+    }
+
+    /// Defines the [`Source::validated`] query.
+    ///
+    /// Validates a Lura program. This query is memoized, so it will only be executed once for each
+    /// program.
+    ///
+    /// This query will also report any errors that it finds to the diagnostics database.
+    #[salsa::tracked]
+    pub fn validated(self, db: &dyn crate::ParseDb) -> Source {
+        for error in self.errors(db) {
+            Diagnostics::push(db, Report::new(error.diagnostic(db)));
+        }
+
+        self
     }
 }

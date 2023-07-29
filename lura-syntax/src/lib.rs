@@ -33,6 +33,7 @@ pub struct Jar(
     Source,
     parse,
     error_handling::Source_errors,
+    error_handling::Source_validated,
     error_handling::SyntaxError,
 );
 
