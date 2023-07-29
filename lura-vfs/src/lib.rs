@@ -9,6 +9,9 @@ pub struct SourceFile {
     pub file_path: PathBuf,
 
     #[return_ref]
+    pub module_name: String,
+
+    #[return_ref]
     pub source_text: String,
 }
 

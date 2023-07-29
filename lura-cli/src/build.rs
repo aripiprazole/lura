@@ -51,7 +51,13 @@ impl<'db> Manifest<'db> {
         let contents = std::fs::read_to_string(&path)
             .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
 
-        let file = SourceFile::new(self.db, path, contents);
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let file = SourceFile::new(self.db, path, name, contents);
         let cst = lura_syntax::parse(self.db, file);
         Ok(cst)
     }

@@ -23,9 +23,10 @@ pub enum ScopeKind {
     Pi = 10,
     Sigma = 11,
     Type = 12,
+    InternalFile = 13,
 
     #[default]
-    File = 13,
+    File = 14,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
@@ -138,17 +139,26 @@ impl Scope {
             return definition;
         };
 
+        self.create(db, name, definition)
+    }
+
+    /// Defines a name for the given `kind` in the current scope, and returns the definition.
+    ///
+    /// If the name is already defined, it will return the existing definition.
+    pub fn create(&mut self, db: &dyn crate::HirDb, name: String, def: Definition) -> Definition {
+        let kind = def.kind(db);
+
         match kind {
-            DefinitionKind::Function => self.values.insert(name, definition),
-            DefinitionKind::Constructor => self.constructors.insert(name, definition),
-            DefinitionKind::Type => self.types.insert(name, definition),
-            DefinitionKind::Variable => self.variables.insert(name, definition),
+            DefinitionKind::Function => self.values.insert(name, def),
+            DefinitionKind::Constructor => self.constructors.insert(name, def),
+            DefinitionKind::Type => self.types.insert(name, def),
+            DefinitionKind::Variable => self.variables.insert(name, def),
             DefinitionKind::Module => todo!("Nested modules are not supported yet"),
             DefinitionKind::Command => todo!("Nested commands are not supported yet"),
             DefinitionKind::Unresolved => panic!("Illegal definition kind: Unresolved"),
         };
 
-        definition
+        def
     }
 
     /// Searches a name for the given `kind` in the current scope, and returns the definition if
@@ -208,7 +218,31 @@ impl Scope {
     /// Publishes all definitions in the current scope to the parent scope.
     ///
     /// TODO: This is not implemented yet.
-    pub fn publish_all_definitions(&mut self, _db: &dyn crate::HirDb, _prefix: Definition) {}
+    pub fn publish_all_definitions_to(
+        &mut self,
+        db: &dyn crate::HirDb,
+        prefix: &str,
+        another: &mut Self,
+    ) {
+        println!("Publishing all definitions to {}", prefix);
+        for (name, definition) in self.all_definitions() {
+            let text = format!("{prefix}.{name}");
+
+            another.create(db, text, definition);
+        }
+    }
+
+    /// Publishes all definitions in the current scope to the parent scope.
+    ///
+    /// TODO: This is not implemented yet.
+    pub fn publish_all_definitions(&mut self, db: &dyn crate::HirDb, prefix: Definition) {
+        let prefix = prefix
+            .name(db)
+            .to_string(db)
+            .unwrap_or("~INTERNAL ERROR~".into());
+
+        self.publish_all_definitions_to(db, &prefix, Arc::make_mut(&mut self.root()));
+    }
 
     /// Checks if the current scope is a do-notation scope. If it's a do-notation scope, the
     /// return expr is allowed.
@@ -233,12 +267,6 @@ impl Scope {
 
         for (name, definition) in self.variables.iter() {
             definitions.insert(name.clone(), *definition);
-        }
-
-        if let Some(parent) = self.parent.as_ref() {
-            for (name, definition) in parent.all_definitions().iter() {
-                definitions.insert(name.clone(), *definition);
-            }
         }
 
         definitions

@@ -37,6 +37,9 @@ pub struct Source {
     pub file_path: std::path::PathBuf,
 
     #[return_ref]
+    pub module_name: std::string::String,
+
+    #[return_ref]
     pub source_text: std::string::String,
 
     #[return_ref]
@@ -50,13 +53,14 @@ pub fn parse(db: &dyn ParseDb, program: SourceFile) -> Source {
         .set_language(tree_sitter_lura::language())
         .expect("Error loading lura language");
 
+    let name = program.module_name(db).clone();
     let text = program.source_text(db).clone();
 
     let tree = ParseTree {
         tree: parser.parse(&text, None).unwrap().into(),
     };
 
-    Source::new(db, program.file_path(db).clone(), text, tree)
+    Source::new(db, program.file_path(db).clone(), name, text, tree)
 }
 
 #[derive(Clone, Debug)]

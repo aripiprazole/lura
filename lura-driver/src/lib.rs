@@ -121,7 +121,14 @@ impl lura_vfs::VfsDb for RootDb {
                 let contents = std::fs::read_to_string(&path)
                     .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
 
-                *entry.insert(lura_vfs::SourceFile::new(self, path, contents))
+                // TODO:
+                let name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+
+                *entry.insert(lura_vfs::SourceFile::new(self, path, name, contents))
             }
         })
     }
@@ -130,8 +137,6 @@ impl lura_vfs::VfsDb for RootDb {
 #[cfg(test)]
 #[allow(clippy::unnecessary_mut_passed)]
 mod tests {
-    use std::path::PathBuf;
-
     use lura_diagnostic::Diagnostics;
     use lura_hir::{
         lower::hir_lower,
@@ -156,7 +161,7 @@ mod tests {
         let (tx, _) = crossbeam_channel::unbounded();
         let mut db = RootDb::new(tx);
 
-        let file = SourceFile::new(&db, PathBuf::from("repl"), EXAMPLE.into());
+        let file = SourceFile::new(&db, "repl".into(), "Repl".into(), EXAMPLE.into());
         let source = lura_syntax::parse(&db, file);
 
         let local = create_package(&db, source, "local");

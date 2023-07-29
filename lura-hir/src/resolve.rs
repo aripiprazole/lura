@@ -4,6 +4,7 @@ use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 use crate::{
     lower::{hir_declare, hir_lower},
     reference::ReferenceWalker,
+    scope::{Scope, ScopeKind},
     source::{DefaultWithDb, HirPath, Location},
 };
 
@@ -157,10 +158,16 @@ impl Diagnostic for HirDiagnostic {
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, package, file);
-            let scope = source.scope(db);
+            let hir = hir_declare(db, package, file);
+            let mut target = Scope::new(ScopeKind::InternalFile);
 
-            if let Some(function) = scope.search(db, name, DefinitionKind::Function) {
+            hir.scope(db).publish_all_definitions_to(
+                db,
+                /* prefix = */ hir.source(db).module_name(db),
+                /* scope  = */ &mut target,
+            );
+
+            if let Some(function) = target.search(db, name, DefinitionKind::Function) {
                 return function;
             }
         }
@@ -182,10 +189,16 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, package, file);
-            let scope = source.scope(db);
+            let hir = hir_declare(db, package, file);
+            let mut target = Scope::new(ScopeKind::InternalFile);
 
-            if let Some(function) = scope.search(db, name, DefinitionKind::Constructor) {
+            hir.scope(db).publish_all_definitions_to(
+                db,
+                /* prefix = */ hir.source(db).module_name(db),
+                /* scope  = */ &mut target,
+            );
+
+            if let Some(function) = target.search(db, name, DefinitionKind::Constructor) {
                 return function;
             }
         }
@@ -207,10 +220,16 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     for package in db.all_packages() {
         for file in package.all_files(db) {
-            let source = hir_declare(db, package, file);
-            let scope = source.scope(db);
+            let hir = hir_declare(db, package, file);
+            let mut target = Scope::new(ScopeKind::InternalFile);
 
-            if let Some(function) = scope.search(db, name, DefinitionKind::Type) {
+            hir.scope(db).publish_all_definitions_to(
+                db,
+                /* prefix = */ hir.source(db).module_name(db),
+                /* scope  = */ &mut target,
+            );
+
+            if let Some(function) = target.search(db, name, DefinitionKind::Type) {
                 return function;
             }
         }

@@ -45,7 +45,9 @@ impl Backend {
             .insert(item.uri.to_string(), item.text.clone().into());
 
         let path = PathBuf::from(item.uri.to_string());
-        let file = SourceFile::new(&*self.db(), path, item.text.clone());
+
+        // TODO:
+        let file = SourceFile::new(&*self.db(), path, item.uri.to_string(), item.text.clone());
         let source = lura_syntax::parse(&*self.db(), file);
 
         let package = create_default_package(&self.db(), source, "main");
