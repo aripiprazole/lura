@@ -2203,6 +2203,9 @@ pub mod type_rep {
         /// The type representation for Self in Lura language.
         This,
 
+        /// The type representation for Type in Lura language.
+        Tt,
+
         /// An error type representation, it's used to recover from errors, and to continue the
         /// parsing process.
         Error(HirError),
@@ -2226,6 +2229,7 @@ pub mod type_rep {
 
             /// The location of the `->` keyword.
             location: Location,
+            scope: Arc<Scope>,
         },
 
         /// The sigma type, it's used to define a product type, or a dependent product type. Currently
@@ -2238,6 +2242,7 @@ pub mod type_rep {
 
             /// The location of the `forall` keyword.
             location: Location,
+            scope: Arc<Scope>,
         },
 
         /// The downgrade type, it's used to downgrade a type representation to a expression. This is
@@ -2265,6 +2270,7 @@ pub mod type_rep {
                 TypeRep::Unit => write!(f, "Unit"),
                 TypeRep::Empty => write!(f, "Empty"),
                 TypeRep::This => write!(f, "This"),
+                TypeRep::Tt => write!(f, "tt"),
                 TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
                 TypeRep::Path(path) => path.debug_all(db).fmt(f),
                 TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
@@ -2274,6 +2280,7 @@ pub mod type_rep {
                     parameters,
                     value,
                     location,
+                    scope,
                 } => f
                     .debug_struct("Pi")
                     .field(
@@ -2285,11 +2292,13 @@ pub mod type_rep {
                     )
                     .field("value", &value.debug_all(db))
                     .field("location", &location)
+                    .field("scope", &scope)
                     .finish(),
                 TypeRep::Sigma {
                     parameters,
                     value,
                     location,
+                    scope,
                 } => f
                     .debug_struct("Sigma")
                     .field(
@@ -2301,6 +2310,7 @@ pub mod type_rep {
                     )
                     .field("value", &value.debug_all(db))
                     .field("location", &location)
+                    .field("scope", &scope)
                     .finish(),
             }
         }
@@ -2321,6 +2331,10 @@ pub mod type_rep {
                     listener.enter_this_type_rep();
                     listener.exit_this_type_rep();
                 }
+                TypeRep::Tt => {
+                    listener.enter_tt_type_rep();
+                    listener.exit_tt_type_rep();
+                }
                 TypeRep::Error(error) => {
                     listener.enter_error_type_rep(error);
                     error.accept(db, listener);
@@ -2337,27 +2351,35 @@ pub mod type_rep {
                     parameters,
                     value,
                     location,
+                    scope,
                 } => {
-                    listener.enter_pi_type_rep(parameters.clone(), value.clone(), location.clone());
+                    listener.enter_pi_type_rep(
+                        parameters.clone(),
+                        value.clone(),
+                        location.clone(),
+                        scope.clone(),
+                    );
                     parameters.clone().accept(db, listener);
                     value.clone().accept(db, listener);
                     location.clone().accept(db, listener);
-                    listener.exit_pi_type_rep(parameters, value, location);
+                    listener.exit_pi_type_rep(parameters, value, location, scope);
                 }
                 TypeRep::Sigma {
                     parameters,
                     value,
                     location,
+                    scope,
                 } => {
                     listener.enter_sigma_type_rep(
                         parameters.clone(),
                         value.clone(),
                         location.clone(),
+                        scope.clone(),
                     );
                     parameters.clone().accept(db, listener);
                     value.clone().accept(db, listener);
                     location.clone().accept(db, listener);
-                    listener.exit_sigma_type_rep(parameters, value, location);
+                    listener.exit_sigma_type_rep(parameters, value, location, scope);
                 }
                 TypeRep::Downgrade(expr) => {
                     listener.enter_downgrade_type_rep(expr.clone());
@@ -2391,6 +2413,7 @@ pub mod type_rep {
                 Self::Unit => Location::call_site(db),
                 Self::Empty => Location::call_site(db),
                 Self::This => Location::call_site(db),
+                Self::Tt => Location::call_site(db),
                 Self::Pi { location, .. } => location.clone(),
                 Self::Sigma { location, .. } => location.clone(),
                 Self::Error(downcast) => downcast.location(db),

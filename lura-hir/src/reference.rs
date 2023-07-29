@@ -174,6 +174,48 @@ impl<'db, U: Checkable> HirListener for ReferenceWalker<'db, U> {
     fn exit_abs_expr(&mut self, _: expr::AbsExpr) {
         self.stack.pop();
     }
+
+    fn enter_sigma_type_rep(
+        &mut self,
+        _: Vec<declaration::Parameter>,
+        _: Box<type_rep::TypeRep>,
+        location: Location,
+        scope: Arc<Scope>,
+    ) {
+        self.enter_scope(self.db, location, scope.clone());
+        self.stack.push(scope);
+    }
+
+    fn exit_sigma_type_rep(
+        &mut self,
+        _: Vec<declaration::Parameter>,
+        _: Box<type_rep::TypeRep>,
+        _: Location,
+        _: Arc<Scope>,
+    ) {
+        self.stack.pop();
+    }
+
+    fn enter_pi_type_rep(
+        &mut self,
+        _: Vec<declaration::Parameter>,
+        _: Box<type_rep::TypeRep>,
+        location: Location,
+        scope: Arc<Scope>,
+    ) {
+        self.enter_scope(self.db, location, scope.clone());
+        self.stack.push(scope);
+    }
+
+    fn exit_pi_type_rep(
+        &mut self,
+        _: Vec<declaration::Parameter>,
+        _: Box<type_rep::TypeRep>,
+        _: Location,
+        _: Arc<Scope>,
+    ) {
+        self.stack.pop();
+    }
 }
 
 /// Defines a trait that can be used to check if a value is true or not. It's a trait, to be easier

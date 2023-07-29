@@ -20,8 +20,9 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
-use crate::source::top_level::{
-    ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl,
+use crate::source::{
+    pattern::{BindingPattern, Pattern},
+    top_level::{ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl},
 };
 use crate::{
     package::Package,
@@ -439,6 +440,8 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             let parameters = this.parameters(tree.arguments(&mut tree.walk()));
 
+            println!("parameters: {:#?}", self.scope.values);
+
             let methods = methods
                 .into_iter()
                 .map(|method| method.run_solver(this))
@@ -509,12 +512,16 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
                 Some(Solver::new(move |_db, this| {
+                    this.scope = this.scope.fork(ScopeKind::Pi);
+
                     let parameters = tree
                         .parameters(&mut tree.walk())
                         .flatten()
                         .filter_map(|node| node.regular())
                         .map(|type_rep| Parameter::unnamed(this.db, this.type_expr(type_rep)))
                         .collect::<Vec<_>>();
+
+                    let scope = this.pop_scope();
 
                     // As the function isn't a data constructor, it will be a function constructor, and
                     // it's needed to create a local type representing the function.
@@ -523,6 +530,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                         // The Self type is used here, to avoid confusion in the resolution.
                         value: Box::new(TypeRep::This),
                         location: Location::CallSite,
+                        scope,
                     };
 
                     Constructor::new(
@@ -749,14 +757,14 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                         .parameters(&mut explicits.walk())
                         .flatten()
                         .filter_map(|node| node.regular())
-                        .map(|parameter| self.parameter(false, true, parameter))
+                        .map(|parameter| self.any_parameter(false, true, parameter))
                         .collect::<Vec<_>>(),
 
                     ImplicitArguments(implicits) => implicits
                         .parameters(&mut implicits.walk())
                         .flatten()
                         .filter_map(|node| node.regular())
-                        .map(|parameter| self.parameter(true, true, parameter))
+                        .map(|parameter| self.any_parameter(true, true, parameter))
                         .collect::<Vec<_>>(),
                 }
             })
@@ -789,6 +797,65 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let location = self.range(tree.range());
 
         Parameter::new(self.db, binding, type_rep, implicit, rigid, location)
+    }
+
+    /// Takes a raw parameter, and returns a high level parameter, to be handled by the resolution.
+    /// It will return a [`Parameter`].
+    ///
+    /// It will return a [`Parameter`] because it is possible to have multiple parameters in the
+    /// same declaration, and it will be handled as a list of [`Parameter`].
+    ///
+    /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
+    /// given parameters.
+    pub fn any_parameter(
+        &mut self,
+        implicit: bool,
+        rigid: bool,
+        tree: lura_syntax::anon_unions::ForallParameter_Parameter,
+    ) -> Parameter {
+        use lura_syntax::anon_unions::ForallParameter_Parameter::*;
+
+        match tree {
+            ForallParameter(forall_parameter) => self.forall_parameter(forall_parameter),
+            Parameter(parameter) => {
+                let binding = parameter
+                    .pattern()
+                    .solve(self, |this, pattern| this.pattern(pattern));
+
+                let type_rep = parameter
+                    .parameter_type()
+                    .map(|node| node.solve(self, |this, expr| this.type_expr(expr)))
+                    .unwrap_or_default_with_db(self.db);
+
+                let location = self.range(parameter.range());
+
+                self::Parameter::new(self.db, binding, type_rep, implicit, rigid, location)
+            }
+        }
+    }
+
+    /// Takes a raw parameter, and returns a high level parameter, to be handled by the resolution.
+    /// It will return a [`Parameter`].
+    ///
+    /// It will return a [`Parameter`] because it is possible to have multiple parameters in the
+    /// same declaration, and it will be handled as a list of [`Parameter`].
+    ///
+    /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
+    /// given parameters.
+    pub fn forall_parameter(&mut self, tree: lura_syntax::ForallParameter) -> Parameter {
+        let name = tree.path().solve(self, |this, path| this.path(path));
+        let location = self.range(tree.range());
+
+        let definition = self.scope.define(
+            self.db,
+            /* name     = */ name,
+            /* location = */ name.location(self.db),
+            /* kind     = */ DefinitionKind::Variable,
+        );
+        let binding = BindingPattern::new(self.db, definition, name.location(self.db));
+        let pattern = Pattern::Binding(binding);
+
+        Parameter::new(self.db, pattern, TypeRep::Tt, true, true, location)
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items
@@ -1074,7 +1141,7 @@ mod stmt_solver {
                 .solve(self, |this, node| this.expr(node, level));
 
             let then = stmt.then().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.child().solve(this, |this, node| match node {
                     Block(block) => Expr::block(this.db, this.block(block, level)),
@@ -1084,7 +1151,7 @@ mod stmt_solver {
 
             let otherwise = stmt.otherwise().map(|then| {
                 then.solve(self, |this, node| {
-                    use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+                    use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                     node.value().solve(this, |this, node| match node {
                         Block(block) => Expr::block(this.db, this.block(block, level)),
@@ -1173,10 +1240,10 @@ mod term_solver {
     use super::*;
 
     #[rustfmt::skip]
-    type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+    type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
 
     #[rustfmt::skip]
-    type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
+    type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
 
     impl LowerHir<'_, '_> {
         pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
@@ -1186,7 +1253,7 @@ mod term_solver {
         }
 
         pub fn type_expr(&mut self, tree: SyntaxTypeRep) -> TypeRep {
-            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
+            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
 
             match tree {
                 // SECTION: type_expr
@@ -1207,11 +1274,12 @@ mod term_solver {
                 PiExpr(pi) => self.pi_expr(pi),
                 SigmaExpr(sigma) => self.sigma_expr(sigma),
                 TypeAppExpr(type_app) => self.type_app_expr(type_app),
+                ForallExpr(forall) => self.forall_expr(forall),
             }
         }
 
         pub fn expr(&mut self, tree: SyntaxExpr, level: HirLevel) -> Expr {
-            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+            use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
             match tree {
                 // SECTION: expr
@@ -1225,6 +1293,7 @@ mod term_solver {
                 // Type level expressions
                 PiExpr(pi) => self.pi_expr(pi).downgrade(self.db),
                 SigmaExpr(sigma) => self.sigma_expr(sigma).downgrade(self.db),
+                ForallExpr(forall) => self.forall_expr(forall).downgrade(self.db),
             }
         }
 
@@ -1347,7 +1416,9 @@ mod term_solver {
         }
 
         pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
-            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
+            use lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
+
+            self.scope = self.scope.fork(ScopeKind::Pi);
 
             let parameters = tree.parameter().solve(self, |this, node| {
                 let type_rep = match node {
@@ -1368,14 +1439,19 @@ mod term_solver {
                 vec![Parameter::unnamed(this.db, type_rep)]
             });
 
+            let scope = self.pop_scope();
+
             TypeRep::Pi {
                 parameters,
                 value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
                 location: self.range(tree.range()),
+                scope,
             }
         }
 
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
+            self.scope = self.scope.fork(ScopeKind::Sigma);
+
             let parameters = tree
                 .parameters(&mut tree.walk())
                 .flatten()
@@ -1384,10 +1460,33 @@ mod term_solver {
                 .map(|parameter| self.parameter(false, true, parameter))
                 .collect::<Vec<_>>();
 
+            let scope = self.pop_scope();
+
             TypeRep::Sigma {
                 parameters,
                 value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
                 location: self.range(tree.range()),
+                scope,
+            }
+        }
+
+        pub fn forall_expr(&mut self, tree: lura_syntax::ForallExpr) -> TypeRep {
+            self.scope = self.scope.fork(ScopeKind::Sigma);
+
+            let parameters = tree
+                .parameters(&mut tree.walk())
+                .flatten()
+                .filter_map(|parameter| parameter.regular())
+                .map(|parameter| self.forall_parameter(parameter))
+                .collect::<Vec<_>>();
+
+            let scope = self.pop_scope();
+
+            TypeRep::Sigma {
+                parameters,
+                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
+                location: self.range(tree.range()),
+                scope,
             }
         }
 
@@ -1404,7 +1503,7 @@ mod term_solver {
                 .map(|node| {
                     let pattern = node.pattern().solve(self, |this, pattern| this.pattern(pattern));
                     let body = node.body().solve(self, |this, node| {
-                        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+                        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                         match node {
                             Block(block) => Expr::block(this.db, this.block(block, level)),
@@ -1435,7 +1534,7 @@ mod term_solver {
                 .solve(self, |this, node| this.expr(node, level));
 
             let then = tree.then().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.child().solve(this, |this, node| match node {
                     Block(block) => Expr::block(this.db, this.block(block, level)),
@@ -1444,7 +1543,7 @@ mod term_solver {
             });
 
             let otherwise = tree.otherwise().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
                 node.value().solve(this, |this, node| match node {
                     Block(block) => Expr::block(this.db, this.block(block, level)),

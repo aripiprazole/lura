@@ -20,9 +20,11 @@ pub enum ScopeKind {
     Class = 7,
     Trait = 8,
     Block = 9,
+    Pi = 10,
+    Sigma = 11,
 
     #[default]
-    File = 10,
+    File = 12,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
@@ -169,9 +171,33 @@ impl Scope {
                     Some(root) => root.search(db, path, DefinitionKind::Function),
                     None => None,
                 }),
-            DefinitionKind::Constructor => self.constructors.get(&name).copied(),
-            DefinitionKind::Type => self.types.get(&name).copied(),
-            DefinitionKind::Variable => self.variables.get(&name).copied(),
+            DefinitionKind::Constructor => {
+                self.constructors
+                    .get(&name)
+                    .copied()
+                    .or_else(|| match self.parent.as_ref() {
+                        Some(root) => root.search(db, path, DefinitionKind::Constructor),
+                        None => None,
+                    })
+            }
+            DefinitionKind::Type => {
+                self.types
+                    .get(&name)
+                    .copied()
+                    .or_else(|| match self.parent.as_ref() {
+                        Some(root) => root.search(db, path, DefinitionKind::Type),
+                        None => None,
+                    })
+            }
+            DefinitionKind::Variable => {
+                self.variables
+                    .get(&name)
+                    .copied()
+                    .or_else(|| match self.parent.as_ref() {
+                        Some(root) => root.search(db, path, DefinitionKind::Variable),
+                        None => None,
+                    })
+            }
             DefinitionKind::Module => todo!("Nested modules are not supported yet"),
             DefinitionKind::Command => todo!("Nested commands are not supported yet"),
             DefinitionKind::Unresolved => None,

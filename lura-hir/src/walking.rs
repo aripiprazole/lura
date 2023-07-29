@@ -2,8 +2,10 @@
 //! a given pattern.
 
 use crate::resolve::Reference;
+use crate::scope::Scope;
 use crate::source::*;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 pub trait Walker {
     fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T);
@@ -55,8 +57,9 @@ pub trait HirListener {
     fn enter_unit_type_rep(&mut self) {}
     fn enter_empty_type_rep(&mut self) {}
     fn enter_this_type_rep(&mut self) {}
-    fn enter_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
-    fn enter_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
+    fn enter_tt_type_rep(&mut self) {}
+    fn enter_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location, scope: Arc<Scope>) {}
+    fn enter_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location, scope: Arc<Scope>) {}
     fn enter_error_type_rep(&mut self, error: HirError) {}
     fn enter_path_type_rep(&mut self, definition: Reference) {}
     fn enter_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}
@@ -105,8 +108,9 @@ pub trait HirListener {
     fn exit_unit_type_rep(&mut self) {}
     fn exit_empty_type_rep(&mut self) {}
     fn exit_this_type_rep(&mut self) {}
-    fn exit_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
-    fn exit_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location) {}
+    fn exit_tt_type_rep(&mut self) {}
+    fn exit_pi_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location, scope: Arc<Scope>) {}
+    fn exit_sigma_type_rep(&mut self, parameters: Vec<declaration::Parameter>, return_type: Box<type_rep::TypeRep>, location: Location, scope: Arc<Scope>) {}
     fn exit_error_type_rep(&mut self, error: HirError) {}
     fn exit_path_type_rep(&mut self, definition: Reference) {}
     fn exit_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}

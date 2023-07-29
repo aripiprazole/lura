@@ -4,19 +4,23 @@
 //! - [`Cons`]: a head of the list
 //! - [`Nil`]: the end of the list
 @stdlib
-public data List (Set a) {
-  Cons : [a] => a -> List a -> List a,
-  Nil  : [a] => List a;
+public data List (^a) {
+  Cons : a -> List a -> List a,
+  Nil  : List a;
 }
 
 @stdlib
-public data Maybe (Set a) {
-  Just    : [a] => a -> Maybe a,
-  Nothing : [a] => Maybe a;
+public data Maybe (^a) {
+  Just(a),
+  Nothing;
 }
 
+@stdlib
+@internal
+public data String (^a)
+
 public
-head : [Set a] => List a -> Maybe a
+head : ^a. a -> Maybe a
 head (Cons x _) = Just x
 head Nil        = Nothing
 
