@@ -798,11 +798,9 @@ dependencies = [
  "lura-hir",
  "lura-syntax",
  "lura-vfs",
- "notify-debouncer-mini",
  "ropey",
  "salsa-2022",
  "serde",
- "serde_json",
  "toml",
  "tree-sitter",
  "tree-sitter-highlight",
@@ -895,6 +893,25 @@ version = "0.0.1"
 dependencies = [
  "lura-diagnostic",
  "lura-vfs",
+ "salsa-2022",
+ "tree-sitter",
+ "tree-sitter-lura",
+ "type-sitter-lib",
+]
+
+[[package]]
+name = "lura-typer"
+version = "0.0.1"
+dependencies = [
+ "dashmap",
+ "eyre",
+ "fxhash",
+ "if_chain",
+ "im",
+ "lura-diagnostic",
+ "lura-hir",
+ "lura-syntax",
+ "petgraph",
  "salsa-2022",
  "tree-sitter",
  "tree-sitter-lura",

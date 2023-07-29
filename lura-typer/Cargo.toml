@@ -1,0 +1,25 @@
+[package]
+name = "lura-typer"
+edition.workspace = true
+authors.workspace = true
+documentation.workspace = true
+version.workspace = true
+
+[dependencies]
+lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
+lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
+lura-hir = {version = "0.0.1", path = "../lura-hir"}
+
+salsa-2022.workspace = true
+
+tree-sitter.workspace = true
+tree-sitter-lura.workspace = true
+type-sitter-lib.workspace = true
+
+eyre.workspace = true
+im.workspace = true
+fxhash.workspace = true
+dashmap.workspace = true
+
+if_chain = "1.0.2"
+petgraph = "0.6.3"
