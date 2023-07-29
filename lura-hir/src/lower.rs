@@ -1312,7 +1312,7 @@ mod stmt_solver {
 /// It's only a module, to organization purposes.
 mod term_solver {
     use crate::{
-        resolve::{find_type, HirLevel},
+        resolve::HirLevel,
         source::{
             expr::{MatchArm, MatchExpr, MatchKind},
             literal::Literal,
@@ -1409,14 +1409,7 @@ mod term_solver {
             });
             let location = self.range(tree.range());
 
-            let op = self
-                .scope
-                .search(self.db, op, DefinitionKind::Function)
-                .unwrap_or_else(|| {
-                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
-                    // will report an error. It's made for doing global lookups, and not local lookups.
-                    find_function(self.db, op)
-                });
+            let op = self.qualify(op, DefinitionKind::Function);
 
             let reference = self.scope.using(self.db, op, location.clone());
 
@@ -1733,8 +1726,7 @@ mod term_solver {
         }
 
         pub fn primary(&mut self, tree: lura_syntax::Primary, level: HirLevel) -> Expr {
-            use lura_syntax::anon_unions::ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr::*;
-            use lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier::*;
+            use lura_syntax::anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr::*;
 
             let location = self.range(tree.range());
 
@@ -1753,52 +1745,17 @@ mod term_solver {
                 //
                 // It will search for the definition in the scope, and if it is not present in the
                 // it will query the compiler.
-                Identifier(identifier) => identifier.child().solve(this, |this, node| {
-                    let source_text = this.src.source_text(this.db).as_bytes();
-
+                Path(identifier) => {
                     let location = this.range(identifier.range());
-
-                    // Matches agains't node to check if it is a symbol or a simple identifier to
-                    // create proper identifier.
-                    let identifier = match node {
-                        SimpleIdentifier(value) => {
-                            let string = value.utf8_text(source_text).ok().unwrap_or_default();
-
-                            self::Identifier::new(this.db, string.into(), false, location.clone())
-                        }
-                        SymbolIdentifier(value) => {
-                            let string = value
-                                .child()
-                                .with_db(this, |_, node| node.utf8_text(source_text).ok());
-
-                            self::Identifier::new(this.db, string.into(), true, location.clone())
-                        }
-                    };
 
                     // Create a new path with the identifier, and search for the definition in the
                     // scope, and if it is not present in the scope, it will invoke a compiler query
                     // to search in the entire package.
-                    let path = HirPath::new(this.db, location.clone(), vec![identifier]);
+                    let path = this.path(identifier);
 
                     let def = match level {
-                        HirLevel::Expr => {
-                            this.scope
-                                .search(this.db, path, DefinitionKind::Function)
-                                .unwrap_or_else(|| {
-                                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
-                                    // will report an error. It's made for doing global lookups, and not local lookups.
-                                    find_function(this.db, path)
-                                })
-                        }
-                        HirLevel::Type => {
-                            this.scope
-                                .search(this.db, path, DefinitionKind::Type)
-                                .unwrap_or_else(|| {
-                                    // Queries [`self.db`] for the definition of the operator, and returns it, otherwise it
-                                    // will report an error. It's made for doing global lookups, and not local lookups.
-                                    find_type(this.db, path)
-                                })
-                        }
+                        HirLevel::Expr => this.qualify(path, DefinitionKind::Function),
+                        HirLevel::Type => this.qualify(path, DefinitionKind::Type),
                     };
 
                     // Creates a new [`Reference`] from the [`Definition`] and the location.
@@ -1806,7 +1763,7 @@ mod term_solver {
 
                     // Creates a new [`Expr`] with the [`Definition`] as the callee.
                     Expr::Path(reference)
-                }),
+                }
             })
         }
     }

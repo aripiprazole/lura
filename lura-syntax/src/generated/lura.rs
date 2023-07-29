@@ -2780,7 +2780,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for PiNamedParameterSet<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `primary`\n\nThis node has a child: `{array_expr | identifier | if_expr | literal | match_expr | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [Identifier]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [ReturnExpr]\n- [TupleExpr]\n\n"]
+#[doc = "Typed node `primary`\n\nThis node has a child: `{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]\n\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Primary<'tree>(tree_sitter::Node<'tree>);
@@ -2793,9 +2793,9 @@ impl<'tree> Primary<'tree> {
         &self,
     ) -> type_sitter_lib::NodeResult<
         'tree,
-        anon_unions::ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr<'tree>,
+        anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>,
     > {
-        self . 0 . named_child (0) . map (< anon_unions :: ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+        self . 0 . named_child (0) . map (< anon_unions :: ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
 }
 #[automatically_derived]
@@ -9140,35 +9140,26 @@ pub mod anon_unions {
     impl < 'tree > TryFrom < tree_sitter :: Node < 'tree >> for AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr < 'tree > { type Error = type_sitter_lib :: IncorrectKind < 'tree > ; # [inline] fn try_from (node : tree_sitter :: Node < 'tree >) -> Result < Self , Self :: Error > { match node . kind () { "ann_expr" => Ok (unsafe { Self :: AnnExpr (< AnnExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "binary_expr" => Ok (unsafe { Self :: BinaryExpr (< BinaryExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "forall_expr" => Ok (unsafe { Self :: ForallExpr (< ForallExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "lam_expr" => Ok (unsafe { Self :: LamExpr (< LamExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "match_expr" => Ok (unsafe { Self :: MatchExpr (< MatchExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "pi_expr" => Ok (unsafe { Self :: PiExpr (< PiExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "pi_named_parameter_set" => Ok (unsafe { Self :: PiNamedParameterSet (< PiNamedParameterSet < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "primary" => Ok (unsafe { Self :: Primary (< Primary < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "sigma_expr" => Ok (unsafe { Self :: SigmaExpr (< SigmaExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , "type_app_expr" => Ok (unsafe { Self :: TypeAppExpr (< TypeAppExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node)) }) , _ => Err (type_sitter_lib :: IncorrectKind { node , kind : < Self as type_sitter_lib :: TypedNode < 'tree >> :: KIND , }) } } }
     #[automatically_derived]
     impl < 'tree > type_sitter_lib :: TypedNode < 'tree > for AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr < 'tree > { const KIND : & 'static str = "{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | pi_named_parameter_set | primary | sigma_expr | type_app_expr}" ; # [inline] fn node (& self) -> & tree_sitter :: Node < 'tree > { match self { Self :: AnnExpr (x) => x . node () , Self :: BinaryExpr (x) => x . node () , Self :: ForallExpr (x) => x . node () , Self :: LamExpr (x) => x . node () , Self :: MatchExpr (x) => x . node () , Self :: PiExpr (x) => x . node () , Self :: PiNamedParameterSet (x) => x . node () , Self :: Primary (x) => x . node () , Self :: SigmaExpr (x) => x . node () , Self :: TypeAppExpr (x) => x . node () , } } # [inline] fn node_mut (& mut self) -> & mut tree_sitter :: Node < 'tree > { match self { Self :: AnnExpr (x) => x . node_mut () , Self :: BinaryExpr (x) => x . node_mut () , Self :: ForallExpr (x) => x . node_mut () , Self :: LamExpr (x) => x . node_mut () , Self :: MatchExpr (x) => x . node_mut () , Self :: PiExpr (x) => x . node_mut () , Self :: PiNamedParameterSet (x) => x . node_mut () , Self :: Primary (x) => x . node_mut () , Self :: SigmaExpr (x) => x . node_mut () , Self :: TypeAppExpr (x) => x . node_mut () , } } # [inline] fn into_node (self) -> tree_sitter :: Node < 'tree > { match self { Self :: AnnExpr (x) => x . into_node () , Self :: BinaryExpr (x) => x . into_node () , Self :: ForallExpr (x) => x . into_node () , Self :: LamExpr (x) => x . into_node () , Self :: MatchExpr (x) => x . into_node () , Self :: PiExpr (x) => x . into_node () , Self :: PiNamedParameterSet (x) => x . into_node () , Self :: Primary (x) => x . into_node () , Self :: SigmaExpr (x) => x . into_node () , Self :: TypeAppExpr (x) => x . into_node () , } } }
-    #[doc = "one of `{array_expr | identifier | if_expr | literal | match_expr | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [Identifier]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [ReturnExpr]\n- [TupleExpr]"]
+    #[doc = "one of `{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr<'tree> {
+    pub enum ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
         ArrayExpr(ArrayExpr<'tree>),
-        Identifier(Identifier<'tree>),
         IfExpr(IfExpr<'tree>),
         Literal(Literal<'tree>),
         MatchExpr(MatchExpr<'tree>),
+        Path(Path<'tree>),
         ReturnExpr(ReturnExpr<'tree>),
         TupleExpr(TupleExpr<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr<'tree> {
+    impl<'tree> ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
         #[doc = "Returns the node if it is of kind `array_expr` ([ArrayExpr]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
         pub fn array_expr(self) -> Option<ArrayExpr<'tree>> {
             match self {
                 Self::ArrayExpr(x) => Some(x),
-                _ => None,
-            }
-        }
-        #[doc = "Returns the node if it is of kind `identifier` ([Identifier]), otherwise returns None"]
-        #[inline]
-        #[allow(unused, non_snake_case)]
-        pub fn identifier(self) -> Option<Identifier<'tree>> {
-            match self {
-                Self::Identifier(x) => Some(x),
                 _ => None,
             }
         }
@@ -9199,6 +9190,15 @@ pub mod anon_unions {
                 _ => None,
             }
         }
+        #[doc = "Returns the node if it is of kind `path` ([Path]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn path(self) -> Option<Path<'tree>> {
+            match self {
+                Self::Path(x) => Some(x),
+                _ => None,
+            }
+        }
         #[doc = "Returns the node if it is of kind `return_expr` ([ReturnExpr]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -9220,7 +9220,7 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr<'tree>
+        for ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>
     {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
@@ -9228,9 +9228,6 @@ pub mod anon_unions {
             match node.kind() {
                 "array_expr" => Ok(unsafe {
                     Self :: ArrayExpr (< ArrayExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
-                }),
-                "identifier" => Ok(unsafe {
-                    Self :: Identifier (< Identifier < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
                 "if_expr" => {
                     Ok(unsafe {
@@ -9244,6 +9241,13 @@ pub mod anon_unions {
                 }
                 "match_expr" => Ok(unsafe {
                     Self :: MatchExpr (< MatchExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "path" => Ok(unsafe {
+                    Self::Path(
+                        <Path<'tree> as type_sitter_lib::TypedNode<'tree>>::from_node_unchecked(
+                            node,
+                        ),
+                    )
                 }),
                 "return_expr" => Ok(unsafe {
                     Self :: ReturnExpr (< ReturnExpr < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
@@ -9260,18 +9264,18 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for ArrayExpr_Identifier_IfExpr_Literal_MatchExpr_ReturnExpr_TupleExpr<'tree>
+        for ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>
     {
         const KIND: &'static str =
-            "{array_expr | identifier | if_expr | literal | match_expr | return_expr | tuple_expr}";
+            "{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
                 Self::ArrayExpr(x) => x.node(),
-                Self::Identifier(x) => x.node(),
                 Self::IfExpr(x) => x.node(),
                 Self::Literal(x) => x.node(),
                 Self::MatchExpr(x) => x.node(),
+                Self::Path(x) => x.node(),
                 Self::ReturnExpr(x) => x.node(),
                 Self::TupleExpr(x) => x.node(),
             }
@@ -9280,10 +9284,10 @@ pub mod anon_unions {
         fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
             match self {
                 Self::ArrayExpr(x) => x.node_mut(),
-                Self::Identifier(x) => x.node_mut(),
                 Self::IfExpr(x) => x.node_mut(),
                 Self::Literal(x) => x.node_mut(),
                 Self::MatchExpr(x) => x.node_mut(),
+                Self::Path(x) => x.node_mut(),
                 Self::ReturnExpr(x) => x.node_mut(),
                 Self::TupleExpr(x) => x.node_mut(),
             }
@@ -9292,10 +9296,10 @@ pub mod anon_unions {
         fn into_node(self) -> tree_sitter::Node<'tree> {
             match self {
                 Self::ArrayExpr(x) => x.into_node(),
-                Self::Identifier(x) => x.into_node(),
                 Self::IfExpr(x) => x.into_node(),
                 Self::Literal(x) => x.into_node(),
                 Self::MatchExpr(x) => x.into_node(),
+                Self::Path(x) => x.into_node(),
                 Self::ReturnExpr(x) => x.into_node(),
                 Self::TupleExpr(x) => x.into_node(),
             }
