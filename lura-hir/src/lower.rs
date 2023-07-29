@@ -440,8 +440,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             let parameters = this.parameters(tree.arguments(&mut tree.walk()));
 
-            println!("parameters: {:#?}", self.scope.values);
-
             let methods = methods
                 .into_iter()
                 .map(|method| method.run_solver(this))
