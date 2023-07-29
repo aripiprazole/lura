@@ -17,7 +17,9 @@ public data Maybe (^a) {
 
 @stdlib
 @internal
-public data String (^a)
+public data String
+
+type StringList = List String
 
 public
 head : ^a. a -> Maybe a

@@ -22,9 +22,10 @@ pub enum ScopeKind {
     Block = 9,
     Pi = 10,
     Sigma = 11,
+    Type = 12,
 
     #[default]
-    File = 12,
+    File = 13,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.

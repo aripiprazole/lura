@@ -869,6 +869,68 @@ pub mod top_level {
     }
 
     #[salsa::tracked]
+    pub struct TypeDecl {
+        pub attributes: HashSet<declaration::Attribute>,
+        pub docs: Vec<declaration::DocString>,
+        pub visibility: Spanned<declaration::Vis>,
+        pub name: Definition,
+        pub parameters: Vec<declaration::Parameter>,
+        pub return_type: type_rep::TypeRep,
+        pub location: Location,
+        pub scope: Arc<Scope>,
+    }
+
+    impl walking::Walker for TypeDecl {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_type_top_level(self);
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.return_type(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_type_top_level(self);
+        }
+    }
+
+    impl declaration::Declaration for TypeDecl {
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, _db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Vec::new()
+        }
+
+        fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            Self::return_type(*self, db).into()
+        }
+
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::TypeDecl(*self)
+        }
+    }
+
+    impl HirElement for TypeDecl {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
+    }
+
+    #[salsa::tracked]
     pub struct ClassDecl {
         pub attributes: HashSet<declaration::Attribute>,
         pub docs: Vec<declaration::DocString>,
@@ -1152,6 +1214,7 @@ pub mod top_level {
         ClassDecl(ClassDecl),
         TraitDecl(TraitDecl),
         DataDecl(DataDecl),
+        TypeDecl(TypeDecl),
     }
 
     impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for TopLevel {
@@ -1165,6 +1228,7 @@ pub mod top_level {
                 TopLevel::ClassDecl(class_decl) => class_decl.debug_all(db).fmt(f),
                 TopLevel::TraitDecl(trait_decl) => trait_decl.debug_all(db).fmt(f),
                 TopLevel::DataDecl(data_decl) => data_decl.debug_all(db).fmt(f),
+                TopLevel::TypeDecl(type_decl) => type_decl.debug_all(db).fmt(f),
             }
         }
     }
@@ -1187,6 +1251,7 @@ pub mod top_level {
                 TopLevel::ClassDecl(class_decl) => class_decl.accept(db, listener),
                 TopLevel::TraitDecl(trait_decl) => trait_decl.accept(db, listener),
                 TopLevel::DataDecl(data_decl) => data_decl.accept(db, listener),
+                TopLevel::TypeDecl(type_decl) => type_decl.accept(db, listener),
             }
         }
     }
@@ -1202,6 +1267,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.location(db),
                 Self::TraitDecl(downcast) => downcast.location(db),
                 Self::DataDecl(downcast) => downcast.location(db),
+                Self::TypeDecl(downcast) => downcast.location(db),
             }
         }
     }
@@ -1216,6 +1282,7 @@ pub mod top_level {
         ClassDecl(ClassDecl),
         TraitDecl(TraitDecl),
         DataDecl(DataDecl),
+        TypeDecl(TypeDecl),
     }
 
     impl HirElement for DeclDescriptor {
@@ -1227,6 +1294,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.location(db),
                 Self::TraitDecl(downcast) => downcast.location(db),
                 Self::DataDecl(downcast) => downcast.location(db),
+                Self::TypeDecl(downcast) => downcast.location(db),
             }
         }
     }
@@ -1244,6 +1312,7 @@ pub mod top_level {
                 DeclDescriptor::ClassDecl(downcast) => Self::ClassDecl(downcast),
                 DeclDescriptor::TraitDecl(downcast) => Self::TraitDecl(downcast),
                 DeclDescriptor::DataDecl(downcast) => Self::DataDecl(downcast),
+                DeclDescriptor::TypeDecl(downcast) => Self::TypeDecl(downcast),
             })
         }
     }
@@ -1263,6 +1332,7 @@ pub mod top_level {
                 TopLevel::ClassDecl(downcast) => Self::ClassDecl(downcast),
                 TopLevel::TraitDecl(downcast) => Self::TraitDecl(downcast),
                 TopLevel::DataDecl(downcast) => Self::DataDecl(downcast),
+                TopLevel::TypeDecl(downcast) => Self::TypeDecl(downcast),
             })
         }
     }
@@ -1281,6 +1351,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.attributes(db),
                 Self::TraitDecl(downcast) => downcast.attributes(db),
                 Self::DataDecl(downcast) => downcast.attributes(db),
+                Self::TypeDecl(downcast) => downcast.attributes(db),
             }
         }
 
@@ -1292,6 +1363,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.visibility(db),
                 Self::TraitDecl(downcast) => downcast.visibility(db),
                 Self::DataDecl(downcast) => downcast.visibility(db),
+                Self::TypeDecl(downcast) => downcast.visibility(db),
             }
         }
 
@@ -1303,6 +1375,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.docs(db),
                 Self::TraitDecl(downcast) => downcast.docs(db),
                 Self::DataDecl(downcast) => downcast.docs(db),
+                Self::TypeDecl(downcast) => downcast.docs(db),
             }
         }
 
@@ -1314,6 +1387,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.name(db),
                 Self::TraitDecl(downcast) => downcast.name(db),
                 Self::DataDecl(downcast) => downcast.name(db),
+                Self::TypeDecl(downcast) => downcast.name(db),
             }
         }
 
@@ -1325,6 +1399,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.parameters(db),
                 Self::TraitDecl(downcast) => downcast.parameters(db),
                 Self::DataDecl(downcast) => downcast.parameters(db),
+                Self::TypeDecl(downcast) => downcast.parameters(db),
             }
         }
 
@@ -1336,6 +1411,7 @@ pub mod top_level {
                 Self::ClassDecl(downcast) => downcast.type_rep(db),
                 Self::TraitDecl(downcast) => downcast.type_rep(db),
                 Self::DataDecl(downcast) => downcast.type_rep(db),
+                Self::TypeDecl(downcast) => downcast.type_rep(db),
             }
         }
 

@@ -27,7 +27,7 @@ use crate::{
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
         expr::{AbsExpr, AnnExpr, CallExpr, CallKind, Callee, Expr},
-        top_level::{BindingGroup, Clause, Signature, TopLevel, UsingTopLevel},
+        top_level::{BindingGroup, Clause, Signature, TopLevel, TypeDecl, UsingTopLevel},
         type_rep::{AppTypeRep, TypeRep},
         DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
     },
@@ -44,7 +44,7 @@ use crate::{
 };
 
 #[rustfmt::skip]
-type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>;
+type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree>;
 
 #[rustfmt::skip]
 type SyntaxIdentifier<'tree> = lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
@@ -202,7 +202,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// It will return `Some` if the declaration is "resolvable", and it will return a solver for
     /// the declaration.
     pub fn define<'a>(&mut self, decl: SyntaxDecl<'a>) -> Option<Solver<'a, TopLevel>> {
-        use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using::*;
+        use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using::*;
 
         // Creates a new [`TopLevel`] instance.
         let decl = match decl {
@@ -211,6 +211,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             Clause(clause) => return self.hir_clause(clause).into(),
             DataDecl(data_decl) => return self.hir_data(data_decl).into(),
             TraitDecl(trait_decl) => return self.hir_trait(trait_decl).into(),
+            TypeDecl(type_decl) => return self.hir_type(type_decl).into(),
             Signature(signature) => return self.hir_signature(signature).into(),
             Using(decl) => {
                 let range = self.range(decl.range());
@@ -247,6 +248,62 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let name = self.qualify(path, DefinitionKind::Command);
 
         TopLevel::Command(CommandTopLevel::new(self.db, name, arguments, location))
+    }
+
+    /// Creates a new high level type declaration [`TypeDecl`] solver, for the given
+    /// concrete syntax tree [`lura_syntax::TypeDecl`].
+    ///
+    /// It will return a [`Solver`] for the [`Signature`], and it will solve the [`Signature`] in
+    /// the [`hir_lower`] query.
+    pub fn hir_type<'a>(&mut self, tree: lura_syntax::TypeDecl<'a>) -> Solver<'a, TopLevel> {
+        let range = self.range(tree.range());
+        let path = tree.name().solve(self, |this, node| this.path(node));
+
+        let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
+        let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
+
+        // Converts the visibility to default visibility, if it is not specified.
+        let vis = tree
+            .visibility()
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
+            .unwrap_or(Spanned::on_call_site(Vis::Public));
+
+        // Defines the node on the scope
+        let node = self
+            .scope
+            .define(self.db, path, range.clone(), DefinitionKind::Type);
+
+        Solver::new(move |db, this| {
+            // Creates a new scope for the function, and it will be used to store the parameters,
+            // and the variables.
+            this.scope = this.scope.fork(ScopeKind::Type);
+
+            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
+
+            let type_rep = tree
+                .clause_type()
+                .flatten()
+                .map(|node| this.clause_type(node))
+                .unwrap_or_default_with_db(db);
+
+            let type_decl = TypeDecl::new(
+                this.db,
+                /* attributes  = */ attrs,
+                /* docs        = */ docs,
+                /* visibility  = */ vis,
+                /* name        = */ node,
+                /* parameters  = */ parameters,
+                /* return_type = */ type_rep,
+                /* location    = */ range.clone(),
+                /* scope       = */ this.pop_scope(),
+            );
+
+            // It's not needed to solve the clause, because it is already solved in the next steps.
+            //
+            // The entire next step, is getting the clauses from the scope, and transforms into
+            // declarations, so it is not needed to solve the clause here.
+            TopLevel::TypeDecl(type_decl)
+        })
     }
 
     /// Creates a new high level class declaration [`ClassDecl`] solver, for the given

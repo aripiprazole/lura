@@ -37,6 +37,7 @@ pub struct Jar(
     source::top_level::ClassDecl,
     source::top_level::TraitDecl,
     source::top_level::DataDecl,
+    source::top_level::TypeDecl,
     source::top_level::Constructor,
     source::top_level::BindingGroup,
     source::top_level::CommandTopLevel,

@@ -3148,13 +3148,13 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for SignatureConstructor<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `source_file`\n\nThis node has these fields:\n- `decl`: `{class_decl | clause | command | data_decl | signature | trait_decl | using}*` ([anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using])\n- `hash_bang`: `hash_bang?` ([HashBang])\n"]
+#[doc = "Typed node `source_file`\n\nThis node has these fields:\n- `decl`: `{class_decl | clause | command | data_decl | signature | trait_decl | type_decl | using}*` ([anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using])\n- `hash_bang`: `hash_bang?` ([HashBang])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct SourceFile<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> SourceFile<'tree> {
-    #[doc = "Get the field `decl` which has kind `{class_decl | clause | command | data_decl | signature | trait_decl | using}*` ([anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using])"]
+    #[doc = "Get the field `decl` which has kind `{class_decl | clause | command | data_decl | signature | trait_decl | type_decl | using}*` ([anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using])"]
     #[allow(dead_code)]
     #[inline]
     pub fn decls<'a>(
@@ -3165,14 +3165,18 @@ impl<'tree> SourceFile<'tree> {
             'tree,
             type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>,
+                anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<
+                    'tree,
+                >,
             >,
         >,
     > + 'a {
         self.0.children_by_field_name("decl", c).map(|n| {
             <type_sitter_lib::ExtraOr<
                 'tree,
-                anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>,
+                anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<
+                    'tree,
+                >,
             > as TryFrom<_>>::try_from(n)
         })
     }
@@ -3554,6 +3558,124 @@ impl<'tree> TryFrom<tree_sitter::Node<'tree>> for TypeAppExpr<'tree> {
 #[automatically_derived]
 impl<'tree> type_sitter_lib::TypedNode<'tree> for TypeAppExpr<'tree> {
     const KIND: &'static str = "type_app_expr";
+    #[inline]
+    fn node(&self) -> &tree_sitter::Node<'tree> {
+        &self.0
+    }
+    #[inline]
+    fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+        &mut self.0
+    }
+    #[inline]
+    fn into_node(self) -> tree_sitter::Node<'tree> {
+        self.0
+    }
+    #[inline]
+    unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
+        Self(node)
+    }
+}
+#[doc = "Typed node `type_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `clause_type`: `clause_type?` ([ClauseType])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `value`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}?` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub struct TypeDecl<'tree>(tree_sitter::Node<'tree>);
+#[automatically_derived]
+impl<'tree> TypeDecl<'tree> {
+    #[doc = "Get the field `argument` which has kind `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn arguments<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::ExplicitArguments_ImplicitArguments<'tree>,
+            >,
+        >,
+    > + 'a {
+        self . 0 . children_by_field_name ("argument" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: ExplicitArguments_ImplicitArguments < 'tree > > as TryFrom < _ >> :: try_from (n))
+    }
+    #[doc = "Get the field `attribute` which has kind `attribute*` ([Attribute])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn attributes<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("attribute", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, Attribute<'tree>> as TryFrom<_>>::try_from(n))
+    }
+    #[doc = "Get the field `clause_type` which has kind `clause_type?` ([ClauseType])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn clause_type(&self) -> Option<type_sitter_lib::NodeResult<'tree, ClauseType<'tree>>> {
+        self.0
+            .child_by_field_name("clause_type")
+            .map(<ClauseType<'tree> as TryFrom<_>>::try_from)
+    }
+    #[doc = "Get the field `doc_string` which has kind `doc_string*` ([DocString])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn doc_strings<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<
+            'tree,
+            type_sitter_lib::ExtraOr<'tree, DocString<'tree>>,
+        >,
+    > + 'a {
+        self.0
+            .children_by_field_name("doc_string", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, DocString<'tree>> as TryFrom<_>>::try_from(n))
+    }
+    #[doc = "Get the field `name` which has kind `path` ([Path])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn name(&self) -> type_sitter_lib::NodeResult<'tree, Path<'tree>> {
+        self . 0 . child_by_field_name ("name") . map (< Path < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    }
+    #[doc = "Get the field `value` which has kind `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}?` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
+    #[allow(dead_code)]
+    #[inline]    pub fn value (& self) -> Option < type_sitter_lib :: NodeResult < 'tree , anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >{
+        self . 0 . child_by_field_name ("value") . map (< anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > as TryFrom < _ >> :: try_from)
+    }
+    #[doc = "Get the field `visibility` which has kind `visibility?` ([Visibility])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn visibility(&self) -> Option<type_sitter_lib::NodeResult<'tree, Visibility<'tree>>> {
+        self.0
+            .child_by_field_name("visibility")
+            .map(<Visibility<'tree> as TryFrom<_>>::try_from)
+    }
+}
+#[automatically_derived]
+impl<'tree> TryFrom<tree_sitter::Node<'tree>> for TypeDecl<'tree> {
+    type Error = type_sitter_lib::IncorrectKind<'tree>;
+    #[inline]
+    fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+        if node.kind() == "type_decl" {
+            Ok(Self(node))
+        } else {
+            Err(type_sitter_lib::IncorrectKind {
+                node,
+                kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+            })
+        }
+    }
+}
+#[automatically_derived]
+impl<'tree> type_sitter_lib::TypedNode<'tree> for TypeDecl<'tree> {
+    const KIND: &'static str = "type_decl";
     #[inline]
     fn node(&self) -> &tree_sitter::Node<'tree> {
         &self.0
@@ -5040,6 +5162,47 @@ pub mod unnamed {
     #[automatically_derived]
     impl<'tree> type_sitter_lib::TypedNode<'tree> for Trait<'tree> {
         const KIND: &'static str = "trait";
+        #[inline]
+        fn node(&self) -> &tree_sitter::Node<'tree> {
+            &self.0
+        }
+        #[inline]
+        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+            &mut self.0
+        }
+        #[inline]
+        fn into_node(self) -> tree_sitter::Node<'tree> {
+            self.0
+        }
+        #[inline]
+        unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
+            Self(node)
+        }
+    }
+    #[doc = "Typed node `type`\n\nThis node has no children\n"]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[allow(non_camel_case_types)]
+    pub struct Type<'tree>(tree_sitter::Node<'tree>);
+    #[automatically_derived]
+    impl<'tree> Type<'tree> {}
+    #[automatically_derived]
+    impl<'tree> TryFrom<tree_sitter::Node<'tree>> for Type<'tree> {
+        type Error = type_sitter_lib::IncorrectKind<'tree>;
+        #[inline]
+        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+            if node.kind() == "type" {
+                Ok(Self(node))
+            } else {
+                Err(type_sitter_lib::IncorrectKind {
+                    node,
+                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+                })
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<'tree> type_sitter_lib::TypedNode<'tree> for Type<'tree> {
+        const KIND: &'static str = "type";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             &self.0
@@ -9138,20 +9301,21 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{class_decl | clause | command | data_decl | signature | trait_decl | using}`:\n- [ClassDecl]\n- [Clause]\n- [Command]\n- [DataDecl]\n- [Signature]\n- [TraitDecl]\n- [Using]"]
+    #[doc = "one of `{class_decl | clause | command | data_decl | signature | trait_decl | type_decl | using}`:\n- [ClassDecl]\n- [Clause]\n- [Command]\n- [DataDecl]\n- [Signature]\n- [TraitDecl]\n- [TypeDecl]\n- [Using]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree> {
+    pub enum ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree> {
         ClassDecl(ClassDecl<'tree>),
         Clause(Clause<'tree>),
         Command(Command<'tree>),
         DataDecl(DataDecl<'tree>),
         Signature(Signature<'tree>),
         TraitDecl(TraitDecl<'tree>),
+        TypeDecl(TypeDecl<'tree>),
         Using(Using<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree> {
+    impl<'tree> ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree> {
         #[doc = "Returns the node if it is of kind `class_decl` ([ClassDecl]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -9206,6 +9370,15 @@ pub mod anon_unions {
                 _ => None,
             }
         }
+        #[doc = "Returns the node if it is of kind `type_decl` ([TypeDecl]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn type_decl(self) -> Option<TypeDecl<'tree>> {
+            match self {
+                Self::TypeDecl(x) => Some(x),
+                _ => None,
+            }
+        }
         #[doc = "Returns the node if it is of kind `using` ([Using]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
@@ -9218,7 +9391,7 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> TryFrom<tree_sitter::Node<'tree>>
-        for ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>
+        for ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree>
     {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
@@ -9248,6 +9421,11 @@ pub mod anon_unions {
                 "trait_decl" => Ok(unsafe {
                     Self :: TraitDecl (< TraitDecl < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
+                "type_decl" => {
+                    Ok(unsafe {
+                        Self :: TypeDecl (< TypeDecl < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                    })
+                }
                 "using" => {
                     Ok(unsafe {
                         Self :: Using (< Using < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
@@ -9262,10 +9440,9 @@ pub mod anon_unions {
     }
     #[automatically_derived]
     impl<'tree> type_sitter_lib::TypedNode<'tree>
-        for ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_Using<'tree>
+        for ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree>
     {
-        const KIND: &'static str =
-            "{class_decl | clause | command | data_decl | signature | trait_decl | using}";
+        const KIND : & 'static str = "{class_decl | clause | command | data_decl | signature | trait_decl | type_decl | using}" ;
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
@@ -9275,6 +9452,7 @@ pub mod anon_unions {
                 Self::DataDecl(x) => x.node(),
                 Self::Signature(x) => x.node(),
                 Self::TraitDecl(x) => x.node(),
+                Self::TypeDecl(x) => x.node(),
                 Self::Using(x) => x.node(),
             }
         }
@@ -9287,6 +9465,7 @@ pub mod anon_unions {
                 Self::DataDecl(x) => x.node_mut(),
                 Self::Signature(x) => x.node_mut(),
                 Self::TraitDecl(x) => x.node_mut(),
+                Self::TypeDecl(x) => x.node_mut(),
                 Self::Using(x) => x.node_mut(),
             }
         }
@@ -9299,6 +9478,7 @@ pub mod anon_unions {
                 Self::DataDecl(x) => x.into_node(),
                 Self::Signature(x) => x.into_node(),
                 Self::TraitDecl(x) => x.into_node(),
+                Self::TypeDecl(x) => x.into_node(),
                 Self::Using(x) => x.into_node(),
             }
         }
