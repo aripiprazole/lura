@@ -11,22 +11,20 @@ use crate::{
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ScopeKind {
-    Function = 1,
-    Method = 2,
-    Lambda = 3,
-    Match = 4,
-    Call = 5,
-    Data = 6,
-    Class = 7,
-    Trait = 8,
-    Block = 9,
-    Pi = 10,
-    Sigma = 11,
-    Type = 12,
-    InternalFile = 13,
+    Function,
+    Method,
+    Lambda,
+    Data,
+    Class,
+    Trait,
+    Block,
+    Pi,
+    Sigma,
+    Type,
+    InternalFile,
 
     #[default]
-    File = 14,
+    File,
 }
 
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
@@ -216,8 +214,6 @@ impl Scope {
     }
 
     /// Publishes all definitions in the current scope to the parent scope.
-    ///
-    /// TODO: This is not implemented yet.
     pub fn publish_all_definitions_to(
         &mut self,
         db: &dyn crate::HirDb,
@@ -232,8 +228,6 @@ impl Scope {
     }
 
     /// Publishes all definitions in the current scope to the parent scope.
-    ///
-    /// TODO: This is not implemented yet.
     pub fn publish_all_definitions(&mut self, db: &dyn crate::HirDb, prefix: Definition) {
         let prefix = prefix
             .name(db)
@@ -246,7 +240,33 @@ impl Scope {
     /// Checks if the current scope is a do-notation scope. If it's a do-notation scope, the
     /// return expr is allowed.
     pub fn is_do_notation_scope(&self) -> bool {
-        todo!()
+        let mut current = Some(self);
+
+        // If it reaches the root scope, it's not a do-notation scope. Otherwise, it's a
+        // do-notation scope.
+        while let Some(parent) = current {
+            current = parent.parent.as_ref().map(|parent| parent.as_ref());
+
+            // It does match not exactly what's a do-notation, because match if it's a do-notation
+            // is the work of the type checker, but it does make impossible to use `return` in type
+            // level, for example.
+            match parent.kind {
+                ScopeKind::Function => return true,
+                ScopeKind::Method => return true,
+                ScopeKind::Lambda => return true,
+                ScopeKind::Data => break,
+                ScopeKind::Class => break,
+                ScopeKind::Trait => break,
+                ScopeKind::Block => return true,
+                ScopeKind::Pi => {}
+                ScopeKind::Sigma => {}
+                ScopeKind::Type => {}
+                ScopeKind::InternalFile => break,
+                ScopeKind::File => break,
+            };
+        }
+
+        false
     }
 
     pub fn all_definitions(&self) -> im::HashMap<String, Definition, FxBuildHasher> {
