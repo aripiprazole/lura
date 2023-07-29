@@ -23,6 +23,7 @@ use lura_syntax::{
 use crate::source::{
     pattern::{BindingPattern, Pattern},
     top_level::{ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl},
+    type_rep::{ArrowKind, ArrowTypeRep},
 };
 use crate::{
     package::Package,
@@ -509,7 +510,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     self.scope
                         .define(self.db, name, location.clone(), DefinitionKind::Constructor);
 
-                Some(Solver::new(move |_db, this| {
+                Some(Solver::new(move |db, this| {
                     this.scope = this.scope.fork(ScopeKind::Pi);
 
                     let parameters = tree
@@ -523,13 +524,16 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
                     // As the function isn't a data constructor, it will be a function constructor, and
                     // it's needed to create a local type representing the function.
-                    let type_rep = TypeRep::Pi {
-                        parameters,
-                        // The Self type is used here, to avoid confusion in the resolution.
-                        value: Box::new(TypeRep::This),
-                        location: Location::CallSite,
-                        scope,
-                    };
+                    //
+                    // The Self type is used here, to avoid confusion in the resolution.
+                    let type_rep = TypeRep::Arrow(ArrowTypeRep::new(
+                        db,
+                        /* kind       = */ ArrowKind::Pi,
+                        /* parameters = */ parameters,
+                        /* value      = */ TypeRep::This,
+                        /* location   = */ Location::CallSite,
+                        /* scope      = */ scope,
+                    ));
 
                     Constructor::new(
                         this.db,
@@ -848,7 +852,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             self.db,
             /* name     = */ name,
             /* location = */ name.location(self.db),
-            /* kind     = */ DefinitionKind::Variable,
+            /* kind     = */ DefinitionKind::Type,
         );
         let binding = BindingPattern::new(self.db, definition, name.location(self.db));
         let pattern = Pattern::Binding(binding);
@@ -1231,6 +1235,7 @@ mod term_solver {
             expr::{MatchArm, MatchExpr, MatchKind},
             literal::Literal,
             pattern::Pattern,
+            type_rep::ArrowKind,
             HirElement,
         },
     };
@@ -1437,14 +1442,18 @@ mod term_solver {
                 vec![Parameter::unnamed(this.db, type_rep)]
             });
 
+            let value = tree.value().solve(self, |this, expr| this.type_expr(expr));
+
             let scope = self.pop_scope();
 
-            TypeRep::Pi {
-                parameters,
-                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
-                location: self.range(tree.range()),
-                scope,
-            }
+            TypeRep::Arrow(ArrowTypeRep::new(
+                self.db,
+                /* kind       = */ ArrowKind::Pi,
+                /* parameters = */ parameters,
+                /* value      = */ value,
+                /* location   = */ self.range(tree.range()),
+                /* scope      = */ scope,
+            ))
         }
 
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
@@ -1458,14 +1467,18 @@ mod term_solver {
                 .map(|parameter| self.parameter(false, true, parameter))
                 .collect::<Vec<_>>();
 
+            let value = tree.value().solve(self, |this, expr| this.type_expr(expr));
+
             let scope = self.pop_scope();
 
-            TypeRep::Sigma {
-                parameters,
-                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
-                location: self.range(tree.range()),
-                scope,
-            }
+            TypeRep::Arrow(ArrowTypeRep::new(
+                self.db,
+                /* kind       = */ ArrowKind::Sigma,
+                /* parameters = */ parameters,
+                /* value      = */ value,
+                /* location   = */ self.range(tree.range()),
+                /* scope      = */ scope,
+            ))
         }
 
         pub fn forall_expr(&mut self, tree: lura_syntax::ForallExpr) -> TypeRep {
@@ -1478,14 +1491,18 @@ mod term_solver {
                 .map(|parameter| self.forall_parameter(parameter))
                 .collect::<Vec<_>>();
 
+            let value = tree.value().solve(self, |this, expr| this.type_expr(expr));
+
             let scope = self.pop_scope();
 
-            TypeRep::Sigma {
-                parameters,
-                value: Box::new(tree.value().solve(self, |this, expr| this.type_expr(expr))),
-                location: self.range(tree.range()),
-                scope,
-            }
+            TypeRep::Arrow(ArrowTypeRep::new(
+                self.db,
+                /* kind       = */ ArrowKind::Forall,
+                /* parameters = */ parameters,
+                /* value      = */ value,
+                /* location   = */ self.range(tree.range()),
+                /* scope      = */ scope,
+            ))
         }
 
         pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr, level: HirLevel) -> Expr {

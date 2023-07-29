@@ -2187,6 +2187,38 @@ pub mod type_rep {
         }
     }
 
+    #[derive(Clone, Hash, Copy, PartialEq, Eq, Debug)]
+    #[repr(u8)]
+    pub enum ArrowKind {
+        Forall,
+        Sigma,
+        Pi,
+    }
+
+    /// Defines a type arrow representation. It's used to define a type that is a function, like
+    /// `Foo -> Bar`. Or a type that is a trait type, like `Foo -> Bar`. Or a type that is a
+    /// dependent function, like `Foo -> Bar`.
+    ///
+    /// The `ArrowKind` is used to define the kind of arrow, like `->`, `=>` or `.`.
+    #[salsa::tracked]
+    pub struct ArrowTypeRep {
+        pub kind: ArrowKind,
+        pub parameters: Vec<declaration::Parameter>,
+        pub value: TypeRep,
+        pub location: Location,
+        pub scope: Arc<Scope>,
+    }
+
+    impl walking::Walker for ArrowTypeRep {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_arrow_type_rep(self);
+            self.parameters(db).accept(db, listener);
+            self.value(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_arrow_type_rep(self);
+        }
+    }
+
     /// Defines the expression element in the HIR. It's the second most important element in the
     /// HIR, and in the language itself, as it's defines instructions that can be executed, and
     /// values that can be used.
@@ -2220,30 +2252,11 @@ pub mod type_rep {
         /// A type application, it's used to apply a type to another type, like `Foo Bar`.
         App(AppTypeRep),
 
-        /// The pi type, it's used to define a function type, or a dependent function type.
+        /// The arrow type, it's used to define a function type, or a dependent function type. Or
+        /// sigma types, or even forall types.
         ///
         /// TODO: implement dependent types, even tough the name is "pi", the type is not dependent
-        Pi {
-            parameters: Vec<declaration::Parameter>,
-            value: Box<Self>,
-
-            /// The location of the `->` keyword.
-            location: Location,
-            scope: Arc<Scope>,
-        },
-
-        /// The sigma type, it's used to define a product type, or a dependent product type. Currently
-        /// the syntax is purposed to be used as implicit parameters for the language.
-        ///
-        /// TODO: implement dependent types, even tough the name is "sigma", the type is not dependent
-        Sigma {
-            parameters: Vec<declaration::Parameter>,
-            value: Box<Self>,
-
-            /// The location of the `forall` keyword.
-            location: Location,
-            scope: Arc<Scope>,
-        },
+        Arrow(ArrowTypeRep),
 
         /// The downgrade type, it's used to downgrade a type representation to a expression. This is
         /// a data strucutre to improve error messages, and to make it easier to implement dependent
@@ -2275,43 +2288,8 @@ pub mod type_rep {
                 TypeRep::Path(path) => path.debug_all(db).fmt(f),
                 TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
                 TypeRep::App(app) => app.debug_all(db).fmt(f),
+                TypeRep::Arrow(arrow) => arrow.debug_all(db).fmt(f),
                 TypeRep::Downgrade(expr) => expr.debug_all(db).fmt(f),
-                TypeRep::Pi {
-                    parameters,
-                    value,
-                    location,
-                    scope,
-                } => f
-                    .debug_struct("Pi")
-                    .field(
-                        "parameters",
-                        &parameters
-                            .iter()
-                            .map(|parameter| parameter.debug_all(db))
-                            .collect::<Vec<_>>(),
-                    )
-                    .field("value", &value.debug_all(db))
-                    .field("location", &location)
-                    .field("scope", &scope)
-                    .finish(),
-                TypeRep::Sigma {
-                    parameters,
-                    value,
-                    location,
-                    scope,
-                } => f
-                    .debug_struct("Sigma")
-                    .field(
-                        "parameters",
-                        &parameters
-                            .iter()
-                            .map(|parameter| parameter.debug_all(db))
-                            .collect::<Vec<_>>(),
-                    )
-                    .field("value", &value.debug_all(db))
-                    .field("location", &location)
-                    .field("scope", &scope)
-                    .finish(),
             }
         }
     }
@@ -2347,40 +2325,7 @@ pub mod type_rep {
                 }
                 TypeRep::QPath(qpath) => qpath.accept(db, listener),
                 TypeRep::App(app) => app.accept(db, listener),
-                TypeRep::Pi {
-                    parameters,
-                    value,
-                    location,
-                    scope,
-                } => {
-                    listener.enter_pi_type_rep(
-                        parameters.clone(),
-                        value.clone(),
-                        location.clone(),
-                        scope.clone(),
-                    );
-                    parameters.clone().accept(db, listener);
-                    value.clone().accept(db, listener);
-                    location.clone().accept(db, listener);
-                    listener.exit_pi_type_rep(parameters, value, location, scope);
-                }
-                TypeRep::Sigma {
-                    parameters,
-                    value,
-                    location,
-                    scope,
-                } => {
-                    listener.enter_sigma_type_rep(
-                        parameters.clone(),
-                        value.clone(),
-                        location.clone(),
-                        scope.clone(),
-                    );
-                    parameters.clone().accept(db, listener);
-                    value.clone().accept(db, listener);
-                    location.clone().accept(db, listener);
-                    listener.exit_sigma_type_rep(parameters, value, location, scope);
-                }
+                TypeRep::Arrow(arrow) => arrow.accept(db, listener),
                 TypeRep::Downgrade(expr) => {
                     listener.enter_downgrade_type_rep(expr.clone());
                     expr.clone().accept(db, listener);
@@ -2414,8 +2359,7 @@ pub mod type_rep {
                 Self::Empty => Location::call_site(db),
                 Self::This => Location::call_site(db),
                 Self::Tt => Location::call_site(db),
-                Self::Pi { location, .. } => location.clone(),
-                Self::Sigma { location, .. } => location.clone(),
+                Self::Arrow(downcast) => downcast.location(db),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Path(downcast) => downcast.location(db),
                 Self::QPath(downcast) => downcast.location(db),

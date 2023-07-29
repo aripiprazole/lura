@@ -53,6 +53,7 @@ pub struct Jar(
     source::expr::CallExpr,
     source::expr::MatchExpr,
     source::type_rep::AppTypeRep,
+    source::type_rep::ArrowTypeRep,
     source::type_rep::QPath,
     lower::hir_declare,
     lower::hir_lower,

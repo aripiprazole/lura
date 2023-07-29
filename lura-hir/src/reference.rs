@@ -175,45 +175,12 @@ impl<'db, U: Checkable> HirListener for ReferenceWalker<'db, U> {
         self.stack.pop();
     }
 
-    fn enter_sigma_type_rep(
-        &mut self,
-        _: Vec<declaration::Parameter>,
-        _: Box<type_rep::TypeRep>,
-        location: Location,
-        scope: Arc<Scope>,
-    ) {
-        self.enter_scope(self.db, location, scope.clone());
-        self.stack.push(scope);
+    fn enter_arrow_type_rep(&mut self, arrow: type_rep::ArrowTypeRep) {
+        self.enter_scope(self.db, arrow.location(self.db), arrow.scope(self.db));
+        self.stack.push(arrow.scope(self.db));
     }
 
-    fn exit_sigma_type_rep(
-        &mut self,
-        _: Vec<declaration::Parameter>,
-        _: Box<type_rep::TypeRep>,
-        _: Location,
-        _: Arc<Scope>,
-    ) {
-        self.stack.pop();
-    }
-
-    fn enter_pi_type_rep(
-        &mut self,
-        _: Vec<declaration::Parameter>,
-        _: Box<type_rep::TypeRep>,
-        location: Location,
-        scope: Arc<Scope>,
-    ) {
-        self.enter_scope(self.db, location, scope.clone());
-        self.stack.push(scope);
-    }
-
-    fn exit_pi_type_rep(
-        &mut self,
-        _: Vec<declaration::Parameter>,
-        _: Box<type_rep::TypeRep>,
-        _: Location,
-        _: Arc<Scope>,
-    ) {
+    fn exit_arrow_type_rep(&mut self, _: type_rep::ArrowTypeRep) {
         self.stack.pop();
     }
 }
