@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use eyre::Context;
+use itertools::Itertools;
 use lura_diagnostic::{Diagnostics, Report};
 use lura_driver::RootDb;
 use lura_hir::{
@@ -25,6 +26,7 @@ pub struct Config {
 pub struct Manifest<'db> {
     pub db: &'db RootDb,
     pub root_folder: PathBuf,
+    pub soruce_folder: PathBuf,
     pub config: Config,
     pub diagnostics: im::HashSet<Report>,
 }
@@ -37,10 +39,12 @@ impl<'db> Manifest<'db> {
         let manifest_content = std::fs::read_to_string(manifest_path.clone())
             .wrap_err_with(|| format!("Unable to find manifest file for folder {folder:?}"))?;
         let manifest: Config = toml::from_str(&manifest_content)?;
+        let root_folder = manifest_path.parent().unwrap().to_path_buf();
 
         Ok(Self {
             db,
-            root_folder: manifest_path.parent().unwrap().to_path_buf(),
+            soruce_folder: root_folder.join(&manifest.source),
+            root_folder,
             config: manifest,
             diagnostics: Default::default(),
         })
@@ -51,44 +55,58 @@ impl<'db> Manifest<'db> {
         let contents = std::fs::read_to_string(&path)
             .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
 
-        let name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
+        let name = folder.strip_prefix(&self.soruce_folder)?;
+        let mut name = name
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .chain(std::iter::once(
+                path.with_extension(String::default())
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+            ))
+            .join(".");
+
+        // WORKAROUND: If it's the main file, simple use the package name. This
+        // is a workaround for the fact that the main file is not in a folder
+        // and thus the name would be empty.
+        if name == "Main" {
+            name = self.config.name.clone();
+        }
 
         let file = SourceFile::new(self.db, path, name, contents);
         let cst = lura_syntax::parse(self.db, file);
         Ok(cst)
     }
 
-    pub fn manifest(&self, folder: PathBuf, manifest: Manifest) -> eyre::Result<Package> {
-        let version = parse_version(&manifest.config.version)?;
-        let source = folder.join(manifest.config.source);
+    pub fn manifest(&self) -> eyre::Result<Package> {
+        let version = parse_version(&self.config.version)?;
+        let source = self.root_folder.join(&self.config.source);
 
         let source = self.read_file(source, PathBuf::from("Main.lura"))?;
 
         Ok(Package::new(
             self.db,
-            manifest.config.name,
-            version,
-            source,
-            lura_hir::package::PackageKind::Binary,
-            Default::default(),
+            /* name    = */ self.config.name.clone(),
+            /* version = */ version,
+            /* sources = */ source,
+            /* kind    = */ lura_hir::package::PackageKind::Binary,
+            /* files   = */ Default::default(),
         ))
     }
 
     pub fn register_packages(&self) -> eyre::Result<()> {
         for dependency in self.config.dependencies.values() {
-            let folder = self.root_folder.join(&dependency.path);
-            let manifest = Manifest::load_in_folder(self.db, folder.clone())?;
-            let package = self.manifest(folder, manifest)?;
+            let folder = self.root_folder.join(&dependency.path).canonicalize()?;
+            let manifest = Manifest::load_in_folder(self.db, folder)?;
+            let package = manifest.manifest()?;
 
             self.db.register_package(package);
         }
         // Self-registering
 
-        let package = self.manifest(self.root_folder.clone(), self.clone())?;
+        let package = self.manifest()?;
         self.db.register_package(package);
 
         Ok(())

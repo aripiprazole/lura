@@ -224,7 +224,6 @@ impl Scope {
         prefix: &str,
         another: &mut Self,
     ) {
-        println!("Publishing all definitions to {}", prefix);
         for (name, definition) in self.all_definitions() {
             let text = format!("{prefix}.{name}");
 
