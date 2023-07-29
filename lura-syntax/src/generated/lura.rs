@@ -187,20 +187,22 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ArrayExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `ask_stmt`\n\nThis node has these fields:\n- `pattern`: `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
+#[doc = "Typed node `ask_stmt`\n\nThis node has these fields:\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct AskStmt<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> AskStmt<'tree> {
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn pattern(
         &self,
-    ) -> type_sitter_lib::NodeResult<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>
-    {
-        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    ) -> type_sitter_lib::NodeResult<
+        'tree,
+        anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+    > {
+        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_GroupPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
     #[doc = "Get the field `value` which has kind `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])"]
     #[allow(dead_code)]
@@ -605,7 +607,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ClassDecl<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `clause`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}?` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
+#[doc = "Typed node `clause`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}?` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Clause<'tree>(tree_sitter::Node<'tree>);
@@ -649,7 +651,7 @@ impl<'tree> Clause<'tree> {
     pub fn name(&self) -> type_sitter_lib::NodeResult<'tree, Path<'tree>> {
         self . 0 . child_by_field_name ("name") . map (< Path < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn patterns<'a>(
@@ -658,10 +660,18 @@ impl<'tree> Clause<'tree> {
     ) -> impl Iterator<
         Item = type_sitter_lib::NodeResult<
             'tree,
-            type_sitter_lib::ExtraOr<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>,
+            type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+            >,
         >,
     > + 'a {
-        self . 0 . children_by_field_name ("pattern" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: ConsPattern_Literal_RestPattern < 'tree > > as TryFrom < _ >> :: try_from (n))
+        self.0.children_by_field_name("pattern", c).map(|n| {
+            <type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+            > as TryFrom<_>>::try_from(n)
+        })
     }
     #[doc = "Get the field `value` which has kind `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}?` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])"]
     #[allow(dead_code)]
@@ -836,7 +846,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Command<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `cons_pattern`\n\nThis node has these fields:\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])\n"]
+#[doc = "Typed node `cons_pattern`\n\nThis node has these fields:\n- `name`: `path` ([Path])\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct ConsPattern<'tree>(tree_sitter::Node<'tree>);
@@ -848,7 +858,7 @@ impl<'tree> ConsPattern<'tree> {
     pub fn name(&self) -> type_sitter_lib::NodeResult<'tree, Path<'tree>> {
         self . 0 . child_by_field_name ("name") . map (< Path < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}*` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn patterns<'a>(
@@ -857,10 +867,18 @@ impl<'tree> ConsPattern<'tree> {
     ) -> impl Iterator<
         Item = type_sitter_lib::NodeResult<
             'tree,
-            type_sitter_lib::ExtraOr<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>,
+            type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+            >,
         >,
     > + 'a {
-        self . 0 . children_by_field_name ("pattern" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: ConsPattern_Literal_RestPattern < 'tree > > as TryFrom < _ >> :: try_from (n))
+        self.0.children_by_field_name("pattern", c).map(|n| {
+            <type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+            > as TryFrom<_>>::try_from(n)
+        })
     }
 }
 #[automatically_derived]
@@ -1493,6 +1511,59 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for FunctionConstructor<'tree> {
         Self(node)
     }
 }
+#[doc = "Typed node `group_pattern`\n\nThis node has these fields:\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub struct GroupPattern<'tree>(tree_sitter::Node<'tree>);
+#[automatically_derived]
+impl<'tree> GroupPattern<'tree> {
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
+    #[allow(dead_code)]
+    #[inline]
+    pub fn pattern(
+        &self,
+    ) -> type_sitter_lib::NodeResult<
+        'tree,
+        anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+    > {
+        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_GroupPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    }
+}
+#[automatically_derived]
+impl<'tree> TryFrom<tree_sitter::Node<'tree>> for GroupPattern<'tree> {
+    type Error = type_sitter_lib::IncorrectKind<'tree>;
+    #[inline]
+    fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+        if node.kind() == "group_pattern" {
+            Ok(Self(node))
+        } else {
+            Err(type_sitter_lib::IncorrectKind {
+                node,
+                kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+            })
+        }
+    }
+}
+#[automatically_derived]
+impl<'tree> type_sitter_lib::TypedNode<'tree> for GroupPattern<'tree> {
+    const KIND: &'static str = "group_pattern";
+    #[inline]
+    fn node(&self) -> &tree_sitter::Node<'tree> {
+        &self.0
+    }
+    #[inline]
+    fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+        &mut self.0
+    }
+    #[inline]
+    fn into_node(self) -> tree_sitter::Node<'tree> {
+        self.0
+    }
+    #[inline]
+    unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
+        Self(node)
+    }
+}
 #[doc = "Typed node `hex`\n\nThis node has no children\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -2071,20 +2142,22 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for LamExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `let_stmt`\n\nThis node has these fields:\n- `pattern`: `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
+#[doc = "Typed node `let_stmt`\n\nThis node has these fields:\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n- `value`: `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct LetStmt<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> LetStmt<'tree> {
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn pattern(
         &self,
-    ) -> type_sitter_lib::NodeResult<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>
-    {
-        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    ) -> type_sitter_lib::NodeResult<
+        'tree,
+        anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+    > {
+        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_GroupPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
     #[doc = "Get the field `value` which has kind `{ann_expr | app_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])"]
     #[allow(dead_code)]
@@ -2221,7 +2294,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for Literal<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `match_arm`\n\nThis node has these fields:\n- `body`: `{ann_expr | app_expr | binary_expr | block | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n- `pattern`: `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])\n"]
+#[doc = "Typed node `match_arm`\n\nThis node has these fields:\n- `body`: `{ann_expr | app_expr | binary_expr | block | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr}` ([anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr])\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct MatchArm<'tree>(tree_sitter::Node<'tree>);
@@ -2232,14 +2305,16 @@ impl<'tree> MatchArm<'tree> {
     #[inline]    pub fn body (& self) -> type_sitter_lib :: NodeResult < 'tree , anon_unions :: AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > >{
         self . 0 . child_by_field_name ("body") . map (< anon_unions :: AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn pattern(
         &self,
-    ) -> type_sitter_lib::NodeResult<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>
-    {
-        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    ) -> type_sitter_lib::NodeResult<
+        'tree,
+        anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+    > {
+        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_GroupPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
 }
 #[automatically_derived]
@@ -2477,25 +2552,29 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for OtherwiseBody<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `parameter`\n\nThis node has these fields:\n- `parameter_type`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}?` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `pattern`: `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])\n"]
+#[doc = "Typed node `parameter`\n\nThis node has these fields:\n- `parameter_type`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `pattern`: `{cons_pattern | group_pattern | literal | rest_pattern}?` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Parameter<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> Parameter<'tree> {
-    #[doc = "Get the field `parameter_type` which has kind `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}?` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
+    #[doc = "Get the field `parameter_type` which has kind `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
-    #[inline]    pub fn parameter_type (& self) -> Option < type_sitter_lib :: NodeResult < 'tree , anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >{
-        self . 0 . child_by_field_name ("parameter_type") . map (< anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > as TryFrom < _ >> :: try_from)
+    #[inline]    pub fn parameter_type (& self) -> type_sitter_lib :: NodeResult < 'tree , anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > >{
+        self . 0 . child_by_field_name ("parameter_type") . map (< anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
-    #[doc = "Get the field `pattern` which has kind `{cons_pattern | literal | rest_pattern}` ([anon_unions::ConsPattern_Literal_RestPattern])"]
+    #[doc = "Get the field `pattern` which has kind `{cons_pattern | group_pattern | literal | rest_pattern}?` ([anon_unions::ConsPattern_GroupPattern_Literal_RestPattern])"]
     #[allow(dead_code)]
     #[inline]
     pub fn pattern(
         &self,
-    ) -> type_sitter_lib::NodeResult<'tree, anon_unions::ConsPattern_Literal_RestPattern<'tree>>
-    {
-        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    ) -> Option<
+        type_sitter_lib::NodeResult<
+            'tree,
+            anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>,
+        >,
+    > {
+        self . 0 . child_by_field_name ("pattern") . map (< anon_unions :: ConsPattern_GroupPattern_Literal_RestPattern < 'tree > as TryFrom < _ >> :: try_from)
     }
 }
 #[automatically_derived]
@@ -7106,22 +7185,32 @@ pub mod anon_unions {
             }
         }
     }
-    #[doc = "one of `{cons_pattern | literal | rest_pattern}`:\n- [ConsPattern]\n- [Literal]\n- [RestPattern]"]
+    #[doc = "one of `{cons_pattern | group_pattern | literal | rest_pattern}`:\n- [ConsPattern]\n- [GroupPattern]\n- [Literal]\n- [RestPattern]"]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     #[allow(non_camel_case_types)]
-    pub enum ConsPattern_Literal_RestPattern<'tree> {
+    pub enum ConsPattern_GroupPattern_Literal_RestPattern<'tree> {
         ConsPattern(ConsPattern<'tree>),
+        GroupPattern(GroupPattern<'tree>),
         Literal(Literal<'tree>),
         RestPattern(RestPattern<'tree>),
     }
     #[automatically_derived]
-    impl<'tree> ConsPattern_Literal_RestPattern<'tree> {
+    impl<'tree> ConsPattern_GroupPattern_Literal_RestPattern<'tree> {
         #[doc = "Returns the node if it is of kind `cons_pattern` ([ConsPattern]), otherwise returns None"]
         #[inline]
         #[allow(unused, non_snake_case)]
         pub fn cons_pattern(self) -> Option<ConsPattern<'tree>> {
             match self {
                 Self::ConsPattern(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `group_pattern` ([GroupPattern]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn group_pattern(self) -> Option<GroupPattern<'tree>> {
+            match self {
+                Self::GroupPattern(x) => Some(x),
                 _ => None,
             }
         }
@@ -7145,13 +7234,18 @@ pub mod anon_unions {
         }
     }
     #[automatically_derived]
-    impl<'tree> TryFrom<tree_sitter::Node<'tree>> for ConsPattern_Literal_RestPattern<'tree> {
+    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
+        for ConsPattern_GroupPattern_Literal_RestPattern<'tree>
+    {
         type Error = type_sitter_lib::IncorrectKind<'tree>;
         #[inline]
         fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
             match node.kind() {
                 "cons_pattern" => Ok(unsafe {
                     Self :: ConsPattern (< ConsPattern < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "group_pattern" => Ok(unsafe {
+                    Self :: GroupPattern (< GroupPattern < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
                 }),
                 "literal" => {
                     Ok(unsafe {
@@ -7169,12 +7263,15 @@ pub mod anon_unions {
         }
     }
     #[automatically_derived]
-    impl<'tree> type_sitter_lib::TypedNode<'tree> for ConsPattern_Literal_RestPattern<'tree> {
-        const KIND: &'static str = "{cons_pattern | literal | rest_pattern}";
+    impl<'tree> type_sitter_lib::TypedNode<'tree>
+        for ConsPattern_GroupPattern_Literal_RestPattern<'tree>
+    {
+        const KIND: &'static str = "{cons_pattern | group_pattern | literal | rest_pattern}";
         #[inline]
         fn node(&self) -> &tree_sitter::Node<'tree> {
             match self {
                 Self::ConsPattern(x) => x.node(),
+                Self::GroupPattern(x) => x.node(),
                 Self::Literal(x) => x.node(),
                 Self::RestPattern(x) => x.node(),
             }
@@ -7183,6 +7280,7 @@ pub mod anon_unions {
         fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
             match self {
                 Self::ConsPattern(x) => x.node_mut(),
+                Self::GroupPattern(x) => x.node_mut(),
                 Self::Literal(x) => x.node_mut(),
                 Self::RestPattern(x) => x.node_mut(),
             }
@@ -7191,6 +7289,7 @@ pub mod anon_unions {
         fn into_node(self) -> tree_sitter::Node<'tree> {
             match self {
                 Self::ConsPattern(x) => x.into_node(),
+                Self::GroupPattern(x) => x.into_node(),
                 Self::Literal(x) => x.into_node(),
                 Self::RestPattern(x) => x.into_node(),
             }

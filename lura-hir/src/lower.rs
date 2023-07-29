@@ -610,14 +610,14 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let value = tree
                 .value()
                 .map(|value| value.solve(this, |this, node| this.expr(node, HirLevel::Expr)))
-                .unwrap_or_default_with_db(this.db);
+                .unwrap_or_default_with_db(db);
 
-            let clause = Clause::new(this.db, name, patterns, value, location.clone());
+            let clause = Clause::new(db, name, patterns, value, location.clone());
 
             let binding_group = this.clauses.entry(path).or_insert_with(|| {
                 // Creates a dummy signature implementation, to be used in the clause.
                 let signature = Signature::new(
-                    this.db,
+                    db,
                     /* attributes  = */ HashSet::default(),
                     /* docs        = */ vec![],
                     /* visibility  = */ Spanned::on_call_site(Vis::Public),
@@ -630,10 +630,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 BindingGroup::new(db, signature, HashSet::new())
             });
 
-            let signature = binding_group.signature(this.db);
+            let signature = binding_group.signature(db);
 
             // Inserts the current clause in the clauses, and solve it
-            let mut clauses = binding_group.clauses(this.db);
+            let mut clauses = binding_group.clauses(db);
             clauses.insert(clause);
 
             let group = BindingGroup::new(db, signature, clauses);
@@ -789,12 +789,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     ) -> Parameter {
         let binding = tree
             .pattern()
-            .solve(self, |this, pattern| this.pattern(pattern));
+            .map(|node| node.solve(self, |this, pattern| this.pattern(pattern)))
+            .unwrap_or_default_with_db(self.db);
 
         let type_rep = tree
             .parameter_type()
-            .map(|node| node.solve(self, |this, expr| this.type_expr(expr)))
-            .unwrap_or_default_with_db(self.db);
+            .solve(self, |this, expr| this.type_expr(expr));
 
         let location = self.range(tree.range());
 
@@ -822,12 +822,12 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             Parameter(parameter) => {
                 let binding = parameter
                     .pattern()
-                    .solve(self, |this, pattern| this.pattern(pattern));
+                    .map(|node| node.solve(self, |this, pattern| this.pattern(pattern)))
+                    .unwrap_or_default_with_db(self.db);
 
                 let type_rep = parameter
                     .parameter_type()
-                    .map(|node| node.solve(self, |this, expr| this.type_expr(expr)))
-                    .unwrap_or_default_with_db(self.db);
+                    .solve(self, |this, expr| this.type_expr(expr));
 
                 let location = self.range(parameter.range());
 
@@ -995,19 +995,26 @@ mod pattern_solver {
 
     use super::*;
 
-    type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_Literal_RestPattern<'tree>;
+    #[rustfmt::skip]
+    type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>;
 
     impl LowerHir<'_, '_> {
         pub fn pattern(&mut self, tree: SyntaxPattern) -> Pattern {
-            use lura_syntax::anon_unions::ConsPattern_Literal_RestPattern::*;
+            use lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern::*;
 
             let location = self.range(tree.range());
 
             match tree {
                 ConsPattern(cons_pattern) => self.cons_pattern(cons_pattern),
+                GroupPattern(group_pattern) => self.group_pattern(group_pattern),
                 Literal(literal) => self.literal(literal).upgrade_pattern(location, self.db),
                 RestPattern(_) => Pattern::Rest(location),
             }
+        }
+
+        pub fn group_pattern(&mut self, group: lura_syntax::GroupPattern) -> Pattern {
+            // There's no AST for groups, so we need to solve it directly
+            return group.pattern().solve(self, |this, node| this.pattern(node));
         }
 
         pub fn cons_pattern(&mut self, pattern: lura_syntax::ConsPattern) -> Pattern {
