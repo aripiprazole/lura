@@ -239,6 +239,42 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     Definition::no(db, DefinitionKind::Type, name)
 }
 
+/// Defines the [`query_module`] query. It's defined as "query", because it's returning a scope
+/// instead of a single definition.
+///
+/// It does search for a type with the given `name` in all packages, and returns it as a
+/// [`Definition`].
+///
+/// If it can't find a type with the given `name`, it returns a [`Definition`] with the
+/// [`DefinitionKind::Type`] and [`DefinitionKind::Unresolved`] kind. And will report an error to
+/// the revision diagnostic database.
+#[salsa::tracked]
+pub fn query_module(db: &dyn crate::HirDb, name: HirPath) -> (Scope, Definition) {
+    let path = name.to_string(db).unwrap_or("~INTERNAL ERROR~".into());
+
+    for package in db.all_packages() {
+        for file in package.all_files(db) {
+            let hir = hir_declare(db, package, file);
+            let name = file.module_name(db);
+
+            // If the name of the file is the same as the name of the module, then it's the
+            // module we're looking for.
+            if &path == name {
+                let txt = file.source_text(db).to_string();
+                let id = DefinitionId::new(db, Location::new(db, file, txt.into(), 0, 0));
+                let kind = DefinitionKind::Module;
+                let path = HirPath::create(db, name);
+
+                return (hir.scope(db), Definition::new(db, id, kind, path));
+            }
+        }
+    }
+
+    let file = Scope::new(ScopeKind::File);
+
+    (file, Definition::no(db, DefinitionKind::Type, name))
+}
+
 /// Defines the [`references`] query.
 ///
 /// It does search for all references to the given `definition` in all packages, and returns it as

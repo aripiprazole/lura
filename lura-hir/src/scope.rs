@@ -290,6 +290,24 @@ impl Scope {
 
         definitions
     }
+
+    pub fn extend(&mut self, scope: Scope) {
+        for (name, definition) in scope.constructors {
+            self.constructors.insert(name, definition);
+        }
+
+        for (name, definition) in scope.types {
+            self.types.insert(name, definition);
+        }
+
+        for (name, definition) in scope.values {
+            self.values.insert(name, definition);
+        }
+
+        for (name, definition) in scope.variables {
+            self.variables.insert(name, definition);
+        }
+    }
 }
 
 impl Debug for Scope {

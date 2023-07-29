@@ -22,7 +22,7 @@ use lura_syntax::{
 
 use crate::{
     package::Package,
-    resolve::{find_function, find_type, Definition, DefinitionKind, HirLevel},
+    resolve::{find_function, find_type, query_module, Definition, DefinitionKind, HirLevel},
     scope::{Scope, ScopeKind},
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
@@ -218,8 +218,11 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 let path = decl.path().solve(self, |this, node| this.path(node));
 
                 // TODO: search for functions or anything too.
-                let def = self.qualify(path, DefinitionKind::Module);
+                let (scope, def) = query_module(self.db, path);
                 let reference = self.scope.using(self.db, def, path.location(self.db));
+
+                // Extends the scope with the new scope.
+                self.scope.extend(scope);
 
                 TopLevel::Using(UsingTopLevel::new(self.db, reference, range))
             }
