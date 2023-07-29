@@ -342,7 +342,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Defines the node on the scope
         let node = self
             .scope
-            .define(self.db, path, range.clone(), DefinitionKind::Function);
+            .define(self.db, path, range.clone(), DefinitionKind::Type);
 
         let methods = tree
             .fields(&mut tree.walk())
@@ -418,7 +418,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         // Defines the node on the scope
         let node = self
             .scope
-            .define(self.db, path, range.clone(), DefinitionKind::Function);
+            .define(self.db, path, range.clone(), DefinitionKind::Type);
 
         let variants = tree
             .constructors(&mut tree.walk())
