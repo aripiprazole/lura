@@ -907,7 +907,27 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
     /// given parameters.
     pub fn forall_parameter(&mut self, tree: lura_syntax::ForallParameter) -> Parameter {
-        let name = tree.path().solve(self, |this, path| this.path(path));
+        let name = tree.identifier().with_db(self, |this, segment| {
+            let range = this.range(segment.range());
+            let identifer = segment.child().ok()?;
+            let txt = this.txt.clone();
+            let unique = match identifer {
+                SyntaxIdentifier::SimpleIdentifier(value) => {
+                    let string = value.utf8_text(txt.as_bytes()).ok().unwrap_or_default();
+
+                    Identifier::new(this.db, string.into(), false, range.clone())
+                }
+                SyntaxIdentifier::SymbolIdentifier(value) => {
+                    let string = value
+                        .child()
+                        .with_db(this, |_, node| node.utf8_text(txt.as_bytes()).ok());
+
+                    Identifier::new(this.db, string.into(), true, range.clone())
+                }
+            };
+
+            Some(HirPath::new(this.db, range, vec![unique]))
+        });
         let location = self.range(tree.range());
 
         let definition = self.scope.define(

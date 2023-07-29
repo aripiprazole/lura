@@ -1,5 +1,5 @@
 using Std
 
 Main (args: List String) {
-  List.head args
+  Std.println (Std.head args)
 }

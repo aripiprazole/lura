@@ -1378,17 +1378,17 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ForallExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `forall_parameter`\n\nThis node has these fields:\n- `path`: `path` ([Path])\n"]
+#[doc = "Typed node `forall_parameter`\n\nThis node has these fields:\n- `identifier`: `identifier` ([Identifier])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct ForallParameter<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> ForallParameter<'tree> {
-    #[doc = "Get the field `path` which has kind `path` ([Path])"]
+    #[doc = "Get the field `identifier` which has kind `identifier` ([Identifier])"]
     #[allow(dead_code)]
     #[inline]
-    pub fn path(&self) -> type_sitter_lib::NodeResult<'tree, Path<'tree>> {
-        self . 0 . child_by_field_name ("path") . map (< Path < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    pub fn identifier(&self) -> type_sitter_lib::NodeResult<'tree, Identifier<'tree>> {
+        self . 0 . child_by_field_name ("identifier") . map (< Identifier < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
     }
 }
 #[automatically_derived]

@@ -6,13 +6,13 @@
 @stdlib
 public data List (^a) {
   Cons : a -> List a -> List a,
-  Nil  : List a;
+  Nil  : List a
 }
 
 @stdlib
 public data Maybe (^a) {
   Just(a),
-  Nothing;
+  Nothing
 }
 
 @stdlib
@@ -26,4 +26,7 @@ head : ^a. a -> Maybe a
 head (Cons x _) = Just x
 head Nil        = Nothing
 
-Pao : Pao { Pao }
+public
+println : String -> ()
+
+Pao { Pao }
