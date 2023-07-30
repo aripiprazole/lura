@@ -17,6 +17,7 @@ type-sitter-lib.workspace = true
 
 eyre.workspace = true
 im.workspace = true
+im-rc.workspace = true
 fxhash.workspace = true
 dashmap.workspace = true
 

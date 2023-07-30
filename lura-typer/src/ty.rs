@@ -4,9 +4,9 @@ use std::{cell::RefCell, hash::Hash, marker::PhantomData};
 pub type Level = usize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Arrow<'tctx, K: kinds::ArrowKind, M: modes::TypeMode> {
-    pub paramater: Box<Ty<'tctx, M>>,
-    pub ty: Box<Ty<'tctx, M>>,
+pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
+    pub paramater: Box<Ty<M>>,
+    pub ty: Box<Ty<M>>,
 
     /// Represents the kind of arrow. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
@@ -34,16 +34,24 @@ pub struct Constructor {
     pub name: String,
 }
 
+pub type Uniq = usize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TyVar {
+    Bound(String),
+    Skolem(String, Uniq),
+}
+
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Ty<'tctx, M: modes::TypeMode> {
+pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
     Constructor(Constructor),
-    Forall(Arrow<'tctx, kinds::Forall, M>),
-    Pi(Arrow<'tctx, kinds::Pi, M>),
-    Hole(M::Hole<'tctx>),
-    Debruijin(Level),
+    Forall(Arrow<kinds::Forall, M>),
+    Pi(Arrow<kinds::Pi, M>),
+    Hole(M::Hole),
+    Bound(TyVar),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -55,10 +63,10 @@ pub enum Ty<'tctx, M: modes::TypeMode> {
 pub struct ThirTy {
     /// The kind of the type. This is used to distinguish between different kinds of types, such as
     /// `forall`, `pi`, and `sigma`.
-    pub kind: Ty<'static, modes::Ready>,
+    pub kind: Ty<modes::Ready>,
 }
 
-impl<'tctx, M: modes::TypeMode> Default for Ty<'tctx, M> {
+impl<M: modes::TypeMode> Default for Ty<M> {
     /// Returns the default value for a type. This is used to represent a type that is not valid.
     /// It's a sentinel value that is used to represent an error.
     fn default() -> Self {
@@ -69,22 +77,23 @@ impl<'tctx, M: modes::TypeMode> Default for Ty<'tctx, M> {
 /// Represents a to-be-filled type. This is used to represent a type that is not filled yet.
 pub mod holes {
     use super::*;
+
     /// Represents a hole. This is used to represent a hole.
     #[derive(Default, Debug, Clone)]
-    pub struct Hole<'tctx, M: modes::TypeMode> {
-        pub kind: HoleKind<'tctx, M>,
+    pub struct Hole<M: modes::TypeMode> {
+        pub kind: HoleKind<M>,
     }
 
-    impl<'tctx, M: modes::TypeMode + PartialEq> Eq for Hole<'tctx, M> {}
+    impl<M: modes::TypeMode + PartialEq> Eq for Hole<M> {}
 
-    impl<'tctx, M: modes::TypeMode + PartialEq> PartialEq for Hole<'tctx, M> {
+    impl<M: modes::TypeMode + PartialEq> PartialEq for Hole<M> {
         fn eq(&self, other: &Self) -> bool {
             self.kind.eq(&other.kind)
         }
     }
 
     #[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]
-    pub enum HoleKind<'tctx, M: modes::TypeMode> {
+    pub enum HoleKind<M: modes::TypeMode> {
         /// The error type. This is used to represent a type that is not valid. It's a sentinel value
         /// that is used to represent an error.
         #[default]
@@ -95,10 +104,10 @@ pub mod holes {
 
         /// A hole that is filled with a type. This is used to represent a hole that is filled with a
         /// type.
-        Filled(Ty<'tctx, M>),
+        Filled(Ty<M>),
     }
 
-    impl<'tctx, M: modes::TypeMode + Hash> Hash for Hole<'tctx, M> {
+    impl<M: modes::TypeMode + Hash> Hash for Hole<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.kind.hash(state);
         }
@@ -107,19 +116,19 @@ pub mod holes {
     /// A reference to a [`Hole`]. This is used to represent a reference to a [`Hole`].
     #[derive(Debug, Clone)]
     #[repr(transparent)]
-    pub struct HoleRef<'tctx, M: modes::TypeMode + PartialEq> {
-        pub data: RefCell<Hole<'tctx, M>>,
+    pub struct HoleRef<M: modes::TypeMode> {
+        pub data: RefCell<Hole<M>>,
     }
 
-    impl<'tctx, M: modes::TypeMode + PartialEq> Eq for HoleRef<'tctx, M> {}
+    impl<M: modes::TypeMode + PartialEq> Eq for HoleRef<M> {}
 
-    impl<'tctx, M: modes::TypeMode + PartialEq> PartialEq for HoleRef<'tctx, M> {
+    impl<M: modes::TypeMode + PartialEq> PartialEq for HoleRef<M> {
         fn eq(&self, other: &Self) -> bool {
             self.data.borrow().eq(&other.data.borrow())
         }
     }
 
-    impl<'tctx, M: modes::TypeMode + PartialEq + Hash> Hash for HoleRef<'tctx, M> {
+    impl<M: modes::TypeMode + PartialEq + Hash> Hash for HoleRef<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.data.borrow().hash(state);
         }
@@ -131,10 +140,10 @@ pub mod holes {
 pub mod seals {
     use super::*;
 
-    impl<'tctx> Hole<'tctx, modes::Mut> {
+    impl Hole<modes::Mut> {
         /// Takes a mut hole and returns a ready hole. This is used to seal a hole, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Hole<'tctx, modes::Ready> {
+        pub fn seal(self) -> Hole<modes::Ready> {
             match self.kind {
                 HoleKind::Error => Hole {
                     kind: HoleKind::Error,
@@ -149,10 +158,10 @@ pub mod seals {
         }
     }
 
-    impl<'tctx, K: kinds::ArrowKind> Arrow<'tctx, K, modes::Mut> {
+    impl<K: kinds::ArrowKind> Arrow<K, modes::Mut> {
         /// Takes a mut arrow and returns a ready arrow. This is used to seal an arrow, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Arrow<'tctx, K, modes::Ready> {
+        pub fn seal(self) -> Arrow<K, modes::Ready> {
             Arrow {
                 paramater: self.paramater.seal().into(),
                 ty: self.ty.seal().into(),
@@ -161,16 +170,16 @@ pub mod seals {
         }
     }
 
-    impl<'tctx> Ty<'tctx, modes::Mut> {
+    impl Ty<modes::Mut> {
         /// Takes a mut type and returns a ready type. This is used to seal a type, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Ty<'tctx, modes::Ready> {
+        pub fn seal(self) -> Ty<modes::Ready> {
             match self {
                 Ty::Primary(primary) => Ty::Primary(primary),
                 Ty::Constructor(constructor) => Ty::Constructor(constructor),
                 Ty::Forall(forall) => Ty::Forall(forall.seal()),
                 Ty::Pi(pi) => Ty::Pi(pi.seal()),
-                Ty::Debruijin(debruijin) => Ty::Debruijin(debruijin),
+                Ty::Bound(debruijin) => Ty::Bound(debruijin),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
             }
         }
@@ -180,14 +189,14 @@ pub mod seals {
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
 pub mod modes {
-    use std::{fmt::Debug, hash::Hash};
+    use std::{fmt::Debug, hash::Hash, rc::Rc};
 
     use super::HoleRef;
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
     pub trait TypeMode {
-        type Hole<'tctx>: Debug + PartialEq + Eq + Clone + Hash;
+        type Hole: Debug + PartialEq + Eq + Clone + Hash;
     }
 
     /// Ready is the type of build in types.
@@ -195,7 +204,7 @@ pub mod modes {
     pub struct Ready;
 
     impl TypeMode for Ready {
-        type Hole<'tctx> = Box<crate::ty::Hole<'tctx, Ready>>;
+        type Hole = Box<crate::ty::Hole<Ready>>;
     }
 
     /// Mut is the type of mutable types.
@@ -203,7 +212,7 @@ pub mod modes {
     pub struct Mut;
 
     impl TypeMode for Mut {
-        type Hole<'tctx> = &'tctx HoleRef<'tctx, Mut>;
+        type Hole = Rc<HoleRef<Mut>>;
     }
 }
 
@@ -237,6 +246,6 @@ mod kinds {
 fn _assert_sync_send() {
     fn f<T: Sync + Send>() {}
 
-    f::<Ty<'static, modes::Ready>>();
-    f::<Ty<'static, modes::Ready>>();
+    f::<Ty<modes::Ready>>();
+    f::<Ty<modes::Ready>>();
 }
