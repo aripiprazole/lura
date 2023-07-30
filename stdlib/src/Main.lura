@@ -27,6 +27,10 @@ head (Cons x _) = Just x
 head Nil        = Nothing
 
 public
+`$ : ^a ^b. a -> (a -> b) -> b
+`$ x f = f x
+
+public
 println : String -> ()
 
 Pao { Pao }

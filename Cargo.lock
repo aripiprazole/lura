@@ -910,7 +910,6 @@ dependencies = [
  "im",
  "lura-diagnostic",
  "lura-hir",
- "lura-syntax",
  "petgraph",
  "salsa-2022",
  "tree-sitter",

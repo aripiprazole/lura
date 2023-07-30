@@ -7,7 +7,6 @@ version.workspace = true
 
 [dependencies]
 lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
-lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
 lura-hir = {version = "0.0.1", path = "../lura-hir"}
 
 salsa-2022.workspace = true
