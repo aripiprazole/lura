@@ -23,9 +23,23 @@ pub enum Primary {
     #[default]
     Error,
 
+    Type,
     Unit,
     Bool,
-    Int,
+    String,
+    Char,
+    Int(u8, bool),
+}
+
+impl Primary {
+    pub const U8: Self = Self::Int(8, false);
+    pub const I8: Self = Self::Int(8, true);
+    pub const U16: Self = Self::Int(16, false);
+    pub const I16: Self = Self::Int(16, true);
+    pub const U32: Self = Self::Int(32, false);
+    pub const I32: Self = Self::Int(32, true);
+    pub const U64: Self = Self::Int(64, false);
+    pub const I64: Self = Self::Int(64, true);
 }
 
 /// Represents a constructor. This is used to represent a type constructor.
@@ -71,6 +85,31 @@ impl<M: modes::TypeMode> Default for Ty<M> {
     /// It's a sentinel value that is used to represent an error.
     fn default() -> Self {
         Ty::Primary(Primary::Error)
+    }
+}
+
+impl Ty<modes::Mut> {
+    pub fn from_pi<I>(parameters: I, ty: Self) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        let mut parameters = parameters.into_iter();
+        let first = parameters.next().unwrap();
+        let mut result = Self::Pi(Arrow {
+            paramater: first.into(),
+            ty: ty.into(),
+            _phantom: PhantomData,
+        });
+
+        for parameter in parameters {
+            result = Ty::Pi(Arrow {
+                paramater: Box::new(parameter),
+                ty: Box::new(result),
+                _phantom: PhantomData,
+            });
+        }
+
+        result
     }
 }
 

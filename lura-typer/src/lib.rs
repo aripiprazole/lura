@@ -11,7 +11,7 @@ pub struct Jar(ty::ThirTy);
 
 /// The database that Typer uses internally. This is a trait so that we can
 /// mock it during testing.
-pub trait TyperDb: DbWithJar<Jar> {}
+pub trait TyperDb: HirDb + DbWithJar<Jar> {}
 
 impl<DB> TyperDb for DB where DB: ?Sized + HirDb + salsa::DbWithJar<Jar> {}
 
