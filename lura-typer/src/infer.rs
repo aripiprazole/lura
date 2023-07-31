@@ -1,12 +1,14 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use std::rc::Rc;
+
 use lura_hir::{
     resolve::{Definition, Reference},
     source::{
         expr::{Callee, Expr},
         literal::Literal,
-        pattern::Pattern,
+        pattern::{Constructor, Pattern},
         stmt::{Block, Stmt},
         top_level::TopLevel,
         type_rep::TypeRep,
@@ -30,11 +32,19 @@ pub struct TyName {
     pub rigidness: Rigidness,
 }
 
+#[derive(Default, Clone, Hash)]
+pub struct TyVariant {
+    pub name: Tau,
+    pub parameters: im_rc::Vector<Tau>,
+}
+
 #[derive(Clone)]
 pub struct TyEnv {
     pub level: Level,
+    pub variables: im_rc::HashMap<Definition, Sigma>,
+    pub constructors: im_rc::HashMap<Definition, Rc<TyVariant>>,
+    pub type_references: im_rc::HashMap<Tau, Rc<TyVariant>>,
     pub type_names: im_rc::HashMap<String, TyName>,
-    pub type_variables: im_rc::HashMap<Definition, Sigma>,
 }
 
 type Sigma = Ty<modes::Mut>;
@@ -58,7 +68,7 @@ impl Check for Pattern {
 
     /// Checks the pattern against the type. This is used to
     /// check the pattern against the type.
-    /// 
+    ///
     /// It does generate definition for the bindings in
     /// the context.
     fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
@@ -68,11 +78,65 @@ impl Check for Pattern {
             Pattern::Error(_) => Tau::Primary(Primary::Error),
 
             // SECTION: Patterns
-            Pattern::Literal(_) => todo!(),
-            Pattern::Wildcard(_) => todo!(),
-            Pattern::Constructor(_) => todo!(),
-            Pattern::Binding(_) => todo!(),
+            Pattern::Literal(literal) => {
+                // Unifies the actual type with the expected type
+                let actual_ty = literal.infer(ctx);
+                actual_ty.unify(ty);
+                actual_ty
+            }
+            Pattern::Constructor(constructor) => {
+                // Unifies the actual type with the expected type
+                let actual_ty = constructor.name(ctx.db).infer(ctx);
+                actual_ty.unify(ty);
+
+                // Checks the parameters of the constructor agains't
+                // the arguments of the constructor
+                let variant = ctx
+                    .env
+                    .type_references
+                    .get(&actual_ty)
+                    .cloned()
+                    .unwrap_or_default();
+
+                // Gets the parameters of the constructor
+                let parameters = variant.parameters.clone();
+
+                for (argument, ty) in constructor.arguments(ctx.db).into_iter().zip(parameters) {
+                    // Checks the argument against the type
+                    argument.check(ty, ctx);
+                }
+
+                actual_ty
+            }
+            // Returns the default type for the pattern
+            //   - Wildcard
+            //   - Binding
+            Pattern::Binding(binding) => {
+                // Adds the binding to the context
+                let name = binding.name(ctx.db);
+                ctx.env.variables.insert(name, ty.clone());
+                ty
+            }
+            Pattern::Wildcard(_) => ty,
             Pattern::Rest(_) => todo!("rest pattern"),
+        }
+    }
+}
+
+impl Infer for Constructor {
+    type Output = Ty<modes::Mut>;
+
+    /// Infers the type of the callee. This is used
+    /// to infer the type of the callee.
+    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+        match self {
+            // SECTION: Constructor
+            Constructor::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
+            // SECTION: Builtin
+            Constructor::Array => todo!("array builtin"),
+            Constructor::Tuple => todo!("tuple builtin"),
+            // SECTION: Reference
+            Constructor::Path(path) => ctx.constructor(path),
         }
     }
 }
@@ -128,10 +192,10 @@ impl Infer for Expr {
                 let pi = Ty::from_pi(parameters.into_iter(), hole.clone());
 
                 // Infers the type of the callee, and then applies the arguments
-                // E.G Giving a `f : Int -> Int -> Int` 
-                //     and `pi : Int -> Int -> :hole:`,
-                //     we get `hole = Int`, in the unification process, and we get
-                //     the result of value.
+                // E.G Giving a `f : Int -> Int -> Int`
+                //     and `pi : Int -> Int -> ?hole`,
+                //     we get `?hole = Int`, in the unification
+                //     process, and we get the result of value.
                 pi.unify(call.callee(ctx.db).infer(ctx));
 
                 // Returns the type of the result
@@ -215,7 +279,7 @@ impl Infer for TopLevel {
 
     /// Infers the type of the top level. This is used
     /// to infer the type of the top level.
-    /// 
+    ///
     /// It does not return a value, as it is a top level
     /// declaration. It does only add to the context and
     /// return unit type.
@@ -361,6 +425,10 @@ impl<'tctx> InferCtx<'tctx> {
     }
 
     fn reference(&self, reference: Reference) -> Tau {
+        todo!()
+    }
+
+    fn constructor(&self, reference: Reference) -> Tau {
         todo!()
     }
 

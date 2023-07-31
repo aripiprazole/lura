@@ -53,6 +53,11 @@ impl Definition {
     pub fn location(self, db: &dyn crate::HirDb) -> Location {
         self.name(db).location(db)
     }
+
+    #[salsa::tracked]
+    pub fn to_string(self, db: &dyn crate::HirDb) -> String {
+        self.name(db).to_string(db).unwrap_or("~INTERNAL ERROR~".into())
+    }
 }
 
 impl crate::walking::Walker for Definition {

@@ -44,7 +44,7 @@ impl Primary {
 
 /// Represents a constructor. This is used to represent a type constructor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Constructor {
+pub struct TypeConstructor {
     pub name: String,
 }
 
@@ -61,7 +61,7 @@ pub enum TyVar {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
-    Constructor(Constructor),
+    Constructor(TypeConstructor),
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),

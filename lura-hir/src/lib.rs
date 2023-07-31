@@ -16,6 +16,7 @@ pub struct Jar(
     resolve::Definition,
     resolve::DefinitionId,
     resolve::Definition_location,
+    resolve::Definition_to_string,
     resolve::Reference,
     resolve::Reference_is_type_level,
     resolve::Reference_name,
