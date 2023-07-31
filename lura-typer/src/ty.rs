@@ -89,11 +89,10 @@ impl<M: modes::TypeMode> Default for Ty<M> {
 }
 
 impl Ty<modes::Mut> {
-    pub fn from_pi<I>(parameters: I, ty: Self) -> Self
+    pub fn from_pi<I>(mut parameters: I, ty: Self) -> Self
     where
         I: Iterator<Item = Self>,
     {
-        let mut parameters = parameters.into_iter();
         let first = parameters.next().unwrap();
         let mut result = Self::Pi(Arrow {
             paramater: first.into(),
