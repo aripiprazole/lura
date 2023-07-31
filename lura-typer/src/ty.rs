@@ -50,6 +50,15 @@ pub struct TypeConstructor {
 
 pub type Uniq = usize;
 
+/// Represents the rigidness of the type variable. This is used to represent the rigidness of the
+/// type variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Rigidness {
+    Rigid,
+    Flexible,
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyVar {
     Bound(String),
@@ -65,7 +74,7 @@ pub enum Ty<M: modes::TypeMode> {
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
-    Bound(TyVar),
+    Bound(TyVar, Rigidness),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -217,7 +226,7 @@ pub mod seals {
                 Ty::Constructor(constructor) => Ty::Constructor(constructor),
                 Ty::Forall(forall) => Ty::Forall(forall.seal()),
                 Ty::Pi(pi) => Ty::Pi(pi.seal()),
-                Ty::Bound(debruijin) => Ty::Bound(debruijin),
+                Ty::Bound(debruijin, rigidness) => Ty::Bound(debruijin, rigidness),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
             }
         }

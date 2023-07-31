@@ -18,14 +18,6 @@ use lura_hir::{
 
 use crate::ty::*;
 
-/// Represents the rigidness of the type variable. This is used to represent the rigidness of the
-/// type variable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Rigidness {
-    Rigid,
-    Flexible,
-}
-
 #[derive(Clone)]
 pub struct TyName {
     pub ty: String,
@@ -286,12 +278,12 @@ impl Infer for TopLevel {
     fn infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            TopLevel::Empty => todo!(),
-            TopLevel::Error(_) => todo!(),
+            TopLevel::Empty => {},
+            TopLevel::Error(_) => {},
 
             // SECTION: Top Level
-            TopLevel::Using(_) => todo!(),
-            TopLevel::Command(_) => todo!(),
+            TopLevel::Using(_) => {},
+            TopLevel::Command(_) => {},
             TopLevel::BindingGroup(_) => todo!(),
             TopLevel::ClassDecl(_) => todo!(),
             TopLevel::TraitDecl(_) => todo!(),
@@ -311,8 +303,8 @@ impl Check for Expr {
     fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            Expr::Empty => todo!(),
-            Expr::Error(_) => todo!(),
+            Expr::Empty => Tau::Primary(Primary::Error),
+            Expr::Error(_) => Tau::Primary(Primary::Error),
 
             // SECTION: Expressions
             Expr::Path(_) => todo!(),
@@ -338,8 +330,18 @@ impl Infer for Stmt {
             Stmt::Error(_) => {}
 
             // SECTION: Statements
-            Stmt::Ask(_) => {}
-            Stmt::Let(_) => {}
+            Stmt::Ask(ask_stmt) => {
+                // Infers the type of the value, and then checks the pattern
+                let value_ty = ask_stmt.value(ctx.db).infer(ctx);
+
+                ask_stmt.pattern(ctx.db).check(value_ty, ctx);
+            }
+            Stmt::Let(let_stmt) => {
+                // Infers the type of the value, and then checks the pattern
+                let value_ty = let_stmt.value(ctx.db).infer(ctx);
+
+                let_stmt.pattern(ctx.db).check(value_ty, ctx);
+            }
 
             // SECTION: Expressions
             Stmt::Downgrade(expr) => return expr.infer(ctx),
