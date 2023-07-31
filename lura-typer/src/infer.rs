@@ -1,16 +1,14 @@
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use std::rc::Rc;
 
 use lura_hir::{
     resolve::{Definition, Reference},
     source::{
+        declaration::Declaration,
         expr::{Callee, Expr},
         literal::Literal,
         pattern::{Constructor, Pattern},
         stmt::{Block, Stmt},
-        top_level::TopLevel,
+        top_level::{BindingGroup, TopLevel},
         type_rep::TypeRep,
         Spanned,
     },
@@ -18,14 +16,14 @@ use lura_hir::{
 
 use crate::ty::*;
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TyName {
-    pub ty: String,
+    pub ty: Tau,
     pub rigidness: Rigidness,
 }
 
 #[derive(Default, Clone, Hash)]
-pub struct TyVariant {
+pub struct InternalVariant {
     pub name: Tau,
     pub parameters: im_rc::Vector<Tau>,
 }
@@ -34,9 +32,10 @@ pub struct TyVariant {
 pub struct TyEnv {
     pub level: Level,
     pub variables: im_rc::HashMap<Definition, Sigma>,
-    pub constructors: im_rc::HashMap<Definition, Rc<TyVariant>>,
-    pub type_references: im_rc::HashMap<Tau, Rc<TyVariant>>,
-    pub type_names: im_rc::HashMap<String, TyName>,
+    pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>>,
+    pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
+    pub rigid_variables: im_rc::HashMap<Definition, Tau>,
+    pub type_names: im_rc::HashSet<TyName>,
 }
 
 type Sigma = Ty<modes::Mut>;
@@ -85,7 +84,7 @@ impl Check for Pattern {
                 // the arguments of the constructor
                 let variant = ctx
                     .env
-                    .type_references
+                    .references
                     .get(&actual_ty)
                     .cloned()
                     .unwrap_or_default();
@@ -202,10 +201,21 @@ impl Infer for Expr {
             }
 
             Expr::Abs(abs) => {
-                let ty_ctxt = abs
-                    .parameters(ctx.db)
-                    .iter()
-                    .fold(ctx.env.clone(), |acc, parameter| acc); // TODO
+                let mut ty_ctxt = ctx.env.clone();
+                let parameters = abs.parameters(ctx.db);
+
+                // Adds the parameters to the context
+                for parameter in parameters.into_iter() {
+                    if !parameter.is_implicit(ctx.db) {
+                        let type_rep = parameter.parameter_type(ctx.db);
+                        let name = TyName {
+                            ty: ctx.eval(type_rep),
+                            rigidness: Rigidness::Flexible,
+                        };
+
+                        ty_ctxt.type_names.insert(name);
+                    }
+                }
 
                 // Creates a new environment with the parameters locally, and
                 // infers the type of the body
@@ -225,7 +235,7 @@ impl Infer for Expr {
                     .into_iter()
                     .fold(hole, |acc, arm| {
                         // Checks the pattern against the scrutinee
-                        let pattern = arm.pattern.check(scrutinee.clone(), ctx);
+                        arm.pattern.check(scrutinee.clone(), ctx);
 
                         // Checks agains't the old type, to check if both are compatible
                         arm.value.check(acc, ctx)
@@ -276,19 +286,101 @@ impl Infer for TopLevel {
     /// declaration. It does only add to the context and
     /// return unit type.
     fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+        #[inline]
+        fn create_declaration_ty(ctx: &mut InferCtx, decl: impl Declaration) -> Tau {
+            let name = decl.name(ctx.db);
+            let parameters = decl
+                .parameters(ctx.db)
+                .into_iter()
+                .filter(|parameter| !parameter.is_implicit(ctx.db))
+                .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                .collect::<im_rc::Vector<_>>();
+
+            let constructor = match decl.type_rep(ctx.db) {
+                Some(TypeRep::Empty | TypeRep::Error(_)) => {
+                    Tau::Constructor(TyConstructor { name })
+                }
+                Some(type_rep) => ctx.eval(type_rep),
+                None => Tau::Constructor(TyConstructor { name }),
+            };
+
+            // Creates the type of the variant
+            let variant_ty = Ty::from_pi(parameters.into_iter(), constructor);
+            ctx.env.extend(name, variant_ty.clone());
+            variant_ty
+        }
+
+        #[inline]
+        fn check_binding_group(ctx: &mut InferCtx, binding_group: BindingGroup) {
+            // Creates the type of the binding group using the
+            // signature of the binding group
+            let return_ty = create_declaration_ty(ctx, binding_group.signature(ctx.db));
+
+            // Gets the parameter types
+            let parameters = binding_group
+                .parameters(ctx.db)
+                .into_iter()
+                .filter(|parameter| !parameter.is_implicit(ctx.db))
+                .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                .collect::<im_rc::Vector<_>>();
+
+            // Checks the type of each clause
+            for clause in binding_group.clauses(ctx.db) {
+                // Checks the pattern against the scrutinee
+                let arguments = clause.arguments(ctx.db);
+                for (pattern, ty) in arguments.into_iter().zip(parameters.clone()) {
+                    pattern.check(ty, ctx);
+                }
+
+                // Checks the return type of the clause
+                clause.value(ctx.db).check(return_ty.clone(), ctx);
+            }
+        }
+
         match self {
             // SECTION: Sentinel Values
-            TopLevel::Empty => {},
-            TopLevel::Error(_) => {},
+            TopLevel::Empty => {}
+            TopLevel::Error(_) => {}
 
             // SECTION: Top Level
-            TopLevel::Using(_) => {},
-            TopLevel::Command(_) => {},
-            TopLevel::BindingGroup(_) => todo!(),
+            TopLevel::Using(_) => {}
+            TopLevel::Command(_) => {}
+            TopLevel::BindingGroup(binding_group) => check_binding_group(ctx, binding_group),
             TopLevel::ClassDecl(_) => todo!(),
             TopLevel::TraitDecl(_) => todo!(),
-            TopLevel::DataDecl(_) => todo!(),
-            TopLevel::TypeDecl(_) => todo!(),
+            TopLevel::DataDecl(data_declaration) => {
+                let ty = create_declaration_ty(ctx, data_declaration);
+
+                // Creates the type of the variant
+                for variant in data_declaration.variants(ctx.db) {
+                    let name = variant.name(ctx.db);
+                    let parameters = variant
+                        .parameters(ctx.db)
+                        .into_iter()
+                        .filter(|parameter| !parameter.is_implicit(ctx.db))
+                        .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                        .collect::<im_rc::Vector<_>>();
+
+                    let variant_ty = match variant.type_rep(ctx.db) {
+                        Some(TypeRep::Empty | TypeRep::Error(_)) => ty.clone(),
+                        Some(type_rep) => ctx.eval(type_rep),
+                        None => ty.clone(),
+                    };
+
+                    // Creates the type of the variant
+                    let variant_ty = Ty::from_pi(parameters.clone().into_iter(), variant_ty);
+                    let internal = Rc::new(InternalVariant {
+                        name: ty.clone(),
+                        parameters,
+                    });
+                    ctx.env.extend(name, variant_ty);
+                    ctx.env.references.insert(ty.clone(), internal.clone());
+                    ctx.env.constructors.insert(name, internal);
+                }
+            }
+            TopLevel::TypeDecl(type_declaration) => {
+                create_declaration_ty(ctx, type_declaration);
+            }
         };
 
         ctx.void()
@@ -300,7 +392,7 @@ impl Check for Expr {
 
     /// Checks the type of the expression. This is used
     /// to check the type of the expression.
-    fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
+    fn check(self, _: Tau, _: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
             Expr::Empty => Tau::Primary(Primary::Error),
@@ -385,10 +477,6 @@ impl Ty<modes::Mut> {
 }
 
 impl TyEnv {
-    fn lookup(name: Definition) -> Sigma {
-        todo!()
-    }
-
     fn extend(&mut self, name: Definition, ty: Sigma) {
         todo!()
     }
@@ -411,18 +499,26 @@ impl<'tctx> InferCtx<'tctx> {
         todo!()
     }
 
-    fn eval(&self, type_rep: TypeRep) -> Tau {
+    fn eval(&mut self, type_rep: TypeRep) -> Tau {
         match type_rep {
-            TypeRep::Unit => todo!(),
-            TypeRep::Empty => todo!(),
-            TypeRep::This => todo!(),
-            TypeRep::Tt => todo!(),
-            TypeRep::Error(_) => todo!(),
-            TypeRep::Path(_) => todo!(),
-            TypeRep::QPath(_) => todo!(),
+            // SECTION: Sentinel Values
+            TypeRep::Empty => self.new_meta(),
+            TypeRep::Error(_) => Tau::Primary(Primary::Error),
+            // SECTION: Primary Types
+            TypeRep::Unit => Tau::Primary(Primary::Unit),
+            TypeRep::Tt => Tau::Primary(Primary::Type),
+            TypeRep::Path(reference) => self
+                .env
+                .rigid_variables
+                .get(&reference.definition(self.db))
+                .cloned()
+                .unwrap_or(Tau::Primary(Primary::Error)),
             TypeRep::App(_) => todo!(),
             TypeRep::Arrow(_) => todo!(),
-            TypeRep::Downgrade(_) => todo!(),
+            TypeRep::This => todo!("`Self` is not supported yet"),
+            TypeRep::QPath(_) => todo!("qualified paths are not supported yet"),
+            // SECTION: Expressions
+            TypeRep::Downgrade(expr) => expr.infer(self),
         }
     }
 

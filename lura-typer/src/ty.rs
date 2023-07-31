@@ -1,4 +1,5 @@
 use holes::*;
+use lura_hir::resolve::Definition;
 use std::{cell::RefCell, hash::Hash, marker::PhantomData};
 
 pub type Level = usize;
@@ -44,8 +45,8 @@ impl Primary {
 
 /// Represents a constructor. This is used to represent a type constructor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeConstructor {
-    pub name: String,
+pub struct TyConstructor {
+    pub name: Definition,
 }
 
 pub type Uniq = usize;
@@ -70,7 +71,7 @@ pub enum TyVar {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
-    Constructor(TypeConstructor),
+    Constructor(TyConstructor),
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
