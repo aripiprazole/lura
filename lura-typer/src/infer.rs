@@ -35,7 +35,7 @@ pub struct TyEnv {
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
     pub rigid_variables: im_rc::HashMap<Definition, Tau>,
-    pub type_names: im_rc::HashSet<TyName>,
+    pub names: im_rc::HashSet<TyName>,
 }
 
 type Sigma = Ty<modes::Mut>;
@@ -161,7 +161,7 @@ impl Infer for Expr {
     /// Infers the type of the expression. This is used
     /// to infer the type of the expression.
     fn infer(self, ctx: &mut InferCtx) -> Self::Output {
-        match self {
+        let ty = match self.clone() {
             // SECTION: Sentinel Values
             Expr::Empty => Tau::Primary(Primary::Error),
             Expr::Error(_) => Tau::Primary(Primary::Error),
@@ -201,7 +201,7 @@ impl Infer for Expr {
             }
 
             Expr::Abs(abs) => {
-                let mut ty_ctxt = ctx.env.clone();
+                let mut env = ctx.env.clone();
                 let parameters = abs.parameters(ctx.db);
 
                 // Adds the parameters to the context
@@ -213,13 +213,14 @@ impl Infer for Expr {
                             rigidness: Rigidness::Flexible,
                         };
 
-                        ty_ctxt.type_names.insert(name);
+                        // Adds the parameter to the environment
+                        env.names.insert(name);
                     }
                 }
 
                 // Creates a new environment with the parameters locally, and
                 // infers the type of the body
-                ctx.with_env(ty_ctxt, |local| abs.value(local.db).infer(local))
+                ctx.with_env(env, |local| abs.value(local.db).infer(local))
             }
 
             Expr::Match(match_expr) => {
@@ -246,7 +247,15 @@ impl Infer for Expr {
             // Evaluates the type of the expression, and then checks if it is
             // compatible with the expected type
             Expr::Upgrade(type_rep) => ctx.eval(*type_rep),
-        }
+        };
+
+        // Associate the type with the expression
+        // This is used to access the type of the expression in
+        // a elaboration step
+        ctx.expressions.insert(self, ty.clone());
+
+        // Returns the type of the expression
+        ty
     }
 }
 
@@ -306,6 +315,10 @@ impl Infer for TopLevel {
 
             // Creates the type of the variant
             let variant_ty = Ty::from_pi(parameters.into_iter(), constructor);
+
+            // Quantifies the type of the variant
+            let variant_ty = ctx.quantify(variant_ty);
+
             ctx.env.extend(name, variant_ty.clone());
             variant_ty
         }
@@ -369,11 +382,16 @@ impl Infer for TopLevel {
 
                     // Creates the type of the variant
                     let variant_ty = Ty::from_pi(parameters.clone().into_iter(), variant_ty);
+
+                    // Quantifies the type of the variant
+                    let variant_ty = ctx.quantify(variant_ty);
+
+                    // Creates the internal variant
                     let internal = Rc::new(InternalVariant {
                         name: ty.clone(),
                         parameters,
                     });
-                    ctx.env.extend(name, variant_ty);
+                    ctx.env.extend(name, variant_ty.clone());
                     ctx.env.references.insert(ty.clone(), internal.clone());
                     ctx.env.constructors.insert(name, internal);
                 }
@@ -467,35 +485,69 @@ struct MetaTv {}
 
 struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
+    pub expressions: im_rc::HashMap<Expr, Tau>,
     pub env: TyEnv,
 }
 
 impl Ty<modes::Mut> {
     fn unify(&self, another: Tau) {
-        todo!()
+        match (self.clone(), another) {
+            (Ty::Primary(_), Ty::Primary(_)) => todo!(),
+            (Ty::Primary(_), Ty::Constructor(_)) => todo!(),
+            (Ty::Primary(_), Ty::Forall(_)) => todo!(),
+            (Ty::Primary(_), Ty::Pi(_)) => todo!(),
+            (Ty::Primary(_), Ty::Hole(_)) => todo!(),
+            (Ty::Primary(_), Ty::Bound(_, _)) => todo!(),
+            (Ty::Constructor(_), Ty::Primary(_)) => todo!(),
+            (Ty::Constructor(_), Ty::Constructor(_)) => todo!(),
+            (Ty::Constructor(_), Ty::Forall(_)) => todo!(),
+            (Ty::Constructor(_), Ty::Pi(_)) => todo!(),
+            (Ty::Constructor(_), Ty::Hole(_)) => todo!(),
+            (Ty::Constructor(_), Ty::Bound(_, _)) => todo!(),
+            (Ty::Forall(_), Ty::Primary(_)) => todo!(),
+            (Ty::Forall(_), Ty::Constructor(_)) => todo!(),
+            (Ty::Forall(_), Ty::Forall(_)) => todo!(),
+            (Ty::Forall(_), Ty::Pi(_)) => todo!(),
+            (Ty::Forall(_), Ty::Hole(_)) => todo!(),
+            (Ty::Forall(_), Ty::Bound(_, _)) => todo!(),
+            (Ty::Pi(_), Ty::Primary(_)) => todo!(),
+            (Ty::Pi(_), Ty::Constructor(_)) => todo!(),
+            (Ty::Pi(_), Ty::Forall(_)) => todo!(),
+            (Ty::Pi(_), Ty::Pi(_)) => todo!(),
+            (Ty::Pi(_), Ty::Hole(_)) => todo!(),
+            (Ty::Pi(_), Ty::Bound(_, _)) => todo!(),
+            (Ty::Hole(_), Ty::Primary(_)) => todo!(),
+            (Ty::Hole(_), Ty::Constructor(_)) => todo!(),
+            (Ty::Hole(_), Ty::Forall(_)) => todo!(),
+            (Ty::Hole(_), Ty::Pi(_)) => todo!(),
+            (Ty::Hole(_), Ty::Hole(_)) => todo!(),
+            (Ty::Hole(_), Ty::Bound(_, _)) => todo!(),
+            (Ty::Bound(_, _), Ty::Primary(_)) => todo!(),
+            (Ty::Bound(_, _), Ty::Constructor(_)) => todo!(),
+            (Ty::Bound(_, _), Ty::Forall(_)) => todo!(),
+            (Ty::Bound(_, _), Ty::Pi(_)) => todo!(),
+            (Ty::Bound(_, _), Ty::Hole(_)) => todo!(),
+            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!(),
+        }
     }
 }
 
 impl TyEnv {
     fn extend(&mut self, name: Definition, ty: Sigma) {
-        todo!()
+        self.variables.insert(name, ty);
     }
 }
 
 impl<'tctx> InferCtx<'tctx> {
-    fn instantiate(&self, ty: Sigma) -> Rho {
+    fn instantiate(&self, _ty: Sigma) -> Rho {
         todo!()
     }
 
-    fn quantify(&self, names: Vec<MetaTv>, ty: Rho) -> Sigma {
+    fn quantify(&self, _ty: Rho) -> Sigma {
         todo!()
     }
 
     fn new_meta(&mut self) -> Tau {
-        todo!()
-    }
-
-    fn new_skolem(&mut self) -> TyVar {
         todo!()
     }
 
@@ -523,11 +575,31 @@ impl<'tctx> InferCtx<'tctx> {
     }
 
     fn reference(&self, reference: Reference) -> Tau {
-        todo!()
+        let let_ty = self
+            .env
+            .variables
+            .get(&reference.definition(self.db))
+            .cloned()
+            .unwrap_or_else(|| Tau::Primary(Primary::Error));
+
+        self.instantiate(let_ty)
     }
 
     fn constructor(&self, reference: Reference) -> Tau {
-        todo!()
+        let let_ty = self
+            .env
+            .constructors
+            .get(&reference.definition(self.db))
+            .cloned()
+            .unwrap_or_else(|| {
+                // If the constructor is not found, then we return the error type
+                Rc::new(InternalVariant {
+                    name: Tau::Primary(Primary::Error),
+                    parameters: im_rc::vector![],
+                })
+            });
+
+        self.instantiate(let_ty.name.clone())
     }
 
     fn void(&mut self) -> Tau {
@@ -539,19 +611,6 @@ impl<'tctx> InferCtx<'tctx> {
         F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
     {
         let old_env = std::mem::replace(&mut self.env, env);
-        let result = f(self);
-        self.env = old_env;
-        result
-    }
-
-    fn extend<F, U>(&mut self, name: Definition, ty: Sigma, f: F) -> U
-    where
-        F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
-    {
-        let mut new_env = self.env.clone();
-        new_env.extend(name, ty);
-
-        let old_env = std::mem::replace(&mut self.env, new_env);
         let result = f(self);
         self.env = old_env;
         result
