@@ -559,20 +559,20 @@ impl Check for Expr {
 
     /// Checks the type of the expression. This is used
     /// to check the type of the expression.
-    fn check(self, _: Tau, _: &mut InferCtx) -> Self::Output {
+    fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
             Expr::Empty => Tau::Primary(Primary::Error),
             Expr::Error(_) => Tau::Primary(Primary::Error),
 
             // SECTION: Expressions
-            Expr::Path(_) => todo!(),
-            Expr::Literal(_) => todo!(),
-            Expr::Call(_) => todo!(),
-            Expr::Ann(_) => todo!(),
-            Expr::Abs(_) => todo!(),
-            Expr::Match(_) => todo!(),
-            Expr::Upgrade(_) => todo!(),
+            _ => {
+                let actual_ty = self.infer(ctx);
+
+                // Checks that the actual type is a subtype of the expected type
+                actual_ty.unify(tau, ctx);
+                actual_ty
+            }
         }
     }
 }
@@ -615,8 +615,21 @@ impl Check for Block {
 
     /// Checks the type of the block. This is used
     /// to check the type of the block.
-    fn check(self, _ty: Tau, _ctx: &mut InferCtx) -> Self::Output {
-        todo!()
+    fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
+        for statement in self.statements(ctx.db) {
+            statement.infer(ctx);
+        }
+
+        // Checks the type of the last statement
+        // TODO: check returns
+        let actual_ty = if let Some(value) = self.statements(ctx.db).last() {
+            value.clone().infer(ctx)
+        } else {
+            Tau::Primary(Primary::Unit)
+        };
+
+        actual_ty.unify(tau, ctx);
+        actual_ty
     }
 }
 
@@ -631,8 +644,7 @@ struct InferCtx<'tctx> {
 impl Ty<modes::Mut> {
     /// Unifies the type with another type. This is used
     /// to equate two types.
-    fn unify<'ctx, 'db>(&self, tau: Tau, ctx: &'ctx mut InferCtx<'db>) {
-        let location = ctx.location.clone();
+    fn unify(&self, tau: Tau, ctx: &mut InferCtx) {
         let mut substitution = Substitution {
             ctx,
             errors: im_rc::vector![],
