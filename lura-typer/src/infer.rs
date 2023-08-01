@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
+    lower::hir_lower,
+    package::Package,
     resolve::{Definition, Reference},
     source::{
         declaration::Declaration,
@@ -16,7 +18,7 @@ use lura_hir::{
 };
 
 use crate::{
-    thir::{ThirDiagnostic, ThirLocation},
+    thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
     ty::{holes::HoleRef, *},
 };
 
@@ -518,6 +520,7 @@ impl Check for TopLevel {
 
 struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
+    pub pkg: Package,
     pub location: Location,
     pub expressions: im_rc::HashMap<Expr, Tau>,
     pub env: TyEnv,
@@ -648,7 +651,26 @@ impl<'tctx> InferCtx<'tctx> {
 
     /// Accumulates a diagnostic and returns a default value. This is used
     /// to accumulate diagnostics and return a default value.
-    fn accumulate<T: Default>(&self, diagnostic: ThirDiagnostic) -> T {
+    fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
+        // We set the location of the diagnostic, lowering the
+        // source of location
+        let source = match self.location {
+            Location::TextRange(ref text_range) => {
+                // We lower the hir source, if the location is a text range
+                let hir_source = hir_lower(self.db, self.pkg, text_range.source);
+
+                ThirLocation::TextRange(ThirTextRange {
+                    source: hir_source,
+                    start: text_range.start,
+                    end: text_range.end,
+                    file_name: text_range.file_name.clone(),
+                    text: text_range.text.clone(),
+                })
+            }
+            Location::CallSite => ThirLocation::CallSite,
+        };
+        diagnostic.location = source;
+
         // We push the diagnostic to the diagnostics
         Diagnostics::push(self.db, Report::new(diagnostic));
 
