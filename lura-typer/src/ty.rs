@@ -139,12 +139,24 @@ mod display {
 
 /// Represents a to-be-filled type. This is used to represent a type that is not filled yet.
 pub mod holes {
+    use std::{rc::Rc, ops::{DerefMut, Deref}};
+
     use super::*;
 
     /// Represents a hole. This is used to represent a hole.
     #[derive(Default, Debug, Clone)]
     pub struct Hole<M: modes::TypeMode> {
         pub kind: HoleKind<M>,
+    }
+
+    impl<M: modes::TypeMode> Hole<M> {
+        pub fn kind(&self) -> &HoleKind<M> {
+            &self.kind
+        }
+
+        pub fn set_kind(&mut self, kind: HoleKind<M>) {
+            self.kind = kind;
+        }
     }
 
     impl<M: modes::TypeMode + PartialEq> Eq for Hole<M> {}
@@ -180,7 +192,15 @@ pub mod holes {
     #[derive(Debug, Clone)]
     #[repr(transparent)]
     pub struct HoleRef<M: modes::TypeMode> {
-        pub data: RefCell<Hole<M>>,
+        pub data: Rc<RefCell<Hole<M>>>,
+    }
+
+    impl Deref for HoleRef<modes::Mut> {
+        type Target = Rc<RefCell<Hole<modes::Mut>>>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.data
+        }
     }
 
     impl<M: modes::TypeMode + PartialEq> Eq for HoleRef<M> {}
@@ -275,7 +295,7 @@ pub mod modes {
     pub struct Mut;
 
     impl TypeMode for Mut {
-        type Hole = Rc<HoleRef<Mut>>;
+        type Hole = HoleRef<Mut>;
     }
 }
 

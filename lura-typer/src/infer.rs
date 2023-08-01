@@ -17,7 +17,7 @@ use lura_hir::{
 
 use crate::{
     thir::{ThirDiagnostic, ThirLocation},
-    ty::*,
+    ty::{holes::HoleRef, *},
 };
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -45,6 +45,7 @@ pub struct TyEnv {
 type Sigma = Ty<modes::Mut>;
 type Rho = Ty<modes::Mut>;
 type Tau = Ty<modes::Mut>;
+type HoleMut = HoleRef<modes::Mut>;
 
 trait Infer {
     type Output;
@@ -470,7 +471,7 @@ impl Check for Block {
 
     /// Checks the type of the block. This is used
     /// to check the type of the block.
-    fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
+    fn check(self, _ty: Tau, _ctx: &mut InferCtx) -> Self::Output {
         todo!()
     }
 }
@@ -480,12 +481,10 @@ impl Check for TopLevel {
 
     /// Checks the type of the top level. This is used
     /// to check the type of the top level.
-    fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
+    fn check(self, _ty: Tau, _ctx: &mut InferCtx) -> Self::Output {
         todo!()
     }
 }
-
-struct MetaTv {}
 
 struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
@@ -494,43 +493,70 @@ struct InferCtx<'tctx> {
 }
 
 impl Ty<modes::Mut> {
+    /// Unifies the type with another type. This is used
+    /// to equate two types.
     fn unify(&self, another: Tau, ctx: &mut InferCtx) {
+        /// Unify holes with the type. This is used to
+        /// unify a hole with a type.
+        ///
+        /// It does this by checking the hole with the following
+        /// checks:
+        /// - "occurs  check" : check that the hole doesn't occur in the type
+        ///                     or simplier, check that you aren't making recursive types
+        /// - "scope check"   : check that you aren't using bound vars outside its scope
+        fn hole_unify_prechecking(ty: Tau, scope: Level, hole: HoleMut, ctx: &mut InferCtx) {
+            let _ = scope;
+            let _ = hole;
+            let _ = ctx;
+
+            match ty {
+                Ty::Primary(_) => todo!(),
+                Ty::Constructor(_) => todo!(),
+                Ty::Forall(_) => todo!(),
+                Ty::Pi(_) => todo!(),
+                Ty::Hole(_) => todo!(),
+                Ty::Bound(_, _) => todo!(),
+            }
+        }
+
+        /// Unifies a hole with a type. This is used to
+        /// unify a hole with a type.
+        fn unify_hole(ty: Tau, hole: HoleMut, ctx: &mut InferCtx) {
+            use holes::HoleKind::*;
+
+            match hole.borrow().kind() {
+                Error => {}, // TODO
+                Empty { scope } => {
+                    // Checks that the hole doesn't occur in the type
+                    if let Tau::Hole(_) = ty {
+                        return;
+                    }
+
+                    // Unify the hole with the type, and then set the kind
+                    // of the hole to filled
+                    hole_unify_prechecking(ty.clone(), *scope, hole.clone(), ctx);
+                    hole.borrow_mut().set_kind(Filled(ty));
+                }
+                Filled(a) => {
+                    a.unify(ty, ctx);
+                }
+            }
+        }
+
+        // Matches the types to equate them.
         match (self.clone(), another) {
-            (Ty::Primary(_), Ty::Primary(_)) => todo!(),
-            (Ty::Primary(_), Ty::Constructor(_)) => todo!(),
-            (Ty::Primary(_), Ty::Forall(_)) => todo!(),
-            (Ty::Primary(_), Ty::Pi(_)) => todo!(),
-            (Ty::Primary(_), Ty::Hole(_)) => todo!(),
-            (Ty::Primary(_), Ty::Bound(_, _)) => todo!(),
-            (Ty::Constructor(_), Ty::Primary(_)) => todo!(),
-            (Ty::Constructor(_), Ty::Constructor(_)) => todo!(),
-            (Ty::Constructor(_), Ty::Forall(_)) => todo!(),
-            (Ty::Constructor(_), Ty::Pi(_)) => todo!(),
-            (Ty::Constructor(_), Ty::Hole(_)) => todo!(),
-            (Ty::Constructor(_), Ty::Bound(_, _)) => todo!(),
-            (Ty::Forall(_), Ty::Primary(_)) => todo!(),
-            (Ty::Forall(_), Ty::Constructor(_)) => todo!(),
-            (Ty::Forall(_), Ty::Forall(_)) => todo!(),
-            (Ty::Forall(_), Ty::Pi(_)) => todo!(),
-            (Ty::Forall(_), Ty::Hole(_)) => todo!(),
-            (Ty::Forall(_), Ty::Bound(_, _)) => todo!(),
-            (Ty::Pi(_), Ty::Primary(_)) => todo!(),
-            (Ty::Pi(_), Ty::Constructor(_)) => todo!(),
-            (Ty::Pi(_), Ty::Forall(_)) => todo!(),
-            (Ty::Pi(_), Ty::Pi(_)) => todo!(),
-            (Ty::Pi(_), Ty::Hole(_)) => todo!(),
-            (Ty::Pi(_), Ty::Bound(_, _)) => todo!(),
-            (Ty::Hole(_), Ty::Primary(_)) => todo!(),
-            (Ty::Hole(_), Ty::Constructor(_)) => todo!(),
-            (Ty::Hole(_), Ty::Forall(_)) => todo!(),
-            (Ty::Hole(_), Ty::Pi(_)) => todo!(),
-            (Ty::Hole(_), Ty::Hole(_)) => todo!(),
-            (Ty::Hole(_), Ty::Bound(_, _)) => todo!(),
-            (Ty::Bound(_, _), Ty::Primary(_)) => todo!(),
-            (Ty::Bound(_, _), Ty::Constructor(_)) => todo!(),
-            (Ty::Bound(_, _), Ty::Forall(_)) => todo!(),
-            (Ty::Bound(_, _), Ty::Pi(_)) => todo!(),
-            (Ty::Bound(_, _), Ty::Hole(_)) => todo!(),
+            // SECTION: Unification
+            (Ty::Hole(hole_a), b) => unify_hole(b, hole_a, ctx),
+            (a, Ty::Hole(hole_b)) => unify_hole(a, hole_b, ctx),
+            (Ty::Primary(_), Ty::Primary(_)) => todo!("unify primary"),
+            (Ty::Constructor(_), Ty::Constructor(_)) => todo!("unify constructors"),
+            (Ty::Pi(_), Ty::Pi(_)) => todo!("unify pi"),
+            (Ty::Forall(_), Ty::Forall(_)) => todo!("unify forall"),
+            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!("unify bounds"),
+
+            // SECTION: Type Error
+            // Report accumulating type check error, when the types
+            // cannot be unified.
             (a, b) => ctx.accumulate(ThirDiagnostic {
                 location: ThirLocation::CallSite,
                 message: message![
@@ -540,7 +566,7 @@ impl Ty<modes::Mut> {
                     code!(b.seal()),
                 ],
             }),
-        }
+        };
     }
 }
 
