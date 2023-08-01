@@ -1,4 +1,5 @@
 #![feature(trait_upcasting)]
+#![feature(stmt_expr_attributes)]
 
 use lura_hir::HirDb;
 

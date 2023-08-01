@@ -83,7 +83,7 @@ impl ThirLocation {
 #[derive(Debug)]
 pub struct ThirDiagnostic {
     pub location: ThirLocation,
-    pub message: String,
+    pub message: Vec<lura_diagnostic::ErrorText>,
 }
 
 impl lura_diagnostic::Diagnostic for ThirDiagnostic {
@@ -92,7 +92,7 @@ impl lura_diagnostic::Diagnostic for ThirDiagnostic {
     const KIND: lura_diagnostic::ErrorKind = lura_diagnostic::ErrorKind::TypeError;
 
     fn text(&self) -> Vec<lura_diagnostic::ErrorText> {
-        vec![lura_diagnostic::ErrorText::Text(self.message.clone())]
+        self.message.clone()
     }
 
     fn location(&self) -> Option<Self::TextRange> {

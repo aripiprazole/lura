@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
     resolve::{Definition, Reference},
     source::{
@@ -14,7 +15,10 @@ use lura_hir::{
     },
 };
 
-use crate::ty::*;
+use crate::{
+    thir::{ThirDiagnostic, ThirLocation},
+    ty::*,
+};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TyName {
@@ -72,13 +76,13 @@ impl Check for Pattern {
             Pattern::Literal(literal) => {
                 // Unifies the actual type with the expected type
                 let actual_ty = literal.infer(ctx);
-                actual_ty.unify(ty);
+                actual_ty.unify(ty, ctx);
                 actual_ty
             }
             Pattern::Constructor(constructor) => {
                 // Unifies the actual type with the expected type
                 let actual_ty = constructor.name(ctx.db).infer(ctx);
-                actual_ty.unify(ty);
+                actual_ty.unify(ty, ctx);
 
                 // Checks the parameters of the constructor agains't
                 // the arguments of the constructor
@@ -187,7 +191,7 @@ impl Infer for Expr {
                 //     and `pi : Int -> Int -> ?hole`,
                 //     we get `?hole = Int`, in the unification
                 //     process, and we get the result of value.
-                pi.unify(call.callee(ctx.db).infer(ctx));
+                pi.unify(call.callee(ctx.db).infer(ctx), ctx);
 
                 // Returns the type of the result
                 hole
@@ -490,7 +494,7 @@ struct InferCtx<'tctx> {
 }
 
 impl Ty<modes::Mut> {
-    fn unify(&self, another: Tau) {
+    fn unify(&self, another: Tau, ctx: &mut InferCtx) {
         match (self.clone(), another) {
             (Ty::Primary(_), Ty::Primary(_)) => todo!(),
             (Ty::Primary(_), Ty::Constructor(_)) => todo!(),
@@ -527,7 +531,15 @@ impl Ty<modes::Mut> {
             (Ty::Bound(_, _), Ty::Forall(_)) => todo!(),
             (Ty::Bound(_, _), Ty::Pi(_)) => todo!(),
             (Ty::Bound(_, _), Ty::Hole(_)) => todo!(),
-            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!(),
+            (a, b) => ctx.accumulate(ThirDiagnostic {
+                location: ThirLocation::CallSite,
+                message: message![
+                    "could not unify the types",
+                    code!(a.seal()),
+                    "with",
+                    code!(b.seal()),
+                ],
+            }),
         }
     }
 }
@@ -572,6 +584,16 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Expressions
             TypeRep::Downgrade(expr) => expr.infer(self),
         }
+    }
+
+    /// Accumulates a diagnostic and returns a default value. This is used
+    /// to accumulate diagnostics and return a default value.
+    fn accumulate<T: Default>(&self, diagnostic: ThirDiagnostic) -> T {
+        // We push the diagnostic to the diagnostics
+        Diagnostics::push(self.db, Report::new(diagnostic));
+
+        // We return the default value
+        Default::default()
     }
 
     fn reference(&self, reference: Reference) -> Tau {

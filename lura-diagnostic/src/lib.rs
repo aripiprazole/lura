@@ -1,4 +1,12 @@
-use std::{any::Any, fmt::Debug, hash::Hash, ops::Deref, sync::Arc};
+#![feature(stmt_expr_attributes)]
+
+use std::{
+    any::Any,
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::Deref,
+    sync::Arc,
+};
 
 use salsa::DbWithJar;
 
@@ -216,11 +224,44 @@ pub mod dyn_utils {
 
 /// A kind of error text. This is used to format the error message.
 /// For example, `ErrorText::Code("foo")` will be formatted as `foo`.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone)]
 pub enum ErrorText {
     Text(String),
-    Code(String),
+    Code(Arc<dyn Display + Sync + Send>),
     Break,
+}
+
+impl Debug for ErrorText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorText::Text(it) => write!(f, "{:?}", it),
+            ErrorText::Code(it) => write!(f, "`{}`", it),
+            ErrorText::Break => write!(f, "\\n"),
+        }
+    }
+}
+
+impl Eq for ErrorText {}
+
+impl Hash for ErrorText {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            ErrorText::Text(it) => it.hash(state),
+            ErrorText::Code(it) => it.to_string().hash(state),
+            ErrorText::Break => "\n".hash(state),
+        }
+    }
+}
+
+impl PartialEq for ErrorText {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ErrorText::Text(a), ErrorText::Text(b)) => a == b,
+            (ErrorText::Code(a), ErrorText::Code(b)) => a.to_string() == b.to_string(),
+            (ErrorText::Break, ErrorText::Break) => true,
+            _ => false,
+        }
+    }
 }
 
 impl From<String> for ErrorText {
@@ -319,7 +360,7 @@ pub mod offsets {
 #[macro_export]
 macro_rules! code {
     ($e:expr) => {
-        $crate::ErrorText::Code($e.into())
+        $crate::ErrorText::Code(std::sync::Arc::new($e))
     };
 }
 
@@ -335,4 +376,3 @@ macro_rules! message {
         }
     };
 }
-

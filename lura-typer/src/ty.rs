@@ -122,6 +122,21 @@ impl Ty<modes::Mut> {
     }
 }
 
+/// Implements display traits tor the types. This is used to display the
+/// types, debug or otherwise.
+/// 
+/// Also used on diagnostics.
+mod display {
+    use super::*;
+    use std::fmt::Display;
+
+    impl<M: modes::TypeMode> Display for Ty<M> {
+        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            todo!()
+        }
+    }
+}
+
 /// Represents a to-be-filled type. This is used to represent a type that is not filled yet.
 pub mod holes {
     use super::*;
