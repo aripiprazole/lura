@@ -59,7 +59,6 @@ pub enum Rigidness {
     Flexible,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyVar {
     Bound(String),
@@ -72,6 +71,7 @@ pub enum TyVar {
 pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
     Constructor(TyConstructor),
+    App(Box<Ty<M>>, Box<Ty<M>>),
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
@@ -124,7 +124,7 @@ impl Ty<modes::Mut> {
 
 /// Implements display traits tor the types. This is used to display the
 /// types, debug or otherwise.
-/// 
+///
 /// Also used on diagnostics.
 mod display {
     use super::*;
@@ -139,7 +139,7 @@ mod display {
 
 /// Represents a to-be-filled type. This is used to represent a type that is not filled yet.
 pub mod holes {
-    use std::{rc::Rc, ops::{DerefMut, Deref}};
+    use std::{ops::Deref, rc::Rc};
 
     use super::*;
 
@@ -264,6 +264,7 @@ pub mod seals {
                 Ty::Pi(pi) => Ty::Pi(pi.seal()),
                 Ty::Bound(debruijin, rigidness) => Ty::Bound(debruijin, rigidness),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
+                Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
             }
         }
     }
@@ -272,7 +273,7 @@ pub mod seals {
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
 pub mod modes {
-    use std::{fmt::Debug, hash::Hash, rc::Rc};
+    use std::{fmt::Debug, hash::Hash};
 
     use super::HoleRef;
 
@@ -307,7 +308,10 @@ mod kinds {
     ///
     /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
     /// users from implementing this trait for their own types.
-    pub trait ArrowKind {}
+    pub trait ArrowKind {
+        const INFIX: bool;
+        const SYMBOL: &'static str;
+    }
 
     /// Forall is the type of polymorphic generalization.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -321,9 +325,20 @@ mod kinds {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Pi;
 
-    impl ArrowKind for Forall {}
-    impl ArrowKind for Sigma {}
-    impl ArrowKind for Pi {}
+    impl ArrowKind for Forall {
+        const INFIX: bool = false;
+        const SYMBOL: &'static str = "∀";
+    }
+
+    impl ArrowKind for Sigma {
+        const INFIX: bool = true;
+        const SYMBOL: &'static str = "×";
+    }
+
+    impl ArrowKind for Pi {
+        const INFIX: bool = true;
+        const SYMBOL: &'static str = "→";
+    }
 }
 
 fn _assert_sync_send() {

@@ -394,7 +394,11 @@ impl Infer for TopLevel {
 
             // SECTION: Top Level
             TopLevel::Using(_) => {}
-            TopLevel::Command(_) => {}
+            TopLevel::Command(command) => {
+                for argument in command.arguments(ctx.db) {
+                    argument.infer(ctx);
+                }
+            }
             TopLevel::BindingGroup(binding_group) => check_binding_group(ctx, binding_group),
             TopLevel::ClassDecl(_) => todo!(),
             TopLevel::TraitDecl(_) => todo!(),
@@ -503,16 +507,6 @@ impl Check for Block {
 
     /// Checks the type of the block. This is used
     /// to check the type of the block.
-    fn check(self, _ty: Tau, _ctx: &mut InferCtx) -> Self::Output {
-        todo!()
-    }
-}
-
-impl Check for TopLevel {
-    type Output = Ty<modes::Mut>;
-
-    /// Checks the type of the top level. This is used
-    /// to check the type of the top level.
     fn check(self, _ty: Tau, _ctx: &mut InferCtx) -> Self::Output {
         todo!()
     }
