@@ -408,6 +408,12 @@ impl<T> Spanned<T> {
     }
 }
 
+impl<A> HirElement for Spanned<A> {
+    fn location(&self, db: &dyn crate::HirDb) -> Location {
+        self.location.clone().unwrap_or_else(|| Location::call_site(db))
+    }
+}
+
 /// A spanned value that can be created with the [`Default`] trait. Pointing to the `call_site`.
 impl<T: Default> Default for Spanned<T> {
     fn default() -> Self {

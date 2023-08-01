@@ -11,7 +11,7 @@ use lura_hir::{
         stmt::{Block, Stmt},
         top_level::{BindingGroup, TopLevel},
         type_rep::TypeRep,
-        Spanned,
+        HirElement, Location, Spanned,
     },
 };
 
@@ -50,7 +50,37 @@ type HoleMut = HoleRef<modes::Mut>;
 trait Infer {
     type Output;
 
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output;
+    /// Infers the type of the element.
+    #[inline(always)]
+    fn infer(self, ctx: &mut InferCtx) -> Self::Output
+    where
+        Self: Sized + HirElement,
+    {
+        // Save the location, and update the location
+        let old_location = std::mem::replace(&mut ctx.location, self.location(ctx.db));
+        let ty = self.internal_infer(ctx);
+
+        // Get the location back
+        ctx.location = old_location;
+        ty
+    }
+
+    /// Infers the type of the element.
+    #[inline(always)]
+    fn infer_with(self, el: &impl HirElement, ctx: &mut InferCtx) -> Self::Output
+    where
+        Self: Sized,
+    {
+        // Save the location, and update the location
+        let old_location = std::mem::replace(&mut ctx.location, el.location(ctx.db));
+        let ty = self.internal_infer(ctx);
+
+        // Get the location back
+        ctx.location = old_location;
+        ty
+    }
+
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output;
 }
 
 trait Check {
@@ -82,7 +112,7 @@ impl Check for Pattern {
             }
             Pattern::Constructor(constructor) => {
                 // Unifies the actual type with the expected type
-                let actual_ty = constructor.name(ctx.db).infer(ctx);
+                let actual_ty = constructor.name(ctx.db).infer_with(&constructor, ctx);
                 actual_ty.unify(ty, ctx);
 
                 // Checks the parameters of the constructor agains't
@@ -124,7 +154,7 @@ impl Infer for Constructor {
 
     /// Infers the type of the callee. This is used
     /// to infer the type of the callee.
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Constructor
             Constructor::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
@@ -142,7 +172,7 @@ impl Infer for Callee {
 
     /// Infers the type of the callee. This is used
     /// to infer the type of the callee.
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Callee
             Callee::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
@@ -165,7 +195,7 @@ impl Infer for Expr {
 
     /// Infers the type of the expression. This is used
     /// to infer the type of the expression.
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         let ty = match self.clone() {
             // SECTION: Sentinel Values
             Expr::Empty => Tau::Primary(Primary::Error),
@@ -192,7 +222,7 @@ impl Infer for Expr {
                 //     and `pi : Int -> Int -> ?hole`,
                 //     we get `?hole = Int`, in the unification
                 //     process, and we get the result of value.
-                pi.unify(call.callee(ctx.db).infer(ctx), ctx);
+                pi.unify(call.callee(ctx.db).infer_with(&call, ctx), ctx);
 
                 // Returns the type of the result
                 hole
@@ -269,7 +299,7 @@ impl Infer for Spanned<Literal> {
 
     /// Infers the type of the literal. This is used
     /// to infer the type of the literal.
-    fn infer(self, _: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, _: &mut InferCtx) -> Self::Output {
         match self.value {
             // SECTION: Sentinel Values
             Literal::Empty => Tau::Primary(Primary::Error),
@@ -299,7 +329,7 @@ impl Infer for TopLevel {
     /// It does not return a value, as it is a top level
     /// declaration. It does only add to the context and
     /// return unit type.
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         #[inline]
         fn create_declaration_ty(ctx: &mut InferCtx, decl: impl Declaration) -> Tau {
             let name = decl.name(ctx.db);
@@ -438,7 +468,7 @@ impl Infer for Stmt {
 
     /// Infers the type of the statement. This is used
     /// to infer the type of the statement.
-    fn infer(self, ctx: &mut InferCtx) -> Self::Output {
+    fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel values
             Stmt::Empty => {}
@@ -488,6 +518,7 @@ impl Check for TopLevel {
 
 struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
+    pub location: Location,
     pub expressions: im_rc::HashMap<Expr, Tau>,
     pub env: TyEnv,
 }
@@ -510,6 +541,7 @@ impl Ty<modes::Mut> {
             let _ = ctx;
 
             match ty {
+                // SECTION: Types
                 Ty::Primary(_) => todo!(),
                 Ty::Constructor(_) => todo!(),
                 Ty::Forall(_) => todo!(),
@@ -525,10 +557,13 @@ impl Ty<modes::Mut> {
             use holes::HoleKind::*;
 
             match hole.borrow().kind() {
-                Error => {}, // TODO
+                // SECTION: Sentinel Values
+                Error => {} // TODO
+
+                // SECTION: Holes
                 Empty { scope } => {
                     // Checks that the hole doesn't occur in the type
-                    if let Tau::Hole(_) = ty {
+                    if ty == Tau::Hole(hole.clone()) {
                         return;
                     }
 
@@ -537,9 +572,7 @@ impl Ty<modes::Mut> {
                     hole_unify_prechecking(ty.clone(), *scope, hole.clone(), ctx);
                     hole.borrow_mut().set_kind(Filled(ty));
                 }
-                Filled(a) => {
-                    a.unify(ty, ctx);
-                }
+                Filled(a) => a.unify(ty, ctx),
             }
         }
 
@@ -560,10 +593,11 @@ impl Ty<modes::Mut> {
             (a, b) => ctx.accumulate(ThirDiagnostic {
                 location: ThirLocation::CallSite,
                 message: message![
-                    "could not unify the types",
+                    "the types",
                     code!(a.seal()),
-                    "with",
+                    "and",
                     code!(b.seal()),
+                    "are not compatible"
                 ],
             }),
         };
