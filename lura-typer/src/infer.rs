@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
@@ -22,6 +22,11 @@ use crate::{
     ty::{holes::HoleRef, *},
 };
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum TypeError {
+    CannotUnify(Tau, Tau),
+}
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct TyName {
     pub ty: Tau,
@@ -42,6 +47,109 @@ pub struct TyEnv {
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
     pub rigid_variables: im_rc::HashMap<Definition, Tau>,
     pub names: im_rc::HashSet<TyName>,
+}
+
+pub struct Substitution<'a, 'db> {
+    ctx: &'a mut InferCtx<'db>,
+    errors: im_rc::Vector<TypeError>,
+}
+
+impl Substitution<'_, '_> {
+    /// Unify holes with the type. This is used to
+    /// unify a hole with a type.
+    ///
+    /// It does this by checking the hole with the following
+    /// checks:
+    /// - "occurs  check" : check that the hole doesn't occur in the type
+    ///                     or simplier, check that you aren't making recursive types
+    /// - "scope check"   : check that you aren't using bound vars outside its scope
+    fn hole_unify_prechecking(&mut self, ty: Tau, scope: Level, hole: HoleMut) {
+        let _ = scope;
+        let _ = hole;
+
+        match ty {
+            // SECTION: Types
+            Ty::Primary(_) => todo!(),
+            Ty::Constructor(_) => todo!(),
+            Ty::Forall(_) => todo!(),
+            Ty::Pi(_) => todo!(),
+            Ty::Hole(_) => todo!(),
+            Ty::Bound(_, _) => todo!(),
+            Ty::App(_, _) => todo!(),
+        }
+    }
+
+    /// Unifies a hole with a type. This is used to
+    /// unify a hole with a type.
+    fn unify_hole(&mut self, ty: Tau, hole: HoleMut) {
+        use holes::HoleKind::*;
+
+        match hole.borrow().kind() {
+            // SECTION: Sentinel Values
+            Error => {} // TODO
+
+            // SECTION: Holes
+            Empty { scope } => {
+                // Checks that the hole doesn't occur in the type
+                if ty == Tau::Hole(hole.clone()) {
+                    return;
+                }
+
+                // Unify the hole with the type, and then set the kind
+                // of the hole to filled
+                self.hole_unify_prechecking(ty.clone(), *scope, hole.clone());
+                hole.borrow_mut().set_kind(Filled(ty));
+            }
+            Filled(a) => {
+                self.internal_unify(a.clone(), ty);
+            }
+        }
+    }
+
+    /// Unifies two types. This is used to unify two types. It
+    /// equates the two types.
+    fn internal_unify(&mut self, a: Tau, b: Tau) {
+        // Matches the types to equate them.
+        match (a, b) {
+            // SECTION: Unification
+            (Ty::Hole(hole_a), b) => self.unify_hole(b, hole_a),
+            (a, Ty::Hole(hole_b)) => self.unify_hole(a, hole_b),
+            (Ty::Primary(_), Ty::Primary(_)) => todo!("unify primary"),
+            (Ty::Constructor(_), Ty::Constructor(_)) => todo!("unify constructors"),
+            (Ty::Pi(_), Ty::Pi(_)) => todo!("unify pi"),
+            (Ty::Forall(_), Ty::Forall(_)) => todo!("unify forall"),
+            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!("unify bounds"),
+
+            // SECTION: Type Error
+            // Report accumulating type check error, when the types
+            // cannot be unified.
+            (a, b) => {
+                self.errors.push_back(TypeError::CannotUnify(a, b));
+            }
+        };
+    }
+
+    fn publish_all_errors(&mut self) {
+        for error in self.errors.iter() {
+            self.ctx.accumulate::<()>(ThirDiagnostic {
+                location: ThirLocation::CallSite,
+                message: match error.clone() {
+                    TypeError::CannotUnify(a, b) => {
+                        message!["cannot unify", code!(a.seal()), "with", code!(b.seal())]
+                    }
+                    _ => message!["type error"],
+                },
+            });
+        }
+    }
+}
+
+impl Debug for Substitution<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Substituition")
+            .field("type_errors", &self.errors)
+            .finish()
+    }
 }
 
 type Sigma = Ty<modes::Mut>;
@@ -523,81 +631,14 @@ struct InferCtx<'tctx> {
 impl Ty<modes::Mut> {
     /// Unifies the type with another type. This is used
     /// to equate two types.
-    fn unify(&self, another: Tau, ctx: &mut InferCtx) {
-        /// Unify holes with the type. This is used to
-        /// unify a hole with a type.
-        ///
-        /// It does this by checking the hole with the following
-        /// checks:
-        /// - "occurs  check" : check that the hole doesn't occur in the type
-        ///                     or simplier, check that you aren't making recursive types
-        /// - "scope check"   : check that you aren't using bound vars outside its scope
-        fn hole_unify_prechecking(ty: Tau, scope: Level, hole: HoleMut, ctx: &mut InferCtx) {
-            let _ = scope;
-            let _ = hole;
-            let _ = ctx;
-
-            match ty {
-                // SECTION: Types
-                Ty::Primary(_) => todo!(),
-                Ty::Constructor(_) => todo!(),
-                Ty::Forall(_) => todo!(),
-                Ty::Pi(_) => todo!(),
-                Ty::Hole(_) => todo!(),
-                Ty::Bound(_, _) => todo!(),
-            }
-        }
-
-        /// Unifies a hole with a type. This is used to
-        /// unify a hole with a type.
-        fn unify_hole(ty: Tau, hole: HoleMut, ctx: &mut InferCtx) {
-            use holes::HoleKind::*;
-
-            match hole.borrow().kind() {
-                // SECTION: Sentinel Values
-                Error => {} // TODO
-
-                // SECTION: Holes
-                Empty { scope } => {
-                    // Checks that the hole doesn't occur in the type
-                    if ty == Tau::Hole(hole.clone()) {
-                        return;
-                    }
-
-                    // Unify the hole with the type, and then set the kind
-                    // of the hole to filled
-                    hole_unify_prechecking(ty.clone(), *scope, hole.clone(), ctx);
-                    hole.borrow_mut().set_kind(Filled(ty));
-                }
-                Filled(a) => a.unify(ty, ctx),
-            }
-        }
-
-        // Matches the types to equate them.
-        match (self.clone(), another) {
-            // SECTION: Unification
-            (Ty::Hole(hole_a), b) => unify_hole(b, hole_a, ctx),
-            (a, Ty::Hole(hole_b)) => unify_hole(a, hole_b, ctx),
-            (Ty::Primary(_), Ty::Primary(_)) => todo!("unify primary"),
-            (Ty::Constructor(_), Ty::Constructor(_)) => todo!("unify constructors"),
-            (Ty::Pi(_), Ty::Pi(_)) => todo!("unify pi"),
-            (Ty::Forall(_), Ty::Forall(_)) => todo!("unify forall"),
-            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!("unify bounds"),
-
-            // SECTION: Type Error
-            // Report accumulating type check error, when the types
-            // cannot be unified.
-            (a, b) => ctx.accumulate(ThirDiagnostic {
-                location: ThirLocation::CallSite,
-                message: message![
-                    "the types",
-                    code!(a.seal()),
-                    "and",
-                    code!(b.seal()),
-                    "are not compatible"
-                ],
-            }),
+    fn unify<'ctx, 'db>(&self, tau: Tau, ctx: &'ctx mut InferCtx<'db>) {
+        let location = ctx.location.clone();
+        let mut substitution = Substitution {
+            ctx,
+            errors: im_rc::vector![],
         };
+        substitution.internal_unify(self.clone(), tau);
+        substitution.publish_all_errors();
     }
 }
 
