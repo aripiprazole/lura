@@ -117,6 +117,8 @@ impl Substitution<'_, '_> {
             // SECTION: Unification
             (Ty::Hole(hole_a), b) => self.unify_hole(b, hole_a),
             (a, Ty::Hole(hole_b)) => self.unify_hole(a, hole_b),
+            (_, Ty::Primary(Primary::Error)) => {}
+            (Ty::Primary(Primary::Error), _) => {}
             (Ty::Primary(_), Ty::Primary(_)) => todo!("unify primary"),
             (Ty::Constructor(_), Ty::Constructor(_)) => todo!("unify constructors"),
             (Ty::Pi(_), Ty::Pi(_)) => todo!("unify pi"),
@@ -236,6 +238,8 @@ impl Check for Pattern {
                 actual_ty
             }
             Pattern::Constructor(constructor) => {
+                // TODO: handle other builtins
+                //
                 // Unifies the actual type with the expected type
                 let actual_ty = constructor.name(ctx.db).infer_with(&constructor, ctx);
                 actual_ty.unify(ty, ctx);
@@ -284,8 +288,8 @@ impl Infer for Constructor {
             // SECTION: Constructor
             Constructor::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
             // SECTION: Builtin
-            Constructor::Array => todo!("array builtin"),
-            Constructor::Tuple => todo!("tuple builtin"),
+            Constructor::Array => panic!("array builtin should be handled in a different way"),
+            Constructor::Tuple => panic!("array builtin should be handled in a different way"),
             // SECTION: Reference
             Constructor::Path(path) => ctx.constructor(path),
         }
@@ -302,8 +306,8 @@ impl Infer for Callee {
             // SECTION: Callee
             Callee::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
             // SECTION: Builtin
-            Callee::Array => todo!("array builtin"),
-            Callee::Tuple => todo!("tuple builtin"),
+            Callee::Array => panic!("array builtin should be handled in a different way"),
+            Callee::Tuple => panic!("array builtin should be handled in a different way"),
             Callee::Pure => todo!("pure builtin"),
             Callee::Do => todo!("do builtin"),
             // SECTION: Reference
@@ -339,6 +343,8 @@ impl Infer for Expr {
             Expr::Path(reference) => ctx.reference(reference),
             Expr::Literal(literal) => literal.infer(ctx),
             Expr::Call(call) => {
+                let callee = call.callee(ctx.db);
+
                 // Infers the type of each argument
                 let parameters = call
                     .arguments(ctx.db)
@@ -346,19 +352,29 @@ impl Infer for Expr {
                     .map(|argument| argument.infer(ctx))
                     .collect::<Vec<_>>();
 
-                // Creates a new type variable to represent the type of the result
-                let hole = ctx.new_meta();
-                let pi = Ty::from_pi(parameters.into_iter(), hole.clone());
+                // Matches the callee, because all primary expressions are
+                // abstracted in the `Callee` enum.
+                //
+                // This is used to infer the type of the callee.
+                match callee {
+                    Callee::Array => todo!("array builtin, should create array type"),
+                    Callee::Tuple => todo!("array builtin, should create tuple type"),
+                    _ => {
+                        // Creates a new type variable to represent the type of the result
+                        let hole = ctx.new_meta();
+                        let pi = Ty::from_pi(parameters.into_iter(), hole.clone());
 
-                // Infers the type of the callee, and then applies the arguments
-                // E.G Giving a `f : Int -> Int -> Int`
-                //     and `pi : Int -> Int -> ?hole`,
-                //     we get `?hole = Int`, in the unification
-                //     process, and we get the result of value.
-                pi.unify(call.callee(ctx.db).infer_with(&call, ctx), ctx);
+                        // Infers the type of the callee, and then applies the arguments
+                        // E.G Giving a `f : Int -> Int -> Int`
+                        //     and `pi : Int -> Int -> ?hole`,
+                        //     we get `?hole = Int`, in the unification
+                        //     process, and we get the result of value.
+                        pi.unify(callee.infer_with(&call, ctx), ctx);
 
-                // Returns the type of the result
-                hole
+                        // Returns the type of the result
+                        hole
+                    }
+                }
             }
 
             Expr::Ann(ann) => {
@@ -642,10 +658,9 @@ impl Check for Block {
 
         // Checks the type of the last statement
         // TODO: check returns
-        let actual_ty = if let Some(value) = self.statements(ctx.db).last() {
-            value.clone().infer(ctx)
-        } else {
-            Tau::Primary(Primary::Unit)
+        let actual_ty = match self.statements(ctx.db).last() {
+            Some(value) => value.clone().infer(ctx),
+            None => Tau::UNIT,
         };
 
         actual_ty.unify(tau, ctx);
@@ -676,6 +691,7 @@ impl Ty<modes::Mut> {
 }
 
 impl TyEnv {
+    // Creates a new definition in the environment
     fn extend(&mut self, name: Definition, ty: Sigma) {
         self.variables.insert(name, ty);
     }
@@ -690,6 +706,8 @@ impl<'tctx> InferCtx<'tctx> {
         ty
     }
 
+    /// Creates a new meta type. This is used to
+    /// create a new empty hole.
     fn new_meta(&mut self) -> Tau {
         Tau::Hole(HoleRef::new(Hole {
             kind: holes::HoleKind::Empty {
@@ -698,10 +716,12 @@ impl<'tctx> InferCtx<'tctx> {
         }))
     }
 
+    /// Creates a new semantic type from a syntatic type representation,
+    /// it does report errors and means the type is not inferred.
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
         match type_rep {
             // SECTION: Sentinel Values
-            TypeRep::Empty => self.new_meta(),
+            TypeRep::Empty => self.new_meta(), // Infer the type
             TypeRep::Error(_) => Tau::ERROR,
 
             // SECTION: Primary Types
@@ -732,6 +752,9 @@ impl<'tctx> InferCtx<'tctx> {
                     })
             }
             TypeRep::Arrow(pi) if matches!(pi.kind(self.db), ArrowKind::Pi) => {
+                // Transforms a type representation of pi arrow into
+                // a semantic type arrow with a pi arrow
+
                 let value = self.eval(pi.value(self.db));
 
                 pi.parameters(self.db)
@@ -751,6 +774,9 @@ impl<'tctx> InferCtx<'tctx> {
                     })
             }
             TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
+                // Transforms a type representation of forall arrow into
+                // a semantic type arrow with a forall quantifier
+
                 let value = self.eval(forall.value(self.db));
                 let parameters = forall
                     .parameters(self.db)
@@ -769,16 +795,21 @@ impl<'tctx> InferCtx<'tctx> {
                     _phantom: PhantomData,
                 })
             }
-            TypeRep::Arrow(_) => {
-                todo!("sigma types are not supported yet")
-            }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
                 self.accumulate(ThirDiagnostic {
                     location: self.new_location(type_rep.location(self.db)),
                     message: message!("self type outside of a self context"),
                 })
             }),
-            TypeRep::QPath(_) => todo!("qualified paths are not supported yet"),
+            // SECTION: Unsupported
+            TypeRep::Arrow(_) => self.accumulate(ThirDiagnostic {
+                location: self.new_location(type_rep.location(self.db)),
+                message: message!("sigma types is not supported yet"),
+            }),
+            TypeRep::QPath(_) => self.accumulate(ThirDiagnostic {
+                location: self.new_location(type_rep.location(self.db)),
+                message: message!("qualified types is not supported yet"),
+            }),
             // SECTION: Expressions
             TypeRep::Downgrade(expr) => expr.infer(self),
         }
