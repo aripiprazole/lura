@@ -134,7 +134,8 @@ impl Substitution<'_, '_> {
     fn unify_hole(&mut self, ty: Tau, hole: HoleMut) {
         use holes::HoleKind::*;
 
-        match hole.borrow().kind() {
+        let mut hole_ref = hole.borrow_mut();
+        match hole_ref.kind() {
             // SECTION: Sentinel Values
             Error => {} // TODO
 
@@ -148,7 +149,7 @@ impl Substitution<'_, '_> {
                 // Unify the hole with the type, and then set the kind
                 // of the hole to filled
                 self.hole_unify_prechecking(ty.clone(), *scope, hole.clone());
-                hole.borrow_mut().set_kind(Filled(ty));
+                hole_ref.set_kind(Filled(ty));
             }
             Filled(a) => {
                 self.internal_unify(a.clone(), ty);
@@ -494,6 +495,18 @@ impl Infer for Expr {
                 match callee {
                     Callee::Array => todo!("array builtin, should create array type"),
                     Callee::Tuple => todo!("array builtin, should create tuple type"),
+                    Callee::Do => match call.do_notation(ctx.db) {
+                        Some(do_notation) => {
+                            // TODO: return monad
+                            let ty = ctx.new_meta();
+                            do_notation.check(ty.clone(), ctx);
+                            ty
+                        }
+                        None => ctx.accumulate(ThirDiagnostic {
+                            location: ThirLocation::CallSite,
+                            message: message!["do notation but without do notation parameter"],
+                        }),
+                    },
                     _ => {
                         // Creates a new type variable to represent the type of the result
                         let hole = ctx.new_meta();
