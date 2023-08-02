@@ -152,7 +152,7 @@ impl Ty<modes::Mut> {
 mod display {
     use super::*;
 
-    use std::fmt::Display;
+    use std::fmt::{Display};
 
     impl Display for InternalConstructor {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -202,9 +202,25 @@ mod display {
                 Ty::App(app, argument) => write!(f, "({} {})", app, argument),
                 Ty::Forall(forall) => write!(f, "{forall}"),
                 Ty::Pi(pi) => write!(f, "{pi}"),
-                Ty::Hole(_) => write!(f, "?"),
+                Ty::Hole(hole) => write!(f, "{hole}"),
                 Ty::Bound(level, _) => write!(f, "`{}", level),
             }
+        }
+    }
+
+    impl <M: modes::TypeMode> Display for Hole<M> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self.kind {
+                HoleKind::Error => write!(f, "?"),
+                HoleKind::Empty { scope } => write!(f, "?{scope}"),
+                HoleKind::Filled(ref ty) => write!(f, "{ty}"),
+            }
+        }
+    }
+
+    impl <M: modes::TypeMode> Display for HoleRef<M> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.data.borrow())
         }
     }
 }
@@ -353,14 +369,17 @@ pub mod seals {
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
 pub mod modes {
-    use std::{fmt::Debug, hash::Hash};
+    use std::{
+        fmt::{Debug, Display},
+        hash::Hash,
+    };
 
     use super::HoleRef;
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
     pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug {
-        type Hole: Debug + PartialEq + Eq + Clone + Hash;
+        type Hole: Display + Debug + PartialEq + Eq + Clone + Hash;
     }
 
     /// Ready is the type of build in types.
