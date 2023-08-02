@@ -6,8 +6,8 @@ pub type Level = usize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
-    pub paramater: Box<Ty<M>>,
-    pub ty: Box<Ty<M>>,
+    pub parameters: K::Parameters<M>,
+    pub value: Box<Ty<M>>,
 
     /// Represents the kind of arrow. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
@@ -78,6 +78,10 @@ pub enum Ty<M: modes::TypeMode> {
     Bound(TyVar, Rigidness),
 }
 
+impl<M: modes::Mut> Ty<M> {
+    pub const TYPE: Self = Self::Primary(Primary::Type);
+}
+
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 ///
@@ -105,15 +109,15 @@ impl Ty<modes::Mut> {
     {
         let first = parameters.next().unwrap();
         let mut result = Self::Pi(Arrow {
-            paramater: first.into(),
-            ty: ty.into(),
+            parameters: first.into(),
+            value: ty.into(),
             _phantom: PhantomData,
         });
 
         for parameter in parameters {
             result = Ty::Pi(Arrow {
-                paramater: Box::new(parameter),
-                ty: Box::new(result),
+                parameters: Box::new(parameter),
+                value: Box::new(result),
                 _phantom: PhantomData,
             });
         }
@@ -159,9 +163,9 @@ pub mod holes {
         }
     }
 
-    impl<M: modes::TypeMode + PartialEq> Eq for Hole<M> {}
+    impl<M: modes::TypeMode> Eq for Hole<M> {}
 
-    impl<M: modes::TypeMode + PartialEq> PartialEq for Hole<M> {
+    impl<M: modes::TypeMode> PartialEq for Hole<M> {
         fn eq(&self, other: &Self) -> bool {
             self.kind.eq(&other.kind)
         }
@@ -182,7 +186,7 @@ pub mod holes {
         Filled(Ty<M>),
     }
 
-    impl<M: modes::TypeMode + Hash> Hash for Hole<M> {
+    impl<M: modes::TypeMode> Hash for Hole<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.kind.hash(state);
         }
@@ -195,6 +199,14 @@ pub mod holes {
         pub data: Rc<RefCell<Hole<M>>>,
     }
 
+    impl HoleRef<modes::Mut> {
+        pub(crate) fn new(value: Hole<modes::Mut>) -> Self {
+            Self {
+                data: Rc::new(RefCell::new(value)),
+            }
+        }
+    }
+
     impl Deref for HoleRef<modes::Mut> {
         type Target = Rc<RefCell<Hole<modes::Mut>>>;
 
@@ -203,15 +215,15 @@ pub mod holes {
         }
     }
 
-    impl<M: modes::TypeMode + PartialEq> Eq for HoleRef<M> {}
+    impl<M: modes::TypeMode> Eq for HoleRef<M> {}
 
-    impl<M: modes::TypeMode + PartialEq> PartialEq for HoleRef<M> {
+    impl<M: modes::TypeMode> PartialEq for HoleRef<M> {
         fn eq(&self, other: &Self) -> bool {
             self.data.borrow().eq(&other.data.borrow())
         }
     }
 
-    impl<M: modes::TypeMode + PartialEq + Hash> Hash for HoleRef<M> {
+    impl<M: modes::TypeMode> Hash for HoleRef<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.data.borrow().hash(state);
         }
@@ -246,8 +258,8 @@ pub mod seals {
         /// ready to be used as [`Send`] and [`Sync`].
         pub fn seal(self) -> Arrow<K, modes::Ready> {
             Arrow {
-                paramater: self.paramater.seal().into(),
-                ty: self.ty.seal().into(),
+                parameters: K::seal(self.parameters),
+                value: self.value.seal().into(),
                 _phantom: PhantomData,
             }
         }
@@ -279,7 +291,7 @@ pub mod modes {
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
-    pub trait TypeMode {
+    pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug {
         type Hole: Debug + PartialEq + Eq + Clone + Hash;
     }
 
@@ -303,14 +315,22 @@ pub mod modes {
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
 mod kinds {
+    use std::{fmt::Debug, hash::Hash};
+
+    use super::{modes, Ty};
+
     /// Represents a kind of arrow for a type. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
     ///
     /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
     /// users from implementing this trait for their own types.
-    pub trait ArrowKind {
+    pub trait ArrowKind: Debug + Clone + PartialEq + Eq + Hash {
+        type Parameters<M: modes::TypeMode>: Clone + PartialEq + Eq + Hash;
+
         const INFIX: bool;
         const SYMBOL: &'static str;
+
+        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready>;
     }
 
     /// Forall is the type of polymorphic generalization.
@@ -326,18 +346,36 @@ mod kinds {
     pub struct Pi;
 
     impl ArrowKind for Forall {
+        type Parameters<M: modes::TypeMode> = Vec<Ty<M>>;
+
         const INFIX: bool = false;
         const SYMBOL: &'static str = "∀";
+
+        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
+            parameters.into_iter().map(|ty| ty.seal()).collect()
+        }
     }
 
     impl ArrowKind for Sigma {
+        type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
+
         const INFIX: bool = true;
         const SYMBOL: &'static str = "×";
+
+        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
+            parameters.seal().into()
+        }
     }
 
     impl ArrowKind for Pi {
+        type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
+
         const INFIX: bool = true;
         const SYMBOL: &'static str = "→";
+
+        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
+            parameters.seal().into()
+        }
     }
 }
 

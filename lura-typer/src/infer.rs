@@ -1,4 +1,4 @@
-use std::{fmt::Debug, rc::Rc};
+use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
@@ -12,14 +12,17 @@ use lura_hir::{
         pattern::{Constructor, Pattern},
         stmt::{Block, Stmt},
         top_level::{BindingGroup, TopLevel},
-        type_rep::TypeRep,
+        type_rep::{ArrowKind, TypeRep},
         HirElement, Location, Spanned,
     },
 };
 
 use crate::{
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
-    ty::{holes::HoleRef, *},
+    ty::{
+        holes::{Hole, HoleRef},
+        *,
+    },
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -137,7 +140,6 @@ impl Substitution<'_, '_> {
                     TypeError::CannotUnify(a, b) => {
                         message!["cannot unify", code!(a.seal()), "with", code!(b.seal())]
                     }
-                    _ => message!["type error"],
                 },
             });
         }
@@ -147,7 +149,7 @@ impl Substitution<'_, '_> {
 impl Debug for Substitution<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Substituition")
-            .field("type_errors", &self.errors)
+            .field("errors", &self.errors)
             .finish()
     }
 }
@@ -160,15 +162,28 @@ type HoleMut = HoleRef<modes::Mut>;
 trait Infer {
     type Output;
 
+    #[inline(always)]
+    fn store_ty_var(self, target: Self::Output, ctx: &mut InferCtx)
+    where
+        Self: Sized,
+    {
+        let _ = target;
+        let _ = ctx;
+        // Memoizes the type variable
+    }
+
     /// Infers the type of the element.
     #[inline(always)]
     fn infer(self, ctx: &mut InferCtx) -> Self::Output
     where
-        Self: Sized + HirElement,
+        Self: Sized + HirElement + Clone,
+        Self::Output: Clone,
     {
         // Save the location, and update the location
         let old_location = std::mem::replace(&mut ctx.location, self.location(ctx.db));
-        let ty = self.internal_infer(ctx);
+        let ty = self.clone().internal_infer(ctx);
+
+        self.store_ty_var(ty.clone(), ctx);
 
         // Get the location back
         ctx.location = old_location;
@@ -303,10 +318,18 @@ impl Infer for Callee {
 impl Infer for Expr {
     type Output = Ty<modes::Mut>;
 
+    // Associate the type with the expression
+    // This is used to access the type of the expression in
+    // a elaboration step
+    fn store_ty_var(self, target: Self::Output, ctx: &mut InferCtx) {
+        // Associate the type with the expression
+        ctx.expressions.insert(self, target);
+    }
+
     /// Infers the type of the expression. This is used
     /// to infer the type of the expression.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
-        let ty = match self.clone() {
+        match self {
             // SECTION: Sentinel Values
             Expr::Empty => Tau::Primary(Primary::Error),
             Expr::Error(_) => Tau::Primary(Primary::Error),
@@ -392,15 +415,7 @@ impl Infer for Expr {
             // Evaluates the type of the expression, and then checks if it is
             // compatible with the expected type
             Expr::Upgrade(type_rep) => ctx.eval(*type_rep),
-        };
-
-        // Associate the type with the expression
-        // This is used to access the type of the expression in
-        // a elaboration step
-        ctx.expressions.insert(self, ty.clone());
-
-        // Returns the type of the expression
-        ty
+        }
     }
 }
 
@@ -661,16 +676,20 @@ impl TyEnv {
 }
 
 impl<'tctx> InferCtx<'tctx> {
-    fn instantiate(&self, _ty: Sigma) -> Rho {
-        todo!()
+    fn instantiate(&self, ty: Sigma) -> Rho {
+        ty
     }
 
-    fn quantify(&self, _ty: Rho) -> Sigma {
-        todo!()
+    fn quantify(&self, ty: Rho) -> Sigma {
+        ty
     }
 
     fn new_meta(&mut self) -> Tau {
-        todo!()
+        Tau::Hole(HoleRef::new(Hole {
+            kind: holes::HoleKind::Empty {
+                scope: self.env.level,
+            },
+        }))
     }
 
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
@@ -678,6 +697,7 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Sentinel Values
             TypeRep::Empty => self.new_meta(),
             TypeRep::Error(_) => Tau::Primary(Primary::Error),
+
             // SECTION: Primary Types
             TypeRep::Unit => Tau::Primary(Primary::Unit),
             TypeRep::Tt => Tau::Primary(Primary::Type),
@@ -687,8 +707,56 @@ impl<'tctx> InferCtx<'tctx> {
                 .get(&reference.definition(self.db))
                 .cloned()
                 .unwrap_or(Tau::Primary(Primary::Error)),
-            TypeRep::App(_) => todo!(),
-            TypeRep::Arrow(_) => todo!(),
+            TypeRep::App(app) => {
+                let callee = self.eval(app.callee(self.db));
+
+                app.arguments(self.db)
+                    .into_iter()
+                    .fold(callee, |acc, next| {
+                        Tau::App(acc.into(), self.eval(next).into())
+                    })
+            }
+            TypeRep::Arrow(pi) if matches!(pi.kind(self.db), ArrowKind::Pi) => {
+                let value = self.eval(pi.value(self.db));
+
+                pi.parameters(self.db)
+                    .into_iter()
+                    .map(|parameter| {
+                        // Checks the type of the parameter
+                        let ty = self.eval(parameter.parameter_type(self.db));
+
+                        parameter.binding(self.db).check(ty, self);
+                    })
+                    .fold(value, |acc, next| {
+                        Tau::Forall(Arrow {
+                            parameters: next,
+                            value: acc.into(),
+                            _phantom: PhantomData,
+                        })
+                    })
+            }
+            TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
+                let value = self.eval(forall.value(self.db));
+                let parameters = forall
+                    .parameters(self.db)
+                    .into_iter()
+                    .map(|parameter| {
+                        // Checks the type of the parameter
+                        let ty = self.eval(parameter.parameter_type(self.db));
+
+                        parameter.binding(self.db).check(ty, self);
+                    })
+                    .collect::<Vec<_>>();
+
+                Tau::Forall(Arrow {
+                    parameters,
+                    value: value.into(),
+                    _phantom: PhantomData,
+                })
+            }
+            TypeRep::Arrow(_) => {
+                todo!("sigma types are not supported yet")
+            }
             TypeRep::This => todo!("`Self` is not supported yet"),
             TypeRep::QPath(_) => todo!("qualified paths are not supported yet"),
             // SECTION: Expressions
