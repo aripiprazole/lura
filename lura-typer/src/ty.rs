@@ -1,12 +1,12 @@
 use holes::*;
 use lura_hir::resolve::Definition;
-use std::{cell::RefCell, hash::Hash, marker::PhantomData};
+use std::{cell::RefCell, hash::Hash, marker::PhantomData, fmt::Display};
 
 pub type Level = usize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
-    pub parameters: K::Parameters<M>,
+    pub domain: K::Parameters<M>,
     pub value: Box<Ty<M>>,
 
     /// Represents the kind of arrow. This is used to distinguish between different
@@ -17,7 +17,7 @@ pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
 /// Represents a primary type. This is used to represent a type that is not a constructor.
 ///
 /// Can be a sentinel value that is used to represent an error.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Primary {
     /// The error type. This is used to represent a type that is not valid. It's a sentinel value
     /// that is used to represent an error.
@@ -41,6 +41,12 @@ impl Primary {
     pub const I32: Self = Self::Int(32, true);
     pub const U64: Self = Self::Int(64, false);
     pub const I64: Self = Self::Int(64, true);
+}
+
+impl Display for Primary {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }
 
 /// Represents a constructor. This is used to represent a type constructor.
@@ -75,7 +81,7 @@ pub enum Ty<M: modes::TypeMode> {
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
-    Bound(TyVar, Rigidness),
+    Bound(Level, Rigidness),
 }
 
 impl<M: modes::TypeMode> Ty<M> {
@@ -114,14 +120,14 @@ impl Ty<modes::Mut> {
     {
         let first = parameters.next().unwrap();
         let mut result = Self::Pi(Arrow {
-            parameters: first.into(),
+            domain: first.into(),
             value: ty.into(),
             _phantom: PhantomData,
         });
 
         for parameter in parameters {
             result = Ty::Pi(Arrow {
-                parameters: Box::new(parameter),
+                domain: Box::new(parameter),
                 value: Box::new(result),
                 _phantom: PhantomData,
             });
@@ -263,7 +269,7 @@ pub mod seals {
         /// ready to be used as [`Send`] and [`Sync`].
         pub fn seal(self) -> Arrow<K, modes::Ready> {
             Arrow {
-                parameters: K::seal(self.parameters),
+                domain: K::seal(self.domain),
                 value: self.value.seal().into(),
                 _phantom: PhantomData,
             }

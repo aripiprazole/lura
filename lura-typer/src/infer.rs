@@ -25,9 +25,29 @@ use crate::{
     },
 };
 
+/// Represents the type errors that can occur during type checking,
+/// specially on the unification step.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum TypeError {
     CannotUnify(Tau, Tau),
+    OccursCheck(Tau),
+    EscapingScope(Level),
+    IncompatibleTypes {
+        expected: Definition,
+        actual: Definition,
+    },
+    IncompatibleValues {
+        expected: Primary,
+        actual: Primary,
+    },
+    IncorrectLevel {
+        expected: Level,
+        actual: Level,
+    },
+    IncorrectArity {
+        expected: usize,
+        actual: usize,
+    },
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -49,7 +69,7 @@ pub struct TyEnv {
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
     pub rigid_variables: im_rc::HashMap<Definition, Tau>,
-    pub names: im_rc::HashSet<TyName>,
+    pub names: im_rc::HashSet<String>,
 }
 
 pub struct Substitution<'a, 'db> {
@@ -72,13 +92,40 @@ impl Substitution<'_, '_> {
 
         match ty {
             // SECTION: Types
-            Ty::Primary(_) => todo!(),
-            Ty::Constructor(_) => todo!(),
-            Ty::Forall(_) => todo!(),
-            Ty::Pi(_) => todo!(),
-            Ty::Hole(_) => todo!(),
-            Ty::Bound(_, _) => todo!(),
-            Ty::App(_, _) => todo!(),
+            Ty::Primary(_) => {}
+            Ty::Constructor(_) => {}
+            Ty::Forall(forall) => {
+                self.hole_unify_prechecking(*forall.value, scope, hole);
+            }
+            Ty::Pi(pi) => {
+                self.hole_unify_prechecking(*pi.domain, scope, hole.clone());
+                self.hole_unify_prechecking(*pi.value, scope, hole)
+            }
+            Ty::Bound(level, _) => {
+                if level > scope {
+                    self.errors.push_back(TypeError::EscapingScope(level));
+                }
+            }
+            Ty::App(a, b) => {
+                self.hole_unify_prechecking(*a, scope, hole.clone());
+                self.hole_unify_prechecking(*b, scope, hole)
+            }
+            // SECTION: Hole
+            Ty::Hole(h) => {
+                use holes::HoleKind::*;
+                if h == hole {
+                    self.errors.push_back(TypeError::OccursCheck(Ty::Hole(h)));
+                    return;
+                }
+
+                let mut hole_ref = h.borrow_mut();
+
+                match hole_ref.kind() {
+                    Empty { scope: l } if *l > scope => hole_ref.set_kind(Empty { scope }),
+                    Filled(ty) => self.hole_unify_prechecking(ty.clone(), scope, hole),
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -117,13 +164,63 @@ impl Substitution<'_, '_> {
             // SECTION: Unification
             (Ty::Hole(hole_a), b) => self.unify_hole(b, hole_a),
             (a, Ty::Hole(hole_b)) => self.unify_hole(a, hole_b),
+            // SECTION: Sentinel Values
             (_, Ty::Primary(Primary::Error)) => {}
             (Ty::Primary(Primary::Error), _) => {}
-            (Ty::Primary(_), Ty::Primary(_)) => todo!("unify primary"),
-            (Ty::Constructor(_), Ty::Constructor(_)) => todo!("unify constructors"),
-            (Ty::Pi(_), Ty::Pi(_)) => todo!("unify pi"),
-            (Ty::Forall(_), Ty::Forall(_)) => todo!("unify forall"),
-            (Ty::Bound(_, _), Ty::Bound(_, _)) => todo!("unify bounds"),
+            // SECTION: Types
+            (Ty::Primary(primary_a), Ty::Primary(primary_b)) => {
+                if primary_a != primary_b {
+                    self.errors.push_back(TypeError::IncompatibleValues {
+                        expected: primary_a,
+                        actual: primary_b,
+                    });
+                }
+            }
+            (Ty::Constructor(constructor_a), Ty::Constructor(constructor_b)) => {
+                // unify the names
+                if constructor_a.name != constructor_b.name {
+                    self.errors.push_back(TypeError::IncompatibleTypes {
+                        expected: constructor_a.name,
+                        actual: constructor_b.name,
+                    });
+                }
+            }
+            (Ty::Pi(pi_a), Ty::Pi(pi_b)) => {
+                // unify the domains and the values
+                self.internal_unify(*pi_a.domain, *pi_b.domain);
+                self.internal_unify(*pi_a.value, *pi_b.value);
+            }
+            (Ty::Forall(forall_a), Ty::Forall(forall_b)) => {
+                // "alpha equivalence": forall a. a -> a = forall b. b -> b
+                if forall_a.domain.len() != forall_b.domain.len() {
+                    self.errors.push_back(TypeError::IncorrectArity {
+                        expected: forall_a.domain.len(),
+                        actual: forall_b.domain.len(),
+                    });
+
+                    return;
+                }
+
+                let mut acc_a = *forall_a.value.clone();
+                let mut acc_b = *forall_b.value;
+                for (param_a, param_b) in forall_a.domain.into_iter().zip(forall_b.domain) {
+                    let level = self.ctx.add_to_env(param_a);
+                    let debruijin = Tau::Bound(level, Rigidness::Flexible);
+                    acc_a = acc_a.replace(param_a, debruijin.clone());
+                    acc_b = acc_b.replace(param_b, debruijin);
+                }
+
+                // Unify the results to compare the results
+                self.internal_unify(acc_a, acc_b);
+            }
+            (Ty::Bound(level_a, _), Ty::Bound(level_b, _)) => {
+                if level_a != level_b {
+                    self.errors.push_back(TypeError::IncorrectLevel {
+                        expected: level_a,
+                        actual: level_b,
+                    });
+                }
+            }
 
             // SECTION: Type Error
             // Report accumulating type check error, when the types
@@ -141,6 +238,44 @@ impl Substitution<'_, '_> {
                 message: match error.clone() {
                     TypeError::CannotUnify(a, b) => {
                         message!["cannot unify", code!(a.seal()), "with", code!(b.seal())]
+                    }
+                    TypeError::IncorrectLevel { expected, actual } => {
+                        message![
+                            "incorrect level, expected",
+                            code!(expected),
+                            "but found",
+                            code!(actual),
+                        ]
+                    }
+                    TypeError::IncorrectArity { expected, actual } => {
+                        message![
+                            "incorrect arity, expected",
+                            code!(expected),
+                            "but found",
+                            code!(actual),
+                        ]
+                    }
+                    TypeError::IncompatibleTypes { expected, actual } => {
+                        message![
+                            "incompatible types, expected",
+                            code!(expected.to_string(self.ctx.db)),
+                            "but found",
+                            code!(actual.to_string(self.ctx.db)),
+                        ]
+                    }
+                    TypeError::IncompatibleValues { expected, actual } => {
+                        message![
+                            "incompatible type values, expected",
+                            code!(expected),
+                            "but found",
+                            code!(actual),
+                        ]
+                    }
+                    TypeError::OccursCheck(infinite_type) => {
+                        message!["infinite type,", code!(infinite_type.seal())]
+                    }
+                    TypeError::EscapingScope(level) => {
+                        message!["escaping scope,", code!(level)]
                     }
                 },
             });
@@ -385,26 +520,23 @@ impl Infer for Expr {
             }
 
             Expr::Abs(abs) => {
-                let mut env = ctx.env.clone();
+                let env = ctx.env.clone();
                 let parameters = abs.parameters(ctx.db);
-
-                // Adds the parameters to the context
-                for parameter in parameters.into_iter() {
-                    if !parameter.is_implicit(ctx.db) {
-                        let type_rep = parameter.parameter_type(ctx.db);
-                        let name = TyName {
-                            ty: ctx.eval(type_rep),
-                            rigidness: Rigidness::Flexible,
-                        };
-
-                        // Adds the parameter to the environment
-                        env.names.insert(name);
-                    }
-                }
 
                 // Creates a new environment with the parameters locally, and
                 // infers the type of the body
-                ctx.with_env(env, |local| abs.value(local.db).infer(local))
+                ctx.with_env(env, |local| {
+                    // Adds the parameters to the context
+                    for parameter in parameters.into_iter() {
+                        if !parameter.is_implicit(local.db) {
+                            let type_rep = local.eval(parameter.parameter_type(local.db));
+
+                            parameter.binding(local.db).check(type_rep, local);
+                        }
+                    }
+
+                    abs.value(local.db).infer(local)
+                })
             }
 
             Expr::Match(match_expr) => {
@@ -688,6 +820,37 @@ impl Ty<modes::Mut> {
         substitution.internal_unify(self.clone(), tau);
         substitution.publish_all_errors();
     }
+
+    fn replace(self, name: Definition, replacement: Tau) -> Tau {
+        match self {
+            Ty::Constructor(constructor) if constructor.name == name => replacement,
+            Ty::App(a, b) => Ty::App(
+                a.replace(name, replacement.clone()).into(),
+                b.replace(name, replacement).into(),
+            ),
+            Ty::Forall(forall) => Ty::Forall(Arrow {
+                domain: forall.domain,
+                value: forall.value.replace(name, replacement).into(),
+                _phantom: PhantomData,
+            }),
+            Ty::Pi(pi) => Ty::Pi(Arrow {
+                domain: pi.domain.replace(name, replacement.clone()).into(),
+                value: pi.value.replace(name, replacement).into(),
+                _phantom: PhantomData,
+            }),
+            Ty::Hole(hole) => match hole.data.borrow_mut().kind() {
+                holes::HoleKind::Error => Ty::Hole(HoleRef::new(Hole {
+                    kind: holes::HoleKind::Error,
+                })),
+                holes::HoleKind::Empty { scope } => Ty::Hole(HoleRef::new(Hole {
+                    kind: holes::HoleKind::Empty { scope: *scope },
+                })),
+                holes::HoleKind::Filled(ty) => ty.clone().replace(name, replacement),
+            },
+            Ty::Bound(bound, rigidness) => Ty::Bound(bound, rigidness),
+            _ => self,
+        }
+    }
 }
 
 impl TyEnv {
@@ -767,7 +930,7 @@ impl<'tctx> InferCtx<'tctx> {
                     })
                     .fold(value, |acc, next| {
                         Tau::Pi(Arrow {
-                            parameters: next.into(),
+                            domain: next.into(),
                             value: acc.into(),
                             _phantom: PhantomData,
                         })
@@ -809,7 +972,7 @@ impl<'tctx> InferCtx<'tctx> {
                     .collect::<Vec<_>>();
 
                 Tau::Forall(Arrow {
-                    parameters,
+                    domain: parameters,
                     value: value.into(),
                     _phantom: PhantomData,
                 })
@@ -908,5 +1071,23 @@ impl<'tctx> InferCtx<'tctx> {
         let result = f(self);
         self.env = old_env;
         result
+    }
+
+    fn add_to_env(&mut self, parameter: Definition) -> Level {
+        /// Generates a fresh name for a parameter
+        fn fresh(ctx: &InferCtx, mut name: String) -> String {
+            while ctx.env.names.contains(&name) {
+                name.push('\'');
+            }
+
+            name
+        }
+
+        self.env.level += 1;
+        self.env
+            .names
+            .insert(fresh(self, parameter.to_string(self.db)));
+
+        self.env.level
     }
 }
