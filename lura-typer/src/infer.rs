@@ -1,4 +1,4 @@
-use std::{fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
 
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
@@ -180,7 +180,7 @@ trait Infer {
         Self::Output: Clone,
     {
         // Save the location, and update the location
-        let old_location = std::mem::replace(&mut ctx.location, self.location(ctx.db));
+        let old_location = replace(&mut ctx.location, self.location(ctx.db));
         let ty = self.clone().internal_infer(ctx);
 
         self.store_ty_var(ty.clone(), ctx);
@@ -197,7 +197,7 @@ trait Infer {
         Self: Sized,
     {
         // Save the location, and update the location
-        let old_location = std::mem::replace(&mut ctx.location, el.location(ctx.db));
+        let old_location = replace(&mut ctx.location, el.location(ctx.db));
         let ty = self.internal_infer(ctx);
 
         // Get the location back
@@ -527,6 +527,7 @@ impl Infer for TopLevel {
             TopLevel::TraitDecl(_) => todo!(),
             TopLevel::DataDecl(data_declaration) => {
                 let ty = create_declaration_ty(ctx, data_declaration);
+                let self_type = replace(&mut ctx.self_type, ty.clone().into());
 
                 // Creates the type of the variant
                 for variant in data_declaration.variants(ctx.db) {
@@ -559,6 +560,10 @@ impl Infer for TopLevel {
                     ctx.env.references.insert(ty.clone(), internal.clone());
                     ctx.env.constructors.insert(name, internal);
                 }
+
+                // Returns the old self type to the original position,
+                // as the self type is only valid in the data declaration
+                ctx.self_type = self_type;
             }
             TopLevel::TypeDecl(type_declaration) => {
                 create_declaration_ty(ctx, type_declaration);
@@ -651,6 +656,7 @@ impl Check for Block {
 struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
+    pub self_type: Option<Tau>,
     pub location: Location,
     pub expressions: im_rc::HashMap<Expr, Tau>,
     pub env: TyEnv,
@@ -696,17 +702,26 @@ impl<'tctx> InferCtx<'tctx> {
         match type_rep {
             // SECTION: Sentinel Values
             TypeRep::Empty => self.new_meta(),
-            TypeRep::Error(_) => Tau::Primary(Primary::Error),
+            TypeRep::Error(_) => Tau::ERROR,
 
             // SECTION: Primary Types
-            TypeRep::Unit => Tau::Primary(Primary::Unit),
-            TypeRep::Tt => Tau::Primary(Primary::Type),
+            TypeRep::Unit => Tau::UNIT,
+            TypeRep::Type => Tau::TYPE,
             TypeRep::Path(reference) => self
                 .env
                 .rigid_variables
                 .get(&reference.definition(self.db))
                 .cloned()
-                .unwrap_or(Tau::Primary(Primary::Error)),
+                .unwrap_or_else(|| {
+                    // TODO: maybe skip this diagnostic, because it should be handled
+                    // by the resolver, maybe ?
+                    let name = reference.definition(self.db).to_string(self.db);
+
+                    self.accumulate(ThirDiagnostic {
+                        location: self.new_location(type_rep.location(self.db)),
+                        message: message!("unresolved type", code!(name)),
+                    })
+                }),
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));
 
@@ -725,11 +740,11 @@ impl<'tctx> InferCtx<'tctx> {
                         // Checks the type of the parameter
                         let ty = self.eval(parameter.parameter_type(self.db));
 
-                        parameter.binding(self.db).check(ty, self);
+                        parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Forall(Arrow {
-                            parameters: next,
+                        Tau::Pi(Arrow {
+                            parameters: next.into(),
                             value: acc.into(),
                             _phantom: PhantomData,
                         })
@@ -744,7 +759,7 @@ impl<'tctx> InferCtx<'tctx> {
                         // Checks the type of the parameter
                         let ty = self.eval(parameter.parameter_type(self.db));
 
-                        parameter.binding(self.db).check(ty, self);
+                        parameter.binding(self.db).check(ty, self)
                     })
                     .collect::<Vec<_>>();
 
@@ -757,7 +772,12 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(_) => {
                 todo!("sigma types are not supported yet")
             }
-            TypeRep::This => todo!("`Self` is not supported yet"),
+            TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
+                self.accumulate(ThirDiagnostic {
+                    location: self.new_location(type_rep.location(self.db)),
+                    message: message!("self type outside of a self context"),
+                })
+            }),
             TypeRep::QPath(_) => todo!("qualified paths are not supported yet"),
             // SECTION: Expressions
             TypeRep::Downgrade(expr) => expr.infer(self),
@@ -767,9 +787,21 @@ impl<'tctx> InferCtx<'tctx> {
     /// Accumulates a diagnostic and returns a default value. This is used
     /// to accumulate diagnostics and return a default value.
     fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
+        if let ThirLocation::CallSite = diagnostic.location {
+            diagnostic.location = self.new_location(self.location.clone());
+        }
+
+        // We push the diagnostic to the diagnostics
+        Diagnostics::push(self.db, Report::new(diagnostic));
+
+        // We return the default value
+        Default::default()
+    }
+
+    fn new_location(&self, location: Location) -> ThirLocation {
         // We set the location of the diagnostic, lowering the
         // source of location
-        let source = match self.location {
+        match location {
             Location::TextRange(ref text_range) => {
                 // We lower the hir source, if the location is a text range
                 let hir_source = hir_lower(self.db, self.pkg, text_range.source);
@@ -783,14 +815,7 @@ impl<'tctx> InferCtx<'tctx> {
                 })
             }
             Location::CallSite => ThirLocation::CallSite,
-        };
-        diagnostic.location = source;
-
-        // We push the diagnostic to the diagnostics
-        Diagnostics::push(self.db, Report::new(diagnostic));
-
-        // We return the default value
-        Default::default()
+        }
     }
 
     fn reference(&self, reference: Reference) -> Tau {
@@ -829,7 +854,7 @@ impl<'tctx> InferCtx<'tctx> {
     where
         F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
     {
-        let old_env = std::mem::replace(&mut self.env, env);
+        let old_env = replace(&mut self.env, env);
         let result = f(self);
         self.env = old_env;
         result

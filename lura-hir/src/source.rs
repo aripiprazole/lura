@@ -2315,10 +2315,10 @@ pub mod type_rep {
         Empty,
 
         /// The type representation for Self in Lura language.
-        This,
+        SelfType,
 
         /// The type representation for Type in Lura language.
-        Tt,
+        Type,
 
         /// An error type representation, it's used to recover from errors, and to continue the
         /// parsing process.
@@ -2364,8 +2364,8 @@ pub mod type_rep {
             match self {
                 TypeRep::Unit => write!(f, "Unit"),
                 TypeRep::Empty => write!(f, "Empty"),
-                TypeRep::This => write!(f, "This"),
-                TypeRep::Tt => write!(f, "tt"),
+                TypeRep::SelfType => write!(f, "This"),
+                TypeRep::Type => write!(f, "tt"),
                 TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
                 TypeRep::Path(path) => path.debug_all(db).fmt(f),
                 TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
@@ -2387,11 +2387,11 @@ pub mod type_rep {
                     listener.enter_empty_type_rep();
                     listener.exit_empty_type_rep();
                 }
-                TypeRep::This => {
+                TypeRep::SelfType => {
                     listener.enter_this_type_rep();
                     listener.exit_this_type_rep();
                 }
-                TypeRep::Tt => {
+                TypeRep::Type => {
                     listener.enter_tt_type_rep();
                     listener.exit_tt_type_rep();
                 }
@@ -2439,8 +2439,8 @@ pub mod type_rep {
             match self {
                 Self::Unit => Location::call_site(db),
                 Self::Empty => Location::call_site(db),
-                Self::This => Location::call_site(db),
-                Self::Tt => Location::call_site(db),
+                Self::SelfType => Location::call_site(db),
+                Self::Type => Location::call_site(db),
                 Self::Arrow(downcast) => downcast.location(db),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Path(downcast) => downcast.location(db),

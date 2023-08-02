@@ -78,8 +78,13 @@ pub enum Ty<M: modes::TypeMode> {
     Bound(TyVar, Rigidness),
 }
 
-impl<M: modes::Mut> Ty<M> {
+impl<M: modes::TypeMode> Ty<M> {
+    pub const ERROR: Self = Self::Primary(Primary::Error);
+    pub const UNIT: Self = Self::Primary(Primary::Unit);
     pub const TYPE: Self = Self::Primary(Primary::Type);
+    pub const BOOL: Self = Self::Primary(Primary::Bool);
+    pub const CHAR: Self = Self::Primary(Primary::Char);
+    pub const STRING: Self = Self::Primary(Primary::String);
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be

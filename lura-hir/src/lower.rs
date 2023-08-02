@@ -604,7 +604,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                         db,
                         /* kind       = */ ArrowKind::Pi,
                         /* parameters = */ parameters,
-                        /* value      = */ TypeRep::This,
+                        /* value      = */ TypeRep::SelfType,
                         /* location   = */ Location::CallSite,
                         /* scope      = */ scope,
                     ));
@@ -951,7 +951,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let binding = BindingPattern::new(self.db, definition, name.location(self.db));
         let pattern = Pattern::Binding(binding);
 
-        Parameter::new(self.db, pattern, TypeRep::Tt, true, true, location)
+        Parameter::new(self.db, pattern, TypeRep::Type, true, true, location)
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items
