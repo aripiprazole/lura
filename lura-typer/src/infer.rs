@@ -205,10 +205,10 @@ impl Substitution<'_, '_> {
                 let mut acc_a = *forall_a.value.clone();
                 let mut acc_b = *forall_b.value;
                 for (param_a, param_b) in forall_a.domain.into_iter().zip(forall_b.domain) {
-                    let level = self.ctx.add_to_env(param_a);
+                    let level = self.ctx.add_to_env(param_a.name);
                     let debruijin = Tau::Bound(level, Rigidness::Flexible);
-                    acc_a = acc_a.replace(param_a, debruijin.clone());
-                    acc_b = acc_b.replace(param_b, debruijin);
+                    acc_a = acc_a.replace(param_a.name, debruijin.clone());
+                    acc_b = acc_b.replace(param_b.name, debruijin);
                 }
 
                 // Unify the results to compare the results
@@ -627,11 +627,15 @@ impl Infer for TopLevel {
                 .collect::<im_rc::Vector<_>>();
 
             let constructor = match decl.type_rep(ctx.db) {
-                Some(TypeRep::Empty | TypeRep::Error(_)) => {
-                    Tau::Constructor(TyConstructor { name })
-                }
+                Some(TypeRep::Empty | TypeRep::Error(_)) => Tau::Constructor(InternalConstructor {
+                    name,
+                    dbg_name: name.to_string(ctx.db),
+                }),
                 Some(type_rep) => ctx.eval(type_rep),
-                None => Tau::Constructor(TyConstructor { name }),
+                None => Tau::Constructor(InternalConstructor {
+                    name,
+                    dbg_name: name.to_string(ctx.db),
+                }),
             };
 
             // Creates the type of the variant
@@ -971,9 +975,15 @@ impl<'tctx> InferCtx<'tctx> {
                             Pattern::Empty | Pattern::Wildcard(_) | Pattern::Error(_) => {
                                 let location = HirLocation::new(self.db, location);
 
-                                unresolved(self.db, location)
+                                InternalConstructor {
+                                    name: unresolved(self.db, location),
+                                    dbg_name: "_".into(),
+                                }
                             }
-                            Pattern::Binding(binding) => binding.name(self.db),
+                            Pattern::Binding(binding) => InternalConstructor {
+                                name: binding.name(self.db),
+                                dbg_name: binding.name(self.db).to_string(self.db),
+                            },
                             _ => {
                                 return self.accumulate(ThirDiagnostic {
                                     location: self.new_location(location),

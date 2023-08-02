@@ -1,6 +1,11 @@
 use holes::*;
 use lura_hir::resolve::Definition;
-use std::{cell::RefCell, hash::Hash, marker::PhantomData, fmt::Display};
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display},
+    hash::Hash,
+    marker::PhantomData,
+};
 
 pub type Level = usize;
 
@@ -43,16 +48,11 @@ impl Primary {
     pub const I64: Self = Self::Int(64, true);
 }
 
-impl Display for Primary {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 /// Represents a constructor. This is used to represent a type constructor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TyConstructor {
+pub struct InternalConstructor {
     pub name: Definition,
+    pub dbg_name: String,
 }
 
 pub type Uniq = usize;
@@ -73,15 +73,21 @@ pub enum TyVar {
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
-    Constructor(TyConstructor),
+    Constructor(InternalConstructor),
     App(Box<Ty<M>>, Box<Ty<M>>),
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
     Bound(Level, Rigidness),
+}
+
+impl<M: modes::TypeMode> Debug for Ty<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
 }
 
 impl<M: modes::TypeMode> Ty<M> {
@@ -145,11 +151,60 @@ impl Ty<modes::Mut> {
 /// Also used on diagnostics.
 mod display {
     use super::*;
+
     use std::fmt::Display;
 
+    impl Display for InternalConstructor {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.dbg_name)
+        }
+    }
+
+    impl Display for Primary {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Primary::Error => write!(f, "?"),
+                Primary::Type => write!(f, "*"),
+                Primary::Unit => write!(f, "()"),
+                Primary::Bool => write!(f, "Bool"),
+                Primary::String => write!(f, "String"),
+                Primary::Char => write!(f, "Char"),
+                Primary::Int(size, signed) => {
+                    if !signed {
+                        write!(f, "U")?;
+                    }
+
+                    write!(f, "Int")?;
+                    write!(f, "{}", size)
+                }
+            }
+        }
+    }
+    impl<K: kinds::ArrowKind, M: modes::TypeMode> Display for Arrow<K, M> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            if K::INFIX {
+                for item in K::domains(self.domain.clone()) {
+                    write!(f, "{item}")?;
+                    write!(f, " -> ")?;
+                }
+                write!(f, "{}", self.value)?;
+            }
+
+            Ok(())
+        }
+    }
+
     impl<M: modes::TypeMode> Display for Ty<M> {
-        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            todo!()
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Ty::Primary(primary) => write!(f, "{primary}"),
+                Ty::Constructor(constructor) => write!(f, "{}", constructor.dbg_name),
+                Ty::App(app, argument) => write!(f, "({} {})", app, argument),
+                Ty::Forall(forall) => write!(f, "{forall}"),
+                Ty::Pi(pi) => write!(f, "{pi}"),
+                Ty::Hole(_) => write!(f, "?"),
+                Ty::Bound(level, _) => write!(f, "`{}", level),
+            }
         }
     }
 }
@@ -328,11 +383,12 @@ pub mod modes {
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
 mod kinds {
-    use std::{fmt::Debug, hash::Hash};
+    use std::{
+        fmt::{Debug, Display},
+        hash::Hash,
+    };
 
-    use lura_hir::resolve::Definition;
-
-    use super::{modes, Ty};
+    use super::{modes, InternalConstructor, Ty};
 
     /// Represents a kind of arrow for a type. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
@@ -340,10 +396,13 @@ mod kinds {
     /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
     /// users from implementing this trait for their own types.
     pub trait ArrowKind: Debug + Clone + PartialEq + Eq + Hash {
+        type Item<M: modes::TypeMode>: Display + Clone + PartialEq + Eq + Hash;
         type Parameters<M: modes::TypeMode>: Clone + PartialEq + Eq + Hash;
 
         const INFIX: bool;
         const SYMBOL: &'static str;
+
+        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>>;
 
         fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready>;
     }
@@ -361,7 +420,8 @@ mod kinds {
     pub struct Pi;
 
     impl ArrowKind for Forall {
-        type Parameters<M: modes::TypeMode> = Vec<Definition>;
+        type Item<M: modes::TypeMode> = InternalConstructor;
+        type Parameters<M: modes::TypeMode> = Vec<Self::Item<M>>;
 
         const INFIX: bool = false;
         const SYMBOL: &'static str = "∀";
@@ -369,9 +429,14 @@ mod kinds {
         fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
             parameters
         }
+
+        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
+            parameters
+        }
     }
 
     impl ArrowKind for Sigma {
+        type Item<M: modes::TypeMode> = Box<Ty<M>>;
         type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
 
         const INFIX: bool = true;
@@ -380,9 +445,14 @@ mod kinds {
         fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
             parameters.seal().into()
         }
+
+        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
+            vec![parameters]
+        }
     }
 
     impl ArrowKind for Pi {
+        type Item<M: modes::TypeMode> = Box<Ty<M>>;
         type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
 
         const INFIX: bool = true;
@@ -390,6 +460,10 @@ mod kinds {
 
         fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
             parameters.seal().into()
+        }
+
+        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
+            vec![parameters]
         }
     }
 }
