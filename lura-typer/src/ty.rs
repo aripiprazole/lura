@@ -322,6 +322,8 @@ pub mod modes {
 mod kinds {
     use std::{fmt::Debug, hash::Hash};
 
+    use lura_hir::resolve::Definition;
+
     use super::{modes, Ty};
 
     /// Represents a kind of arrow for a type. This is used to distinguish between different
@@ -351,13 +353,13 @@ mod kinds {
     pub struct Pi;
 
     impl ArrowKind for Forall {
-        type Parameters<M: modes::TypeMode> = Vec<Ty<M>>;
+        type Parameters<M: modes::TypeMode> = Vec<Definition>;
 
         const INFIX: bool = false;
         const SYMBOL: &'static str = "∀";
 
         fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
-            parameters.into_iter().map(|ty| ty.seal()).collect()
+            parameters
         }
     }
 

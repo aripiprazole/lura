@@ -4,8 +4,9 @@ use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
 use crate::{
     lower::{hir_declare, hir_lower},
     reference::ReferenceWalker,
+    reparse::reparse_hir_path,
     scope::{Scope, ScopeKind},
-    source::{DefaultWithDb, HirPath, Location},
+    source::{DefaultWithDb, HirLocation, HirPath, Location, VirtualPath},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,7 +57,9 @@ impl Definition {
 
     #[salsa::tracked]
     pub fn to_string(self, db: &dyn crate::HirDb) -> String {
-        self.name(db).to_string(db).unwrap_or("~INTERNAL ERROR~".into())
+        self.name(db)
+            .to_string(db)
+            .unwrap_or("~INTERNAL ERROR~".into())
     }
 }
 
@@ -149,6 +152,21 @@ impl Diagnostic for HirDiagnostic {
     fn location(&self) -> Option<Self::TextRange> {
         Some(self.location.clone())
     }
+}
+
+/// Defines the [`unresolved`] query.
+///
+/// Creates a new `Definition` with the given `kind`, `name`, and `location`, and reports
+/// an error to the diagnostic database.
+#[salsa::tracked]
+pub fn unresolved(db: &dyn crate::HirDb, location: HirLocation) -> Definition {
+    let input = VirtualPath::new(db, "_".into());
+    let segments = reparse_hir_path(db, location, input.path(db));
+    let path = HirPath::new(db, Location::call_site(db), segments);
+    let id = DefinitionId::new(db, path.location(db));
+
+    // Creates a new `Definition` with the given `kind`, `name`, and `location`.
+    Definition::new(db, id, DefinitionKind::Unresolved, path)
 }
 
 /// Defines the [`find_function`] query.

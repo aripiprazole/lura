@@ -4,7 +4,7 @@ use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
-    resolve::{Definition, Reference},
+    resolve::{unresolved, Definition, Reference},
     source::{
         declaration::Declaration,
         expr::{Callee, Expr},
@@ -13,7 +13,7 @@ use lura_hir::{
         stmt::{Block, Stmt},
         top_level::{BindingGroup, TopLevel},
         type_rep::{ArrowKind, TypeRep},
-        HirElement, Location, Spanned,
+        HirElement, HirLocation, Location, Spanned,
     },
 };
 
@@ -781,11 +781,30 @@ impl<'tctx> InferCtx<'tctx> {
                 let parameters = forall
                     .parameters(self.db)
                     .into_iter()
-                    .map(|parameter| {
+                    .filter_map(|parameter| {
                         // Checks the type of the parameter
                         let ty = self.eval(parameter.parameter_type(self.db));
+                        let binding = parameter.binding(self.db);
 
-                        parameter.binding(self.db).check(ty, self)
+                        let location = binding.location(self.db);
+
+                        // Checks the binding
+                        binding.clone().check(ty, self);
+
+                        Some(match binding {
+                            Pattern::Empty | Pattern::Wildcard(_) | Pattern::Error(_) => {
+                                let location = HirLocation::new(self.db, location);
+
+                                unresolved(self.db, location)
+                            }
+                            Pattern::Binding(binding) => binding.name(self.db),
+                            _ => {
+                                return self.accumulate(ThirDiagnostic {
+                                    location: self.new_location(location),
+                                    message: message!("unsupported pattern in forall type"),
+                                })
+                            }
+                        })
                     })
                     .collect::<Vec<_>>();
 

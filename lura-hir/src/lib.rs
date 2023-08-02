@@ -20,6 +20,7 @@ pub struct Jar(
     resolve::Reference,
     resolve::Reference_is_type_level,
     resolve::Reference_name,
+    resolve::unresolved,
     resolve::find_constructor,
     resolve::find_function,
     resolve::find_type,
