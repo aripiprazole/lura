@@ -118,7 +118,9 @@ impl Ty<modes::Mut> {
     where
         I: Iterator<Item = Self>,
     {
-        let first = parameters.next().unwrap();
+        let Some(first) = parameters.next() else {
+            return ty
+        };
         let mut result = Self::Pi(Arrow {
             domain: first.into(),
             value: ty.into(),

@@ -143,12 +143,9 @@ impl lura_vfs::VfsDb for RootDb {
 #[cfg(test)]
 #[allow(clippy::unnecessary_mut_passed)]
 mod tests {
-    use lura_diagnostic::Diagnostics;
     use lura_hir::{
         lower::hir_lower,
         package::{Package, PackageKind, Version},
-        resolve::find_function,
-        source::HirPath,
     };
     use lura_syntax::Source;
     use lura_typer::table::infer_type_table;
