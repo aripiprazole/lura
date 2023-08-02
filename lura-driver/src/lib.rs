@@ -30,7 +30,13 @@ extern crate salsa_2022 as salsa;
 /// invalidate them when the input changes.
 ///
 /// The database is also used to store the logs of the compiler, so that they can be printed.
-#[salsa::db(lura_hir::Jar, lura_vfs::Jar, lura_syntax::Jar, lura_diagnostic::Jar)]
+#[salsa::db(
+    lura_hir::Jar,
+    lura_vfs::Jar,
+    lura_syntax::Jar,
+    lura_diagnostic::Jar,
+    lura_typer::Jar
+)]
 pub struct RootDb {
     /// Salsa storage, used to store the results of the various passes of the compiler.
     storage: salsa::Storage<RootDb>,
@@ -145,6 +151,7 @@ mod tests {
         source::HirPath,
     };
     use lura_syntax::Source;
+    use lura_typer::table::infer_type_table;
     use lura_vfs::SourceFile;
     use salsa_2022::DebugWithDb;
 
@@ -159,23 +166,16 @@ mod tests {
     #[test]
     fn pipeline_tests() {
         let (tx, _) = crossbeam_channel::unbounded();
-        let mut db = RootDb::new(tx);
+        let db = RootDb::new(tx);
 
         let file = SourceFile::new(&db, "repl".into(), "Repl".into(), EXAMPLE.into());
         let source = lura_syntax::parse(&db, file);
 
         let local = create_package(&db, source, "local");
         let hir = hir_lower(&db, local, source);
+        let table = infer_type_table(&db, hir);
 
-        let diagnostics = hir_lower::accumulated::<Diagnostics>(&db, local, source);
-
-        if !diagnostics.is_empty() {
-            println!("{:#?}", diagnostics);
-        }
-
-        println!("{:#?}", hir.debug(&db));
-        let main_def = find_function(&db, HirPath::create(&db, "Main"));
-        println!("{:#?}", db.rename(main_def, "Pindamanhogaba"));
+        println!("{:#?}", table.debug_all(&db));
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {

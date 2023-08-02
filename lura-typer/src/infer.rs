@@ -62,7 +62,7 @@ pub struct InternalVariant {
     pub parameters: im_rc::Vector<Tau>,
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct TyEnv {
     pub level: Level,
     pub variables: im_rc::HashMap<Definition, Sigma>,
@@ -296,7 +296,7 @@ type Rho = Ty<modes::Mut>;
 type Tau = Ty<modes::Mut>;
 type HoleMut = HoleRef<modes::Mut>;
 
-trait Infer {
+pub(crate) trait Infer {
     type Output;
 
     #[inline(always)]
@@ -800,7 +800,7 @@ impl Check for Block {
     }
 }
 
-struct InferCtx<'tctx> {
+pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
     pub self_type: Option<Tau>,

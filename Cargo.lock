@@ -844,6 +844,7 @@ dependencies = [
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",
+ "lura-typer",
  "lura-vfs",
  "notify-debouncer-mini",
  "salsa-2022",
