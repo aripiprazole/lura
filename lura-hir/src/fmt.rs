@@ -1,7 +1,6 @@
 use std::{
     cell::Cell,
-    fmt::{Debug, Display, Formatter},
-    ops::Deref,
+    fmt::{Display, Formatter},
 };
 
 use salsa_2022::DebugWithDb;
@@ -65,13 +64,13 @@ impl Scope {
         Ok(())
     }
 
-    /// Write a new line with the current indentation.
+    /// Write a new string.
     pub fn write(&self, f: &mut Formatter, string: &str) -> std::fmt::Result {
         write!(f, "{}", string)?;
         Ok(())
     }
 
-    /// Write a new line with the current indentation.
+    /// Writes punctuated items. The separator is not written at the end.
     pub fn punctuated<T: HirFormatter>(
         &self,
         db: &dyn HirDb,
@@ -89,7 +88,9 @@ impl Scope {
         Ok(())
     }
 
-    /// Write a new line with the current indentation.
+    /// Writes punctuated items. The separator is not written at the end.
+    ///
+    /// The separator is written at the end of each line.
     pub fn line_punctuated<T: HirFormatter>(
         &self,
         db: &dyn HirDb,
@@ -116,54 +117,10 @@ impl DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for dyn HirFormatte
 }
 
 impl<T: Display> HirFormatter for T {
+    /// Writes [`Display`] implementations with the
+    /// [`DebugWithDb`](salsa_2022::DebugWithDb) implementation.
     fn write(&self, _: &dyn HirDb, f: &mut Formatter, _: &Scope) -> std::fmt::Result {
         write!(f, "{}", self)
-    }
-}
-
-/// A data structure that holds a list of items separated by a punctuation.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct Punctuated<T, const SEP: char> {
-    pub value: Vec<T>,
-}
-
-impl<T: HirFormatter, const SEP: char> HirFormatter for Punctuated<T, SEP> {
-    fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
-        for (i, item) in self.value.iter().enumerate() {
-            if i != 0 {
-                write!(f, "{} ", SEP)?;
-            }
-            item.write(db, f, scope)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl<T, const SEP: char> From<Vec<T>> for Punctuated<T, SEP> {
-    fn from(value: Vec<T>) -> Self {
-        Self { value }
-    }
-}
-
-impl<T, const SEP: char> From<Punctuated<T, SEP>> for Vec<T> {
-    fn from(punctuated: Punctuated<T, SEP>) -> Self {
-        punctuated.value
-    }
-}
-
-impl<T, const SEP: char> Punctuated<T, SEP> {
-    pub fn new(value: Vec<T>) -> Self {
-        Self { value }
-    }
-}
-
-impl<T, const SEP: char> Deref for Punctuated<T, SEP> {
-    type Target = Vec<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
     }
 }
 
@@ -178,18 +135,21 @@ mod impls {
         source::*,
     };
 
+    /// A formatter for [`Reference`].
     impl HirFormatter for Reference {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             self.name(db).write(db, f, scope)
         }
     }
 
+    /// A formatter for [`Definition`].
     impl HirFormatter for Definition {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             self.name(db).write(db, f, scope)
         }
     }
 
+    /// A formatter for [`Identifier`]s.
     impl HirFormatter for Identifier {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, _: &Scope) -> std::fmt::Result {
             if self.refers_symbol(db) {
@@ -200,6 +160,7 @@ mod impls {
         }
     }
 
+    /// A formatter for [`HirPath`].
     impl HirFormatter for HirPath {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             for (i, segment) in self.segments(db).iter().enumerate() {
@@ -213,6 +174,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`declaration::Attribute`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for declaration::Attribute {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             scope.write_with_indent(f, "@")?;
@@ -229,6 +193,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`declaration::DocString`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for declaration::DocString {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             scope.write_with_indent(f, "//!")?;
@@ -237,6 +204,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`declaration::Parameter`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for declaration::Parameter {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             self.binding(db).write(db, f, scope)?;
@@ -245,6 +215,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`top_level::TopLevel`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for top_level::TopLevel {
         fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use top_level::TopLevel::*;
@@ -263,6 +236,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`stmt::Block`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for stmt::Block {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             scope.write(f, "{")?;
@@ -274,6 +250,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`stmt::Stmt`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for stmt::Stmt {
         fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use stmt::Stmt::*;
@@ -288,6 +267,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`pattern::Pattern`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for pattern::Pattern {
         fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use pattern::Pattern::*;
@@ -304,6 +286,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`type_rep::TypeRep`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for type_rep::TypeRep {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use type_rep::TypeRep::*;
@@ -323,6 +308,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`literal::Literal`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for literal::Literal {
         fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use literal::Literal::*;
@@ -344,6 +332,9 @@ mod impls {
         }
     }
 
+    /// A formatter for [`expr::Expr`]. It does
+    /// takes an attribute and format it as it would be written
+    /// in a source file.
     impl HirFormatter for expr::Expr {
         fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use expr::Expr::*;
