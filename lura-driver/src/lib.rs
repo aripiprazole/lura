@@ -154,7 +154,7 @@ mod tests {
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "Main (args: List String) { args }";
+    const EXAMPLE: &str = "data String\n data List (^a)\n Main (args: List String) { args }";
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.

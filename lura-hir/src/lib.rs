@@ -85,3 +85,4 @@ pub mod resolve;
 pub mod scope;
 pub mod source;
 pub mod walking;
+pub mod fmt;
