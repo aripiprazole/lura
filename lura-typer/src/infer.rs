@@ -890,8 +890,23 @@ impl TyEnv {
 }
 
 impl<'tctx> InferCtx<'tctx> {
-    fn instantiate(&self, ty: Sigma) -> Rho {
-        ty
+    fn instantiate(&mut self, sigma: Sigma) -> Rho {
+        let Sigma::Forall(forall) = sigma else {
+            return sigma;
+        };
+
+        let parameters = forall
+            .domain
+            .iter()
+            .map(|_| self.new_meta())
+            .collect::<Vec<_>>();
+
+        let mut codomain = *forall.value;
+        for (constructor, hole) in forall.domain.into_iter().zip(parameters) {
+            codomain = codomain.replace(constructor.name, hole);
+        }
+
+        codomain
     }
 
     fn quantify(&self, ty: Rho) -> Sigma {
@@ -1066,7 +1081,7 @@ impl<'tctx> InferCtx<'tctx> {
         }
     }
 
-    fn reference(&self, reference: Reference) -> Tau {
+    fn reference(&mut self, reference: Reference) -> Tau {
         let let_ty = self
             .env
             .variables
@@ -1077,7 +1092,7 @@ impl<'tctx> InferCtx<'tctx> {
         self.instantiate(let_ty)
     }
 
-    fn constructor(&self, reference: Reference) -> Tau {
+    fn constructor(&mut self, reference: Reference) -> Tau {
         let let_ty = self
             .env
             .constructors
