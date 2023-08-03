@@ -7,7 +7,7 @@
 
 use std::{
     collections::HashSet,
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Display, Formatter},
     sync::Arc,
 };
 
@@ -119,6 +119,15 @@ pub enum Location {
 }
 
 impl Debug for Location {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TextRange(_) => write!(f, "TextRange"),
+            Self::CallSite => write!(f, "CallSite"),
+        }
+    }
+}
+
+impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TextRange(range) => f
@@ -410,7 +419,9 @@ impl<T> Spanned<T> {
 
 impl<A> HirElement for Spanned<A> {
     fn location(&self, db: &dyn crate::HirDb) -> Location {
-        self.location.clone().unwrap_or_else(|| Location::call_site(db))
+        self.location
+            .clone()
+            .unwrap_or_else(|| Location::call_site(db))
     }
 }
 
@@ -1885,6 +1896,22 @@ pub mod expr {
                 Callee::Do => {}
                 Callee::Reference(reference) => reference.accept(db, listener),
                 Callee::Expr(expr) => expr.accept(db, listener),
+            }
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Callee {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            use salsa::DebugWithDb;
+
+            match self {
+                Callee::Array => write!(f, "Array"),
+                Callee::Tuple => write!(f, "Tuple"),
+                Callee::Unit => write!(f, "()"),
+                Callee::Pure => write!(f, "return"),
+                Callee::Do => write!(f, "do"),
+                Callee::Reference(reference) => DebugWithDb::fmt(reference, f, db, true),
+                Callee::Expr(expr) => DebugWithDb::fmt(expr, f, db, true),
             }
         }
     }

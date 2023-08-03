@@ -178,7 +178,18 @@ mod tests {
         let hir = hir_lower(&db, local, source);
         let table = infer_type_table(&db, hir);
 
-        println!("{:#?}", table.debug_all(&db));
+        println!("Type Table:");
+        for (expr, type_rep) in table.expressions(&db) {
+            print!("  ");
+            let expr = format!("{:#?}", expr.debug_all(&db))
+                .split('\n')
+                .collect::<Vec<_>>()
+                .join("\n    ");
+            println!("Expr: {expr}");
+            print!("  ");
+            println!("Type: {type_rep}");
+            println!();
+        }
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
