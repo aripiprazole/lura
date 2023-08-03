@@ -134,8 +134,7 @@ impl Substitution<'_, '_> {
     fn unify_hole(&mut self, ty: Tau, hole: HoleMut) {
         use holes::HoleKind::*;
 
-        let mut hole_ref = hole.borrow_mut();
-        match hole_ref.kind() {
+        match hole.kind() {
             // SECTION: Sentinel Values
             Error => {} // TODO
 
@@ -148,8 +147,8 @@ impl Substitution<'_, '_> {
 
                 // Unify the hole with the type, and then set the kind
                 // of the hole to filled
-                self.hole_unify_prechecking(ty.clone(), *scope, hole.clone());
-                hole_ref.set_kind(Filled(ty));
+                self.hole_unify_prechecking(ty.clone(), scope, hole.clone());
+                hole.borrow_mut().set_kind(Filled(ty));
             }
             Filled(a) => {
                 self.internal_unify(a.clone(), ty);

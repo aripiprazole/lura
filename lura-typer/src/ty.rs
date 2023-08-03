@@ -152,7 +152,7 @@ impl Ty<modes::Mut> {
 mod display {
     use super::*;
 
-    use std::fmt::{Display};
+    use std::fmt::Display;
 
     impl Display for InternalConstructor {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -208,7 +208,7 @@ mod display {
         }
     }
 
-    impl <M: modes::TypeMode> Display for Hole<M> {
+    impl<M: modes::TypeMode> Display for Hole<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self.kind {
                 HoleKind::Error => write!(f, "?"),
@@ -218,7 +218,7 @@ mod display {
         }
     }
 
-    impl <M: modes::TypeMode> Display for HoleRef<M> {
+    impl<M: modes::TypeMode> Display for HoleRef<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "{}", self.data.borrow())
         }
@@ -288,6 +288,10 @@ pub mod holes {
             Self {
                 data: Rc::new(RefCell::new(value)),
             }
+        }
+
+        pub fn kind(&self) -> HoleKind<modes::Mut> {
+            self.data.borrow().kind.clone()
         }
     }
 
@@ -378,12 +382,12 @@ pub mod modes {
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
-    pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug {
+    pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug + Default {
         type Hole: Display + Debug + PartialEq + Eq + Clone + Hash;
     }
 
     /// Ready is the type of build in types.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Ready;
 
     impl TypeMode for Ready {
@@ -391,7 +395,7 @@ pub mod modes {
     }
 
     /// Mut is the type of mutable types.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Mut;
 
     impl TypeMode for Mut {

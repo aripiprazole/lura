@@ -154,7 +154,12 @@ mod tests {
 
     use crate::RootDb;
 
-    const EXAMPLE: &str = "data String\n data List (^a)\n Main (args: List String) { args }";
+    const EXAMPLE: &[&str] = &[
+        "data String",
+        "data List (^a)",
+        "Id : ^a. a -> a",
+        "Main (args: List String) { Id args }",
+    ];
 
     /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
     /// it's not a unit test.
@@ -164,8 +169,9 @@ mod tests {
     fn pipeline_tests() {
         let (tx, _) = crossbeam_channel::unbounded();
         let db = RootDb::new(tx);
+        let source = EXAMPLE.join("\n");
 
-        let file = SourceFile::new(&db, "repl".into(), "Repl".into(), EXAMPLE.into());
+        let file = SourceFile::new(&db, "repl".into(), "Repl".into(), source);
         let source = lura_syntax::parse(&db, file);
 
         let local = create_package(&db, source, "local");

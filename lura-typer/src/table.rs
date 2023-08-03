@@ -10,6 +10,9 @@ pub struct TypeTable {
     pub expressions: im::HashMap<Expr, Ty<modes::Ready>>,
 }
 
+/// Defines the [`infer_type_table`] query.
+/// 
+/// [`infer_type_table`]: crate::table::infer_type_table
 #[salsa::tracked]
 pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable {
     let mut ctx = InferCtx {
