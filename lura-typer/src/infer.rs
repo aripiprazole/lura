@@ -134,9 +134,10 @@ impl Substitution<'_, '_> {
     fn unify_hole(&mut self, ty: Tau, hole: HoleMut) {
         use holes::HoleKind::*;
 
+        // I don't know but this is needed to avoid reborrow
         match hole.kind() {
             // SECTION: Sentinel Values
-            Error => {} // TODO
+            Error => {}
 
             // SECTION: Holes
             Empty { scope } => {
@@ -151,7 +152,7 @@ impl Substitution<'_, '_> {
                 hole.borrow_mut().set_kind(Filled(ty));
             }
             Filled(a) => {
-                self.internal_unify(a.clone(), ty);
+                self.internal_unify(a, ty);
             }
         }
     }
@@ -615,8 +616,16 @@ impl Infer for TopLevel {
     /// declaration. It does only add to the context and
     /// return unit type.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
+        /// Creates a new type variable to represent the type of the declaration
+        ///
+        /// The ty is optional because it does fallback to the type of the
+        /// declaration, if it is not provided.
         #[inline]
-        fn create_declaration_ty(ctx: &mut InferCtx, decl: impl Declaration) -> Tau {
+        fn create_declaration_ty(
+            ctx: &mut InferCtx,
+            use_return_type: bool,
+            decl: impl Declaration,
+        ) -> Tau {
             let name = decl.name(ctx.db);
             let parameters = decl
                 .parameters(ctx.db)
@@ -626,7 +635,11 @@ impl Infer for TopLevel {
                 .collect::<im_rc::Vector<_>>();
 
             let constructor = match decl.type_rep(ctx.db) {
-                Some(TypeRep::Empty | TypeRep::Error(_)) => Tau::Constructor(InternalConstructor {
+                Some(TypeRep::Error(_)) => Tau::Constructor(InternalConstructor {
+                    name,
+                    dbg_name: name.to_string(ctx.db),
+                }),
+                Some(TypeRep::Empty) if !use_return_type => Tau::Constructor(InternalConstructor {
                     name,
                     dbg_name: name.to_string(ctx.db),
                 }),
@@ -651,7 +664,7 @@ impl Infer for TopLevel {
         fn check_binding_group(ctx: &mut InferCtx, binding_group: BindingGroup) {
             // Creates the type of the binding group using the
             // signature of the binding group
-            let return_ty = create_declaration_ty(ctx, binding_group.signature(ctx.db));
+            let return_ty = create_declaration_ty(ctx, true, binding_group.signature(ctx.db));
 
             // Gets the parameter types
             let parameters = binding_group
@@ -690,7 +703,7 @@ impl Infer for TopLevel {
             TopLevel::ClassDecl(_) => todo!(),
             TopLevel::TraitDecl(_) => todo!(),
             TopLevel::DataDecl(data_declaration) => {
-                let ty = create_declaration_ty(ctx, data_declaration);
+                let ty = create_declaration_ty(ctx, false, data_declaration);
                 let self_type = replace(&mut ctx.self_type, ty.clone().into());
 
                 // Creates the type of the variant
@@ -730,7 +743,7 @@ impl Infer for TopLevel {
                 ctx.self_type = self_type;
             }
             TopLevel::TypeDecl(type_declaration) => {
-                create_declaration_ty(ctx, type_declaration);
+                create_declaration_ty(ctx, false, type_declaration);
             }
         };
 
