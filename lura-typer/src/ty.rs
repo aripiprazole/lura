@@ -16,7 +16,7 @@ pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
 
     /// Represents the kind of arrow. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
-    pub _phantom: PhantomData<K>,
+    pub phantom: PhantomData<K>,
 }
 
 /// Represents a primary type. This is used to represent a type that is not a constructor.
@@ -130,14 +130,14 @@ impl Ty<modes::Mut> {
         let mut result = Self::Pi(Arrow {
             domain: first.into(),
             value: ty.into(),
-            _phantom: PhantomData,
+            phantom: PhantomData,
         });
 
         for parameter in parameters {
             result = Ty::Pi(Arrow {
                 domain: Box::new(parameter),
                 value: Box::new(result),
-                _phantom: PhantomData,
+                phantom: PhantomData,
             });
         }
 
@@ -348,7 +348,7 @@ pub mod seals {
             Arrow {
                 domain: K::seal(self.domain),
                 value: self.value.seal().into(),
-                _phantom: PhantomData,
+                phantom: PhantomData,
             }
         }
     }

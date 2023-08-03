@@ -860,12 +860,12 @@ impl Ty<modes::Mut> {
             Ty::Forall(forall) => Ty::Forall(Arrow {
                 domain: forall.domain,
                 value: forall.value.replace(name, replacement).into(),
-                _phantom: PhantomData,
+                phantom: PhantomData,
             }),
             Ty::Pi(pi) => Ty::Pi(Arrow {
                 domain: pi.domain.replace(name, replacement.clone()).into(),
                 value: pi.value.replace(name, replacement).into(),
-                _phantom: PhantomData,
+                phantom: PhantomData,
             }),
             Ty::Hole(hole) => match hole.data.borrow_mut().kind() {
                 holes::HoleKind::Error => Ty::Hole(HoleRef::new(Hole {
@@ -976,7 +976,7 @@ impl<'tctx> InferCtx<'tctx> {
                         Tau::Pi(Arrow {
                             domain: next.into(),
                             value: acc.into(),
-                            _phantom: PhantomData,
+                            phantom: PhantomData,
                         })
                     })
             }
@@ -1024,7 +1024,7 @@ impl<'tctx> InferCtx<'tctx> {
                 Tau::Forall(Arrow {
                     domain: parameters,
                     value: value.into(),
-                    _phantom: PhantomData,
+                    phantom: PhantomData,
                 })
             }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
