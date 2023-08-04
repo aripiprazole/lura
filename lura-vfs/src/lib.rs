@@ -18,6 +18,6 @@ pub struct SourceFile {
 #[salsa::jar(db = VfsDb)]
 pub struct Jar(crate::SourceFile);
 
-pub trait VfsDb: DbWithJar<Jar> {
-    fn input(&self, path: PathBuf) -> eyre::Result<SourceFile>;
-}
+pub trait VfsDb: DbWithJar<Jar> {}
+
+impl<DB> VfsDb for DB where DB: DbWithJar<Jar> {}

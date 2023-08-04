@@ -1,18 +1,10 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
-use crossbeam_channel::Sender;
-use dashmap::{mapref::entry::Entry, DashMap, DashSet};
-use eyre::Context;
+use dashmap::{DashMap, DashSet};
 use lura_hir::package::{HasManifest, Package};
-use notify_debouncer_mini::{
-    new_debouncer,
-    notify::{RecommendedWatcher, RecursiveMode},
-    DebounceEventResult, Debouncer,
-};
 use salsa::DebugWithDb;
 
 /// Defines watcher strategies for [`RootDb`].
@@ -37,32 +29,17 @@ extern crate salsa_2022 as salsa;
     lura_diagnostic::Jar,
     lura_typer::Jar
 )]
+#[derive(Default)]
 pub struct RootDb {
     /// Salsa storage, used to store the results of the various passes of the compiler.
     storage: salsa::Storage<RootDb>,
     packages: Arc<DashSet<Package>>,
 
     files: DashMap<PathBuf, lura_vfs::SourceFile>,
-    watcher: Arc<Mutex<Debouncer<RecommendedWatcher>>>,
     logs: Option<Arc<Mutex<Vec<String>>>>,
 }
 
 impl RootDb {
-    /// Creates a new [`RootDb`].
-    pub fn new(tx: Sender<DebounceEventResult>) -> Self {
-        let storage = Default::default();
-
-        Self {
-            storage,
-            packages: Default::default(),
-            logs: Default::default(),
-            files: DashMap::new(),
-            watcher: Arc::new(Mutex::new(
-                new_debouncer(Duration::from_secs(1), None, tx).unwrap(),
-            )),
-        }
-    }
-
     /// Registers a package in the database.
     pub fn register_package(&self, package: Package) -> Package {
         self.packages.insert(package);
@@ -96,46 +73,7 @@ impl salsa::ParallelDatabase for RootDb {
             storage: self.storage.snapshot(),
             logs: self.logs.clone(),
             files: self.files.clone(),
-            watcher: self.watcher.clone(),
             packages: self.packages.clone(),
-        })
-    }
-}
-
-impl lura_vfs::VfsDb for RootDb {
-    fn input(&self, path: PathBuf) -> eyre::Result<lura_vfs::SourceFile> {
-        let path = path
-            .canonicalize()
-            .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
-
-        Ok(match self.files.entry(path.clone()) {
-            // If the file already exists in our cache then just return it.
-            Entry::Occupied(entry) => *entry.get(),
-            // If we haven't read this file yet set up the watch, read the
-            // contents, store it in the cache, and return it.
-            Entry::Vacant(entry) => {
-                // Set up the watch before reading the contents to try to avoid
-                // race conditions.
-                let watcher = &mut *self.watcher.lock().unwrap();
-                watcher
-                    .watcher()
-                    .watch(&path, RecursiveMode::NonRecursive)
-                    .wrap_err_with(|| {
-                        format!("Failed to create a watcher on {}", path.display())
-                    })?;
-
-                let contents = std::fs::read_to_string(&path)
-                    .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
-
-                // TODO:
-                let name = path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-
-                *entry.insert(lura_vfs::SourceFile::new(self, path, name, contents))
-            }
         })
     }
 }
@@ -167,8 +105,7 @@ mod tests {
     /// This test is meant to be run with `cargo test -- --nocapture` so that the logs are printed.
     #[test]
     fn pipeline_tests() {
-        let (tx, _) = crossbeam_channel::unbounded();
-        let db = RootDb::new(tx);
+        let db = RootDb::default();
         let source = EXAMPLE.join("\n");
 
         let file = SourceFile::new(&db, "repl".into(), "Repl".into(), source);

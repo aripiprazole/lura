@@ -1,13 +1,9 @@
-use crate::completion::{hir_completion_kind, hir_detail, hir_docs};
-use crate::highlighter::semantic_highlight;
-use itertools::Itertools;
-use lura_diagnostic::Offset;
-use lura_hir::completions::{completions, Position};
-use lura_hir::source::HirSource;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{async_trait, LanguageServer};
+
+use crate::functions::*;
 
 use crate::LEGEND_TYPE;
 
@@ -39,59 +35,18 @@ impl Backend {
 
     /// This function is called when a file is opened or changed. It will parse the file and
     /// send the diagnostics to the client.
-    async fn on_change(&self, params: TextDocumentItem) {
+    pub async fn on_change(&self, params: TextDocumentItem) {
         self.client
             .log_message(MessageType::INFO, format!("on_change: {}", params.uri))
             .await;
         self.get_or_create_file(params);
     }
 
-    async fn completions(
-        &self,
-        params: TextDocumentPositionParams,
-        hir_source: HirSource,
-    ) -> Option<CompletionResponse> {
-        let path = params.text_document.uri.to_string();
-        let text_file = self.workspace.file_map.get(&path).unwrap();
-        let searching_for_name = Default::default();
-        let offset = text_file
-            .try_line_to_char(params.position.line as usize)
-            .ok()?;
-        let position = Position {
-            offset: Offset(offset + (params.position.character as usize)),
-        };
-
-        // log for client
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("trying completions at {:?}", position.offset.0),
-            )
-            .await;
-
-        let completions = completions(&*self.db(), hir_source, searching_for_name, position);
-
-        let new_completions = completions
-            .into_iter()
-            .map(|c| CompletionItem {
-                label: c.name.clone(),
-                kind: Some(hir_completion_kind(&c)),
-                detail: Some(hir_detail(&c)),
-                documentation: hir_docs(&self.db(), &c),
-                ..CompletionItem::default()
-            })
-            .collect();
-
-        Some(CompletionResponse::Array(new_completions))
-    }
-}
-
-#[async_trait]
-impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
-        Ok(InitializeResult {
+    /// Defines the handler for the `initialize` request. It does return
+    /// the capabilities of the language server.
+    fn default_initialize_result() -> InitializeResult {
+        InitializeResult {
             server_info: None,
-            offset_encoding: None,
             capabilities: ServerCapabilities {
                 inlay_hint_provider: Some(OneOf::Left(false)),
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -143,150 +98,42 @@ impl LanguageServer for Backend {
                 rename_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
-        })
+        }
+    }
+}
+
+/// This trait is used to implement the Language Server Protocol.
+#[async_trait]
+impl LanguageServer for Backend {
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+        Ok(Self::default_initialize_result())
     }
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 
-    async fn semantic_tokens_range(
-        &self,
-        params: SemanticTokensRangeParams,
-    ) -> Result<Option<SemanticTokensRangeResult>> {
-        let uri = params.text_document.uri.to_string();
-        let semantic_tokens = || -> Option<Vec<SemanticToken>> {
-            let rope = self.workspace.file_map.get(&uri)?;
-            let tokens = semantic_highlight(&rope.to_string());
-
-            let mut pre_line = 0;
-            let mut pre_start = 0;
-
-            tokens
-                .iter()
-                .filter_map(|token| {
-                    let line = rope.try_byte_to_line(token.start).ok()? as u32;
-                    let first = rope.try_line_to_char(line as usize).ok()? as u32;
-                    let start = rope.try_byte_to_char(token.start).ok()? as u32 - first;
-                    let token_type = LEGEND_TYPE
-                        .iter()
-                        .position(|t| *t == token.token_type)
-                        .map(|i| i as u32)?;
-                    let delta_line = line - pre_line;
-                    let delta_start = if delta_line == 0 {
-                        start - pre_start
-                    } else {
-                        start
-                    };
-                    let token = Some(SemanticToken {
-                        delta_line,
-                        delta_start,
-                        length: token.length as u32,
-                        token_type,
-                        token_modifiers_bitset: 0,
-                    });
-                    pre_line = line;
-                    pre_start = start;
-                    token
-                })
-                .collect_vec()
-                .into()
-        };
-
-        Ok(semantic_tokens().map(|tokens| {
-            SemanticTokensRangeResult::Tokens(SemanticTokens {
-                result_id: None,
-                data: tokens,
-            })
-        }))
+    async fn semantic_tokens_range(&self, params: semantic_tokens_range::Input) -> semantic_tokens_range::Output {
+        semantic_tokens_range::invoke(self, params).await
     }
 
     async fn semantic_tokens_full(
         &self,
-        params: SemanticTokensParams,
-    ) -> Result<Option<SemanticTokensResult>> {
-        let uri = params.text_document.uri.to_string();
-        let semantic_tokens = || -> Option<Vec<SemanticToken>> {
-            let rope = self.workspace.file_map.get(&uri)?;
-            let tokens = semantic_highlight(&rope.to_string());
-
-            let mut pre_line = 0;
-            let mut pre_start = 0;
-
-            tokens
-                .iter()
-                .filter_map(|token| {
-                    let line = rope.try_byte_to_line(token.start).ok()? as u32;
-                    let first = rope.try_line_to_char(line as usize).ok()? as u32;
-                    let start = rope.try_byte_to_char(token.start).ok()? as u32 - first;
-                    let token_type = LEGEND_TYPE
-                        .iter()
-                        .position(|t| *t == token.token_type)
-                        .map(|i| i as u32)?;
-                    let delta_line = line - pre_line;
-                    let delta_start = if delta_line == 0 {
-                        start - pre_start
-                    } else {
-                        start
-                    };
-                    let token = Some(SemanticToken {
-                        delta_line,
-                        delta_start,
-                        length: token.length as u32,
-                        token_type,
-                        token_modifiers_bitset: 0,
-                    });
-                    pre_line = line;
-                    pre_start = start;
-                    token
-                })
-                .collect_vec()
-                .into()
-        };
-
-        Ok(semantic_tokens().map(|tokens| {
-            SemanticTokensResult::Tokens(SemanticTokens {
-                result_id: None,
-                data: tokens,
-            })
-        }))
+        params: semantic_tokens_full::Input,
+    ) -> semantic_tokens_full::Output {
+        semantic_tokens_full::invoke(self, params).await
     }
 
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        log::info!("file opened!");
-
-        self.on_change(TextDocumentItem {
-            uri: params.text_document.uri,
-            text: params.text_document.text,
-            version: params.text_document.version,
-        })
-        .await
+    async fn did_open(&self, params: did_open::Input) {
+        did_open::invoke(self, params).await
     }
 
-    async fn did_change(&self, mut params: DidChangeTextDocumentParams) {
-        self.on_change(TextDocumentItem {
-            uri: params.text_document.uri,
-            text: std::mem::take(&mut params.content_changes[0].text),
-            version: params.text_document.version,
-        })
-        .await
+    async fn did_change(&self, params: did_change::Input) {
+        did_change::invoke(self, params).await
     }
 
-    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        let new_completions = vec![CompletionItem::new_simple("Hello".into(), "World".into())];
-
-        let path = params.text_document_position.text_document.uri.clone();
-        self.client
-            .log_message(MessageType::INFO, format!("completion: {}", path))
-            .await;
-
-        if let Some(hir_source) = self.hir_source(path.clone()) {
-            return Ok(self
-                .completions(params.text_document_position, hir_source)
-                .await);
-        }
-
-        Ok(Some(CompletionResponse::Array(new_completions)))
+    async fn completion(&self, params: completions::Input) -> completions::Output {
+        completions::invoke(self, params).await
     }
 }
 

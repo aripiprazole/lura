@@ -20,6 +20,3 @@ type-sitter-lib = {workspace = true}
 
 dashmap = {workspace = true}
 eyre = {workspace = true}
-
-crossbeam-channel = "0.5.8"
-notify-debouncer-mini = "0.3.0"

@@ -13,6 +13,7 @@ mod backend;
 mod completion;
 mod highlighter;
 mod workspace;
+mod functions;
 
 const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::FUNCTION,
@@ -30,8 +31,7 @@ const LEGEND_TYPE: &[SemanticTokenType] = &[
 async fn main() {
     env_logger::init();
 
-    let (tx, _) = crossbeam_channel::unbounded();
-    let db = RootDb::new(tx);
+    let db = RootDb::default();
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

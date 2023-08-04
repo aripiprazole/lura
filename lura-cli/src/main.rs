@@ -49,8 +49,7 @@ impl Hash for FileDescriptor {
 
 fn main() -> eyre::Result<()> {
     let cli = Cli::parse();
-    let (tx, _) = crossbeam_channel::unbounded();
-    let db = RootDb::new(tx);
+    let db = RootDb::default();
 
     match cli.command {
         Command::Run => {
