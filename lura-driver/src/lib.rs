@@ -81,14 +81,17 @@ impl salsa::ParallelDatabase for RootDb {
 #[cfg(test)]
 #[allow(clippy::unnecessary_mut_passed)]
 mod tests {
+    use ariadne::Fmt;
+    use itertools::Itertools;
+    use lura_diagnostic::TextRange;
     use lura_hir::{
         lower::hir_lower,
-        package::{Package, PackageKind, Version}, fmt::HirFormatter,
+        package::{Package, PackageKind, Version},
+        source::HirElement,
     };
     use lura_syntax::Source;
-    use lura_typer::table::infer_type_table;
+    use lura_typer::table::{infer_type_table, TypeTable};
     use lura_vfs::SourceFile;
-    use salsa_2022::DebugWithDb;
 
     use crate::RootDb;
 
@@ -115,18 +118,7 @@ mod tests {
         let hir = hir_lower(&db, local, source);
         let table = infer_type_table(&db, hir);
 
-        println!("Type Table:");
-        for (expr, type_rep) in table.expressions(&db) {
-            print!("  ");
-            let expr = format!("{:#?}", expr.formatter().debug_all(&db))
-                .split('\n')
-                .collect::<Vec<_>>()
-                .join("\n  ");
-            println!("Expr: {expr}");
-            print!("  ");
-            println!("Type: {type_rep}");
-            println!();
-        }
+        create_type_table_report(&db, table)
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
@@ -138,5 +130,40 @@ mod tests {
 
         // Registers the package in the database.
         db.register_package(package)
+    }
+
+    fn create_type_table_report(db: &RootDb, type_table: TypeTable) {
+        let expressions = type_table.expressions(db);
+        let file_type_tables = expressions.iter().group_by(|(expression, _)| {
+            let location = expression.location(db);
+            let file_name = location.file_name().to_string();
+            let contents = location.source().to_string();
+            (file_name, contents)
+        });
+
+        let mut colors = ariadne::ColorGenerator::new();
+
+        for ((file, contents), type_table) in file_type_tables.into_iter() {
+            type Span = (String, std::ops::Range<usize>);
+            ariadne::Report::<Span>::build(ariadne::ReportKind::Advice, file.clone(), 0)
+                .with_code("E0001")
+                .with_message("type table information")
+                .with_config(
+                    ariadne::Config::default()
+                        .with_char_set(ariadne::CharSet::Unicode)
+                        .with_label_attach(ariadne::LabelAttach::Start),
+                )
+                .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
+                    let location = expr.location(db);
+                    let range = location.start().0..location.end().0;
+
+                    ariadne::Label::new((file.clone(), range))
+                        .with_color(colors.next())
+                        .with_message(format!("has type {type_rep:?}").fg(ariadne::Color::White))
+                }))
+                .finish()
+                .print((file.clone(), ariadne::Source::from(&contents)))
+                .unwrap();
+        }
     }
 }

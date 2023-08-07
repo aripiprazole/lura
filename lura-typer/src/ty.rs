@@ -164,7 +164,7 @@ mod display {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Primary::Error => write!(f, "?"),
-                Primary::Type => write!(f, "*"),
+                Primary::Type => write!(f, "Type"),
                 Primary::Unit => write!(f, "()"),
                 Primary::Bool => write!(f, "Bool"),
                 Primary::String => write!(f, "String"),
@@ -211,7 +211,7 @@ mod display {
     impl<M: modes::TypeMode> Display for Hole<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self.kind {
-                HoleKind::Error => write!(f, "?"),
+                HoleKind::Error => write!(f, "!"),
                 HoleKind::Empty { scope } => write!(f, "?{scope}"),
                 HoleKind::Filled(ref ty) => write!(f, "{ty}"),
             }

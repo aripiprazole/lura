@@ -816,8 +816,10 @@ dependencies = [
 name = "lura-driver"
 version = "0.0.1"
 dependencies = [
+ "ariadne",
  "dashmap",
  "eyre",
+ "itertools",
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",
