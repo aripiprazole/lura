@@ -2339,7 +2339,7 @@ pub mod type_rep {
         /// The empty type representation should work as a sentinele value, it's just like a `()`
         /// value. But it's splitted into a different variant to make it easier to work with, when
         /// we don't have an actual type representation, like in [`Self::Error`].
-        Empty,
+        Hole,
 
         /// The type representation for Self in Lura language.
         SelfType,
@@ -2390,7 +2390,7 @@ pub mod type_rep {
         fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
             match self {
                 TypeRep::Unit => write!(f, "Unit"),
-                TypeRep::Empty => write!(f, "Empty"),
+                TypeRep::Hole => write!(f, "Empty"),
                 TypeRep::SelfType => write!(f, "This"),
                 TypeRep::Type => write!(f, "tt"),
                 TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
@@ -2410,7 +2410,7 @@ pub mod type_rep {
                     listener.enter_unit_type_rep();
                     listener.exit_unit_type_rep();
                 }
-                TypeRep::Empty => {
+                TypeRep::Hole => {
                     listener.enter_empty_type_rep();
                     listener.exit_empty_type_rep();
                 }
@@ -2453,7 +2453,7 @@ pub mod type_rep {
         /// The `Empty` should unify with any type representation, so it's useful to create `_` like
         /// types.
         fn default_with_db(_db: &dyn crate::HirDb) -> Self {
-            Self::Empty
+            Self::Hole
         }
 
         fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
@@ -2465,7 +2465,7 @@ pub mod type_rep {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
                 Self::Unit => Location::call_site(db),
-                Self::Empty => Location::call_site(db),
+                Self::Hole => Location::call_site(db),
                 Self::SelfType => Location::call_site(db),
                 Self::Type => Location::call_site(db),
                 Self::Arrow(downcast) => downcast.location(db),

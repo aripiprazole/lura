@@ -697,7 +697,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     /* visibility  = */ Spanned::on_call_site(Vis::Public),
                     /* name        = */ name,
                     /* parameters  = */ vec![],
-                    /* return_type = */ TypeRep::Empty,
+                    /* return_type = */ TypeRep::Hole,
                     /* location    = */ location,
                 );
 
@@ -951,7 +951,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let binding = BindingPattern::new(self.db, definition, name.location(self.db));
         let pattern = Pattern::Binding(binding);
 
-        Parameter::new(self.db, pattern, TypeRep::Type, true, true, location)
+        Parameter::new(self.db, pattern, TypeRep::Hole, true, true, location)
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items

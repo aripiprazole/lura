@@ -626,6 +626,9 @@ impl Infer for TopLevel {
         #[inline]
         fn create_declaration_ty(
             ctx: &mut InferCtx,
+            // Used to define if the type is a type Type, or
+            // if it should use the return type.
+            // has_type_type: bool,
             use_return_type: bool,
             decl: impl Declaration,
         ) -> Tau {
@@ -642,22 +645,22 @@ impl Infer for TopLevel {
                     name,
                     dbg_name: name.to_string(ctx.db),
                 }),
-                Some(TypeRep::Empty) if !use_return_type => Tau::Constructor(InternalConstructor {
+                Some(TypeRep::Hole) if !use_return_type => Tau::Constructor(InternalConstructor {
                     name,
                     dbg_name: name.to_string(ctx.db),
                 }),
-                Some(TypeRep::Arrow(type_rep)) if type_rep.kind(ctx.db) == ArrowKind::Forall => {
+                Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
+                    // # Safety
+                    // We already checked if the type is a forall, so we can
+                    // assume it's safe to unwrap, as it's needs to be a [`Some`]
+                    // to be a forall.
+                    let type_rep = unsafe { decl.type_rep(ctx.db).unwrap_unchecked() };
+
                     // Checks if arrow is already generalised. If the `forall` is first level,
                     // then it's already generalised, so we don't need to quantify it!
                     //
                     // Creates the type of the variant
-                    let variant_ty = Ty::from_pi(
-                        parameters.into_iter(),
-                        Tau::Constructor(InternalConstructor {
-                            name,
-                            dbg_name: name.to_string(ctx.db),
-                        }),
-                    );
+                    let variant_ty = Ty::from_pi(parameters.into_iter(), ctx.eval(type_rep));
 
                     // Early return if the type is already generalised
                     ctx.env.extend(name, variant_ty.clone());
@@ -737,7 +740,7 @@ impl Infer for TopLevel {
                         .collect::<im_rc::Vector<_>>();
 
                     let variant_ty = match variant.type_rep(ctx.db) {
-                        Some(TypeRep::Empty | TypeRep::Error(_)) => ty.clone(),
+                        Some(TypeRep::Hole | TypeRep::Error(_)) => ty.clone(),
                         Some(type_rep) => ctx.eval(type_rep),
                         None => ty.clone(),
                     };
@@ -949,7 +952,7 @@ impl<'tctx> InferCtx<'tctx> {
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
         match type_rep {
             // SECTION: Sentinel Values
-            TypeRep::Empty => self.new_meta(), // Infer the type
+            TypeRep::Hole => self.new_meta(), // Infer the type
             TypeRep::Error(_) => Tau::ERROR,
 
             // SECTION: Primary Types

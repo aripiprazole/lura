@@ -537,7 +537,7 @@ mod impls {
 
             match self {
                 Unit => write!(f, "()"),
-                Empty => write!(f, "_"),
+                Hole => write!(f, "_"),
                 SelfType => write!(f, "Self"),
                 Type => write!(f, "*"),
                 Error(_) => write!(f, "!"),
