@@ -67,8 +67,8 @@ pub enum Rigidness {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyVar {
-    Bound(String),
-    Skolem(String, Uniq),
+    Bound(Definition, String),
+    Skolem(Definition, String, Level),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -81,7 +81,7 @@ pub enum Ty<M: modes::TypeMode> {
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
-    Bound(Level, Rigidness),
+    Bound(TyVar),
 }
 
 impl<M: modes::TypeMode> Debug for Ty<M> {
@@ -194,6 +194,15 @@ mod display {
         }
     }
 
+    impl Display for TyVar {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                TyVar::Bound(_, name) => write!(f, "{}", name),
+                TyVar::Skolem(_, name, _) => write!(f, "{}", name),
+            }
+        }
+    }
+
     impl<M: modes::TypeMode> Display for Ty<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
@@ -203,7 +212,7 @@ mod display {
                 Ty::Forall(forall) => write!(f, "{forall}"),
                 Ty::Pi(pi) => write!(f, "{pi}"),
                 Ty::Hole(hole) => write!(f, "{hole}"),
-                Ty::Bound(level, _) => write!(f, "`{}", level),
+                Ty::Bound(level) => write!(f, "`{}", level),
             }
         }
     }
@@ -362,7 +371,7 @@ pub mod seals {
                 Ty::Constructor(constructor) => Ty::Constructor(constructor),
                 Ty::Forall(forall) => Ty::Forall(forall.seal()),
                 Ty::Pi(pi) => Ty::Pi(pi.seal()),
-                Ty::Bound(debruijin, rigidness) => Ty::Bound(debruijin, rigidness),
+                Ty::Bound(debruijin) => Ty::Bound(debruijin),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
                 Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
             }

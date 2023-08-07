@@ -86,7 +86,7 @@ impl Substitution<'_, '_> {
     /// - "occurs  check" : check that the hole doesn't occur in the type
     ///                     or simplier, check that you aren't making recursive types
     /// - "scope check"   : check that you aren't using bound vars outside its scope
-    fn hole_unify_prechecking(&mut self, ty: Tau, scope: Level, hole: HoleMut) {
+    fn hole_unify_prechecks(&mut self, ty: Tau, scope: Level, hole: HoleMut) {
         let _ = scope;
         let _ = hole;
 
@@ -94,21 +94,22 @@ impl Substitution<'_, '_> {
             // SECTION: Types
             Ty::Primary(_) => {}
             Ty::Constructor(_) => {}
+            Ty::Bound(TyVar::Bound(_, _)) => {}
             Ty::Forall(forall) => {
-                self.hole_unify_prechecking(*forall.value, scope, hole);
+                self.hole_unify_prechecks(*forall.value, scope, hole);
             }
             Ty::Pi(pi) => {
-                self.hole_unify_prechecking(*pi.domain, scope, hole.clone());
-                self.hole_unify_prechecking(*pi.value, scope, hole)
+                self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
+                self.hole_unify_prechecks(*pi.value, scope, hole)
             }
-            Ty::Bound(level, _) => {
+            Ty::Bound(TyVar::Skolem(_, _, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
             }
             Ty::App(a, b) => {
-                self.hole_unify_prechecking(*a, scope, hole.clone());
-                self.hole_unify_prechecking(*b, scope, hole)
+                self.hole_unify_prechecks(*a, scope, hole.clone());
+                self.hole_unify_prechecks(*b, scope, hole)
             }
             // SECTION: Hole
             Ty::Hole(h) => {
@@ -122,7 +123,7 @@ impl Substitution<'_, '_> {
 
                 match hole_ref.kind() {
                     Empty { scope: l } if *l > scope => hole_ref.set_kind(Empty { scope }),
-                    Filled(ty) => self.hole_unify_prechecking(ty.clone(), scope, hole),
+                    Filled(ty) => self.hole_unify_prechecks(ty.clone(), scope, hole),
                     _ => {}
                 }
             }
@@ -148,7 +149,7 @@ impl Substitution<'_, '_> {
 
                 // Unify the hole with the type, and then set the kind
                 // of the hole to filled
-                self.hole_unify_prechecking(ty.clone(), scope, hole.clone());
+                self.hole_unify_prechecks(ty.clone(), scope, hole.clone());
                 hole.borrow_mut().set_kind(Filled(ty));
             }
             Filled(a) => {
@@ -206,7 +207,9 @@ impl Substitution<'_, '_> {
                 let mut acc_b = *forall_b.value;
                 for (param_a, param_b) in forall_a.domain.into_iter().zip(forall_b.domain) {
                     let level = self.ctx.add_to_env(param_a.name);
-                    let debruijin = Tau::Bound(level, Rigidness::Flexible);
+                    let definition = param_a.name;
+                    let name = param_a.name.to_string(self.ctx.db);
+                    let debruijin = Tau::Bound(TyVar::Skolem(definition, name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -214,7 +217,7 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (Ty::Bound(level_a, _), Ty::Bound(level_b, _)) => {
+            (Ty::Bound(TyVar::Skolem(_, _, level_a)), Ty::Bound(TyVar::Skolem(_, _, level_b))) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -643,6 +646,23 @@ impl Infer for TopLevel {
                     name,
                     dbg_name: name.to_string(ctx.db),
                 }),
+                Some(TypeRep::Arrow(type_rep)) if type_rep.kind(ctx.db) == ArrowKind::Forall => {
+                    // Checks if arrow is already generalised. If the `forall` is first level,
+                    // then it's already generalised, so we don't need to quantify it!
+                    //
+                    // Creates the type of the variant
+                    let variant_ty = Ty::from_pi(
+                        parameters.into_iter(),
+                        Tau::Constructor(InternalConstructor {
+                            name,
+                            dbg_name: name.to_string(ctx.db),
+                        }),
+                    );
+
+                    // Early return if the type is already generalised
+                    ctx.env.extend(name, variant_ty.clone());
+                    return variant_ty;
+                }
                 Some(type_rep) => ctx.eval(type_rep),
                 None => Tau::Constructor(InternalConstructor {
                     name,
@@ -876,7 +896,8 @@ impl Ty<modes::Mut> {
                 })),
                 holes::HoleKind::Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Ty::Bound(bound, rigidness) => Ty::Bound(bound, rigidness),
+            Ty::Bound(TyVar::Bound(definition, _)) if definition == name => replacement,
+            Ty::Bound(bound) => Ty::Bound(bound),
             _ => self,
         }
     }
