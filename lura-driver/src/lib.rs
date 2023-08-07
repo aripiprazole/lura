@@ -83,7 +83,7 @@ impl salsa::ParallelDatabase for RootDb {
 mod tests {
     use lura_hir::{
         lower::hir_lower,
-        package::{Package, PackageKind, Version},
+        package::{Package, PackageKind, Version}, fmt::HirFormatter,
     };
     use lura_syntax::Source;
     use lura_typer::table::infer_type_table;
@@ -118,10 +118,10 @@ mod tests {
         println!("Type Table:");
         for (expr, type_rep) in table.expressions(&db) {
             print!("  ");
-            let expr = format!("{:#?}", expr.debug_all(&db))
+            let expr = format!("{:#?}", expr.formatter().debug_all(&db))
                 .split('\n')
                 .collect::<Vec<_>>()
-                .join("\n    ");
+                .join("\n  ");
             println!("Expr: {expr}");
             print!("  ");
             println!("Type: {type_rep}");

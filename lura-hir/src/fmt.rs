@@ -37,6 +37,13 @@ pub trait HirFormatter {
     }
 
     fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result;
+
+    fn formatter(&self) -> HirFormatterDebug<'_>
+    where
+        Self: Sized,
+    {
+        HirFormatterDebug(self)
+    }
 }
 
 impl Scope {
@@ -110,9 +117,11 @@ impl Scope {
     }
 }
 
-impl DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for dyn HirFormatter {
+pub struct HirFormatterDebug<'a>(&'a dyn HirFormatter);
+
+impl DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for HirFormatterDebug<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>, db: &dyn HirDb, _: bool) -> std::fmt::Result {
-        self.write(db, f, &Scope::default())
+        self.0.write(db, f, &Scope::default())
     }
 }
 
@@ -215,23 +224,144 @@ mod impls {
         }
     }
 
+    impl HirFormatter for top_level::UsingTopLevel {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "using ")?;
+            self.path(db).write(db, f, scope)?;
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for top_level::CommandTopLevel {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "#")?;
+            self.path(db).write(db, f, scope)?;
+            scope.write(f, " ")?;
+            scope.punctuated(db, f, self.arguments(db), ", ")?;
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for top_level::Signature {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "val")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.parameters(db), " ")?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for top_level::Clause {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.arguments(db), " ")?;
+            scope.write(f, " = ")?;
+            self.value(db).write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for top_level::BindingGroup {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            self.signature(db).write(db, f, scope)?;
+            scope.new_line(f)?;
+            for clause in self.clauses(db) {
+                clause.write(db, f, scope)?;
+                scope.new_line(f)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl HirFormatter for top_level::ClassDecl {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "class ")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.parameters(db), " ")?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)?;
+            scope.write(f, " where")?;
+            scope.new_line(f)?;
+            scope.indent();
+            scope.write_with_indent(f, "")?;
+            scope.line_punctuated(db, f, self.methods(db), ";")?;
+            scope.unindent();
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for top_level::TraitDecl {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "trait ")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.parameters(db), " ")?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)?;
+            scope.write(f, " where")?;
+            scope.new_line(f)?;
+            scope.indent();
+            scope.write_with_indent(f, "")?;
+            scope.line_punctuated(db, f, self.methods(db), ";")?;
+            scope.unindent();
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for top_level::Constructor {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "| ")?;
+            self.name(db).write(db, f, scope)?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for top_level::DataDecl {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "data ")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.parameters(db), " ")?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)?;
+            scope.write(f, " where")?;
+            scope.new_line(f)?;
+            scope.indent();
+            scope.write_with_indent(f, "")?;
+            scope.line_punctuated(db, f, self.variants(db), ";")?;
+            scope.line_punctuated(db, f, self.methods(db), ";")?;
+            scope.unindent();
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for top_level::TypeDecl {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "type ")?;
+            self.name(db).write(db, f, scope)?;
+            scope.punctuated(db, f, self.parameters(db), " ")?;
+            scope.write(f, " : ")?;
+            self.return_type(db).write(db, f, scope)
+        }
+    }
+
     /// A formatter for [`top_level::TopLevel`]. It does
     /// takes an attribute and format it as it would be written
     /// in a source file.
     impl HirFormatter for top_level::TopLevel {
-        fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use top_level::TopLevel::*;
 
             match self {
                 Empty => scope.write(f, "_"),
                 Error(_) => scope.write(f, "!"),
-                Using(_) => todo!(),
-                Command(_) => todo!(),
-                BindingGroup(_) => todo!(),
-                ClassDecl(_) => todo!(),
-                TraitDecl(_) => todo!(),
-                DataDecl(_) => todo!(),
-                TypeDecl(_) => todo!(),
+                Using(using_top_level) => using_top_level.write(db, f, scope),
+                Command(command_top_level) => command_top_level.write(db, f, scope),
+                BindingGroup(binding_group) => binding_group.write(db, f, scope),
+                ClassDecl(class_decl) => class_decl.write(db, f, scope),
+                TraitDecl(trait_decl) => trait_decl.write(db, f, scope),
+                DataDecl(decl_decl) => decl_decl.write(db, f, scope),
+                TypeDecl(type_decl) => type_decl.write(db, f, scope),
             }
         }
     }
@@ -244,9 +374,30 @@ mod impls {
             scope.write(f, "{")?;
             scope.new_line(f)?;
             scope.indent();
+            scope.write_with_indent(f, "")?;
             scope.line_punctuated(db, f, self.statements(db), ";")?;
             scope.unindent();
             scope.write_with_indent(f, "}")
+        }
+    }
+
+    impl HirFormatter for stmt::LetStmt {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "let ")?;
+            self.pattern(db).write(db, f, scope)?;
+            scope.write(f, " = ")?;
+            self.value(db).write(db, f, scope)?;
+            scope.new_line(f)
+        }
+    }
+
+    impl HirFormatter for stmt::AskStmt {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write_with_indent(f, "ask ")?;
+            self.pattern(db).write(db, f, scope)?;
+            scope.write(f, " <- ")?;
+            self.value(db).write(db, f, scope)?;
+            scope.new_line(f)
         }
     }
 
@@ -254,16 +405,49 @@ mod impls {
     /// takes an attribute and format it as it would be written
     /// in a source file.
     impl HirFormatter for stmt::Stmt {
-        fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use stmt::Stmt::*;
 
             match self {
                 Empty => scope.write(f, "_"),
                 Error(_) => todo!(),
-                Ask(_) => todo!(),
-                Let(_) => todo!(),
-                Downgrade(_) => todo!(),
+                Ask(ask_stmt) => ask_stmt.write(db, f, scope),
+                Let(let_stmt) => let_stmt.write(db, f, scope),
+                Downgrade(expr) => expr.write(db, f, scope),
             }
+        }
+    }
+
+    impl HirFormatter for pattern::Constructor {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            match self {
+                pattern::Constructor::Array => scope.write(f, "[]"),
+                pattern::Constructor::Tuple => scope.write(f, "(,)"),
+                pattern::Constructor::Unit => scope.write(f, "()"),
+                pattern::Constructor::Path(path) => path.write(db, f, scope),
+            }
+        }
+    }
+
+    impl HirFormatter for pattern::ConstructorPattern {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            let arguments = self.arguments(db);
+            if arguments.is_empty() {
+                self.name(db).write(db, f, scope)?;
+                scope.write(f, " ")?;
+                scope.punctuated(db, f, arguments, ", ")
+            } else {
+                scope.write(f, "(")?;
+                self.name(db).write(db, f, scope)?;
+                scope.write(f, " ")?;
+                scope.punctuated(db, f, arguments, ", ")?;
+                scope.write(f, ")")
+            }
+        }
+    }
+    impl HirFormatter for pattern::BindingPattern {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            self.name(db).write(db, f, scope)
         }
     }
 
@@ -271,18 +455,49 @@ mod impls {
     /// takes an attribute and format it as it would be written
     /// in a source file.
     impl HirFormatter for pattern::Pattern {
-        fn write(&self, _: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             use pattern::Pattern::*;
 
             match self {
                 Empty => scope.write(f, "_"),
-                Literal(_) => todo!(),
+                Literal(literal) => literal.value.write(db, f, scope),
                 Wildcard(_) => scope.write(f, "_"),
                 Rest(_) => scope.write(f, ".."),
                 Error(_) => scope.write(f, "!"),
-                Constructor(_) => todo!(),
-                Binding(_) => todo!(),
+                Constructor(pattern) => pattern.write(db, f, scope),
+                Binding(binding) => binding.write(db, f, scope),
             }
+        }
+    }
+
+    impl HirFormatter for type_rep::QPath {
+        fn write(&self, _: &dyn HirDb, _: &mut Formatter, _: &Scope) -> std::fmt::Result {
+            todo!("QPath is not implemented")
+        }
+    }
+
+    impl HirFormatter for type_rep::AppTypeRep {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            let arguments = self.arguments(db);
+            if arguments.is_empty() {
+                self.callee(db).write(db, f, scope)
+            } else {
+                scope.write(f, "(")?;
+                self.callee(db).write(db, f, scope)?;
+                scope.write(f, " ")?;
+                scope.punctuated(db, f, arguments, ", ")?;
+                scope.write(f, ")")
+            }
+        }
+    }
+
+    impl HirFormatter for type_rep::ArrowTypeRep {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            for parameter in self.parameters(db) {
+                parameter.write(db, f, scope)?;
+                scope.write(f, " -> ")?;
+            }
+            self.value(db).write(db, f, scope)
         }
     }
 
@@ -300,10 +515,10 @@ mod impls {
                 Type => scope.write(f, "*"),
                 Error(_) => scope.write(f, "!"),
                 Path(path) => path.write(db, f, scope),
-                QPath(_) => todo!(),
-                App(_) => todo!(),
-                Arrow(_) => todo!(),
-                Downgrade(_) => todo!(),
+                QPath(qpath) => qpath.write(db, f, scope),
+                App(app) => app.write(db, f, scope),
+                Arrow(arrow) => arrow.write(db, f, scope),
+                Downgrade(expr) => expr.write(db, f, scope),
             }
         }
     }
@@ -332,6 +547,75 @@ mod impls {
         }
     }
 
+    impl HirFormatter for expr::Callee {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            match self {
+                expr::Callee::Array => scope.write(f, "[]"),
+                expr::Callee::Tuple => scope.write(f, "(,)"),
+                expr::Callee::Unit => scope.write(f, "()"),
+                expr::Callee::Pure => scope.write(f, "pure"),
+                expr::Callee::Do => scope.write(f, "do"),
+                expr::Callee::Reference(path) => path.write(db, f, scope),
+                expr::Callee::Expr(expr) => expr.write(db, f, scope),
+            }
+        }
+    }
+
+    impl HirFormatter for expr::CallExpr {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "(")?;
+            self.callee(db).write(db, f, scope)?;
+            scope.write(f, " ")?;
+            scope.punctuated(db, f, self.arguments(db), " ")?;
+            if let Some(block) = self.do_notation(db) {
+                scope.write(f, " ")?;
+                block.write(db, f, scope)?;
+            }
+            scope.write(f, ")")?;
+
+            Ok(())
+        }
+    }
+
+    impl HirFormatter for expr::AbsExpr {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "λ ")?;
+            scope.punctuated(db, f, self.parameters(db), ", ")?;
+            scope.write(f, ". ")?;
+            self.value(db).write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for expr::AnnExpr {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            self.value(db).write(db, f, scope)?;
+            scope.write(f, " : ")?;
+            self.type_rep(db).write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for expr::MatchArm {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            self.pattern.write(db, f, scope)?;
+            scope.write(f, " => ")?;
+            self.value.write(db, f, scope)
+        }
+    }
+
+    impl HirFormatter for expr::MatchExpr {
+        fn write(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            scope.write(f, "match ")?;
+            self.scrutinee(db).write(db, f, scope)?;
+            scope.write(f, " {")?;
+            scope.new_line(f)?;
+            scope.indent();
+            scope.write_with_indent(f, "")?;
+            scope.line_punctuated(db, f, self.clauses(db), ", ")?;
+            scope.unindent();
+            scope.write_with_indent(f, "}")
+        }
+    }
+
     /// A formatter for [`expr::Expr`]. It does
     /// takes an attribute and format it as it would be written
     /// in a source file.
@@ -344,11 +628,11 @@ mod impls {
                 Error(_) => scope.write(f, "!"),
                 Path(path) => path.write(db, f, scope),
                 Literal(literal) => literal.value.write(db, f, scope),
-                Call(_) => todo!(),
-                Ann(_) => todo!(),
-                Abs(_) => todo!(),
-                Match(_) => todo!(),
-                Upgrade(_) => todo!(),
+                Call(call_expr) => call_expr.write(db, f, scope),
+                Ann(ann_expr) => ann_expr.write(db, f, scope),
+                Abs(abs_expr) => abs_expr.write(db, f, scope),
+                Match(match_expr) => match_expr.write(db, f, scope),
+                Upgrade(type_rep) => type_rep.write(db, f, scope),
             }
         }
     }
