@@ -31,6 +31,7 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         parameters: Default::default(),
         declarations: Default::default(),
         env: Default::default(),
+        adhoc_env: Default::default(),
     };
 
     // Infer the types of all expressions.

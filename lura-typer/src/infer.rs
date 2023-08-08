@@ -24,7 +24,7 @@ use crate::{
     type_rep::{
         holes::{Hole, HoleRef},
         *,
-    },
+    }, adhoc::ClassEnv,
 };
 
 /// Represents the type errors that can occur during type checking,
@@ -976,10 +976,17 @@ impl Check for Block {
 pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
+    pub location: Location,
+
+    // SECTION: Type environment
+    pub env: TyEnv,
+    pub adhoc_env: ClassEnv,
+    // END SECTION: Type environment
+
+    // SECTION: Contextual information
     pub self_type: Option<Tau>,
     pub return_type: Option<Tau>,
-    pub location: Location,
-    pub env: TyEnv,
+    // END SECTION: Contextual information
 
     /// Statically typed expressions that are used in the program.
     ///

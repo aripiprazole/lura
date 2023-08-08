@@ -28,4 +28,5 @@ pub mod elaboration;
 pub mod infer;
 pub mod table;
 pub mod thir;
+pub mod adhoc;
 pub mod type_rep;
