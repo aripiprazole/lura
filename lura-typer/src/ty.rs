@@ -109,6 +109,24 @@ impl<M: modes::TypeMode> Default for Ty<M> {
 }
 
 impl Ty<modes::Mut> {
+    pub fn spine(self) -> (Vec<Self>, Self) {
+        let mut spine = vec![];
+        let mut last_result = self;
+
+        while let Ty::Pi(Arrow { domain, value, .. }) = last_result {
+            spine.push(*domain);
+            last_result = *value;
+        }
+
+        (spine, last_result)
+    }
+
+    /// Create a new pi type. This is used to create a new pi type.
+    /// 
+    /// # Parameters
+    /// 
+    /// - `domain`: The domain of the pi type.
+    /// - `value`: The value of the pi type.
     pub fn from_pi<I>(mut parameters: I, ty: Self) -> Self
     where
         I: Iterator<Item = Self>,

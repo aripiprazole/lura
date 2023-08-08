@@ -190,7 +190,6 @@ impl Substitution<'_, '_> {
                 }
             }
             (Ty::Pi(pi_a), Ty::Pi(pi_b)) => {
-                // unify the domains and the values
                 self.internal_unify(*pi_a.domain, *pi_b.domain);
                 self.internal_unify(*pi_a.value, *pi_b.value);
             }
@@ -698,6 +697,7 @@ impl Infer for TopLevel {
             let return_ty = ctx.new_meta();
 
             // Gets the parameter types
+            // TODO: get from spine too
             let parameters = binding_group
                 .parameters(ctx.db)
                 .into_iter()
@@ -974,6 +974,8 @@ impl<'tctx> InferCtx<'tctx> {
     /// Creates a new meta type. This is used to
     /// create a new empty hole.
     fn new_meta(&mut self) -> Tau {
+        self.env.level += 1;
+
         Tau::Hole(HoleRef::new(Hole {
             kind: holes::HoleKind::Empty {
                 scope: self.env.level,
