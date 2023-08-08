@@ -88,9 +88,10 @@ mod tests {
     use lura_ariadne::AriadneReport;
     use lura_diagnostic::{Diagnostics, TextRange};
     use lura_hir::{
+        fmt::HirFormatter,
         lower::hir_lower,
         package::{Package, PackageKind, Version},
-        source::HirElement, fmt::HirFormatter,
+        source::HirElement,
     };
     use lura_syntax::Source;
     use lura_typer::table::{infer_type_table, TypeTable};
@@ -105,6 +106,7 @@ mod tests {
         "public data List (^a) {}",
         "main (args: List String) {",
         "  let x = id 10",
+        "  let y = id \"hello\"",
         "  id (id x)",
         "}",
     ];
@@ -181,6 +183,7 @@ mod tests {
                 .with_note("These are generated types, they are not part of the source code.")
                 .with_config(
                     ariadne::Config::default()
+                        .with_cross_gap(true)
                         .with_char_set(ariadne::CharSet::Unicode)
                         .with_label_attach(ariadne::LabelAttach::Start),
                 )
