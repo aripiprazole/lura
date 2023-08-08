@@ -21,7 +21,7 @@ use lura_hir::{
 
 use crate::{
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
-    ty::{
+    type_rep::{
         holes::{Hole, HoleRef},
         *,
     },

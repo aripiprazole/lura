@@ -1,4 +1,4 @@
-use crate::ty::TypeRep;
+use crate::type_rep::TypeRep;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypedDeclaration {

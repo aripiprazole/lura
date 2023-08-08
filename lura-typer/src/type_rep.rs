@@ -414,7 +414,7 @@ pub mod modes {
     pub struct Ready;
 
     impl TypeMode for Ready {
-        type Hole = Box<crate::ty::Hole<Ready>>;
+        type Hole = Box<crate::type_rep::Hole<Ready>>;
     }
 
     /// Mut is the type of mutable types.
