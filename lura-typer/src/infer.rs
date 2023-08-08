@@ -2,7 +2,7 @@ use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
-use lura_diagnostic::{code, message, Diagnostics, Report, ErrorId};
+use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -474,8 +474,8 @@ impl Infer for Callee {
             Callee::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
             // SECTION: Builtin
             Callee::Array => panic!("array builtin should be handled in a different way"),
-            Callee::Tuple => panic!("array builtin should be handled in a different way"),
-            Callee::Pure => todo!("pure builtin"),
+            Callee::Tuple => panic!("tuple builtin should be handled in a different way"),
+            Callee::Pure => panic!("pure builtin should be handled in a different way"),
             Callee::Do => todo!("do builtin"),
             // SECTION: Reference
             Callee::Reference(path) => ctx.reference(path),
@@ -550,6 +550,38 @@ impl Infer for Expr {
                             message: message!["do notation but without do notation parameter"],
                         }),
                     },
+                    Callee::Pure => {
+                        let arguments = call.arguments(ctx.db);
+                        let Some(return_type) = ctx.return_type.clone() else {
+                            ctx.accumulate::<()>(ThirDiagnostic {
+                                location: ThirLocation::CallSite,
+                                id: ErrorId("missing-return-type"),
+                                message: message!["pure but without return type parameter"],
+                            });
+
+                            return ctx.new_meta();
+                        };
+
+                        // TODO: return monad
+                        match arguments.len() {
+                            // Unit type
+                            0 => {
+                                return_type.unify(Ty::Primary(Primary::Unit), ctx);
+                                return_type
+                            }
+                            // Group type
+                            1 => {
+                                return_type.unify(arguments[0].clone().infer(ctx), ctx);
+                                return_type
+                            }
+                            // Tuple type
+                            _ => ctx.accumulate(ThirDiagnostic {
+                                location: ThirLocation::CallSite,
+                                id: ErrorId("multiple-return-parameters"),
+                                message: message!["multiple parameters for pure"],
+                            }),
+                        }
+                    }
                     _ => {
                         // Creates a new type variable to represent the type of the result
                         let hole = ctx.new_meta();
@@ -919,6 +951,9 @@ impl Check for Block {
     /// Checks the type of the block. This is used
     /// to check the type of the block.
     fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
+        let return_type = replace(&mut ctx.return_type, Some(tau.clone()));
+
+        // Checks the type of each statement
         for statement in self.statements(ctx.db) {
             statement.infer(ctx);
         }
@@ -930,6 +965,7 @@ impl Check for Block {
         };
 
         actual_ty.unify(tau, ctx);
+        ctx.return_type = return_type;
         actual_ty
     }
 }
@@ -941,11 +977,12 @@ pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
     pub self_type: Option<Tau>,
+    pub return_type: Option<Tau>,
     pub location: Location,
     pub env: TyEnv,
 
     /// Statically typed expressions that are used in the program.
-    /// 
+    ///
     /// This is used to check that the type of the expression is
     /// correct.
     pub expressions: im_rc::HashMap<Expr, Tau, FxBuildHasher>,
@@ -991,9 +1028,7 @@ impl Ty<modes::Mut> {
                 phantom: PhantomData,
             }),
             Ty::Hole(hole) => match hole.data.borrow_mut().kind() {
-                Error => Ty::Hole(HoleRef::new(Hole {
-                    kind: Error,
-                })),
+                Error => Ty::Hole(HoleRef::new(Hole { kind: Error })),
                 Empty { scope } => Ty::Hole(HoleRef::new(Hole {
                     kind: Empty { scope: *scope },
                 })),

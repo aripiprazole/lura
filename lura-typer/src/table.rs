@@ -24,6 +24,7 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         db,
         pkg: source.package(db),
         self_type: None,
+        return_type: None,
         location: lura_hir::source::Location::CallSite,
         debruijin_index: Default::default(),
         expressions: Default::default(),
