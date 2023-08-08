@@ -66,9 +66,9 @@ pub enum Rigidness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TyVar {
-    Bound(Definition, String),
-    Skolem(Definition, String, Level),
+pub enum Bound {
+    Flexible(Definition, String),
+    Debruijin(Definition, String, Level),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -81,7 +81,7 @@ pub enum Ty<M: modes::TypeMode> {
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
-    Bound(TyVar),
+    Bound(Bound),
 }
 
 impl<M: modes::TypeMode> Debug for Ty<M> {
@@ -194,11 +194,11 @@ mod display {
         }
     }
 
-    impl Display for TyVar {
+    impl Display for Bound {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                TyVar::Bound(_, name) => write!(f, "{}", name),
-                TyVar::Skolem(_, name, _) => write!(f, "{}", name),
+                Bound::Flexible(_, name) => write!(f, "{}", name),
+                Bound::Debruijin(_, name, _) => write!(f, "{}", name),
             }
         }
     }

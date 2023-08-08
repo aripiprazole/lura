@@ -448,7 +448,7 @@ where
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod declaration {
-    use crate::resolve::Definition;
+    use crate::resolve::{Definition, HirLevel};
 
     use super::*;
 
@@ -574,6 +574,9 @@ pub mod declaration {
         /// an implicit parameter.
         pub rigid: bool,
 
+        /// The level of the parameter. It's used to type check the parameter.
+        pub level: HirLevel,
+
         pub location: Location,
     }
 
@@ -586,7 +589,7 @@ pub mod declaration {
             type_rep: type_rep::TypeRep,
             location: Location,
         ) -> Self {
-            Self::new(db, binding, type_rep, false, true, location)
+            Self::new(db, binding, type_rep, false, true, HirLevel::Expr, location)
         }
 
         /// Creates a new implicit parameter with the given [`binding`], [`type_rep`], that
@@ -597,7 +600,7 @@ pub mod declaration {
             type_rep: type_rep::TypeRep,
             location: Location,
         ) -> Self {
-            Self::new(db, binding, type_rep, true, true, location)
+            Self::new(db, binding, type_rep, true, true, HirLevel::Expr, location)
         }
 
         /// Creates a new explicit parameter with the given [`binding`], [`type_rep`], that
@@ -609,7 +612,15 @@ pub mod declaration {
             type_rep: type_rep::TypeRep,
             location: Location,
         ) -> Self {
-            Self::new(db, binding, type_rep, false, false, location)
+            Self::new(
+                db,
+                /* binding     = */ binding,
+                /* type_rep    = */ type_rep,
+                /* is_implicit = */ false,
+                /* rigid       = */ false,
+                /* level       = */ HirLevel::Expr,
+                /* location    = */ location,
+            )
         }
 
         /// Creates a new unnamed and explicit parameter, it does have an empty binding, that is
@@ -623,6 +634,7 @@ pub mod declaration {
                 /* type_rep    = */ type_rep.clone(),
                 /* is_implicit = */ false,
                 /* rigid       = */ true,
+                /* level       = */ HirLevel::Expr,
                 /* location    = */ type_rep.location(db),
             )
         }
@@ -642,8 +654,17 @@ pub mod declaration {
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
             let binding = pattern::Pattern::Empty;
             let type_rep = type_rep::TypeRep::Unit;
+            let level = HirLevel::Expr;
 
-            Self::new(db, binding, type_rep, false, false, Location::call_site(db))
+            Self::new(
+                db,
+                /* binding     = */ binding,
+                /* type_rep    = */ type_rep,
+                /* is_implicit = */ false,
+                /* rigid       = */ false,
+                /* level       = */ level,
+                /* location    = */ Location::call_site(db),
+            )
         }
     }
 }

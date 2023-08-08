@@ -1,10 +1,11 @@
 use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
 
+use if_chain::if_chain;
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
-    resolve::{unresolved, Definition, Reference},
+    resolve::{unresolved, Definition, HirLevel, Reference},
     source::{
         declaration::Declaration,
         expr::{Callee, Expr},
@@ -94,7 +95,7 @@ impl Substitution<'_, '_> {
             // SECTION: Types
             Ty::Primary(_) => {}
             Ty::Constructor(_) => {}
-            Ty::Bound(TyVar::Bound(_, _)) => {}
+            Ty::Bound(Bound::Flexible(_, _)) => {}
             Ty::Forall(forall) => {
                 self.hole_unify_prechecks(*forall.value, scope, hole);
             }
@@ -102,7 +103,7 @@ impl Substitution<'_, '_> {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*pi.value, scope, hole)
             }
-            Ty::Bound(TyVar::Skolem(_, _, level)) => {
+            Ty::Bound(Bound::Debruijin(_, _, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
@@ -209,7 +210,7 @@ impl Substitution<'_, '_> {
                     let level = self.ctx.add_to_env(param_a.name);
                     let definition = param_a.name;
                     let name = param_a.name.to_string(self.ctx.db);
-                    let debruijin = Tau::Bound(TyVar::Skolem(definition, name, level));
+                    let debruijin = Tau::Bound(Bound::Debruijin(definition, name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -217,7 +218,7 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (Ty::Bound(TyVar::Skolem(_, _, level_a)), Ty::Bound(TyVar::Skolem(_, _, level_b))) => {
+            (Ty::Bound(Bound::Debruijin(_, _, level_a)), Ty::Bound(Bound::Debruijin(_, _, level_b))) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -693,8 +694,29 @@ impl Infer for TopLevel {
             let parameters = binding_group
                 .parameters(ctx.db)
                 .into_iter()
-                .filter(|parameter| !parameter.is_implicit(ctx.db))
-                .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                .map(|parameter| {
+                    let type_rep = ctx.eval(parameter.parameter_type(ctx.db));
+                    if_chain! {
+                        if parameter.is_implicit(ctx.db);
+                        if let HirLevel::Type = parameter.level(ctx.db);
+                        // TODO: handle error, type parameters can't be patterns, they
+                        // should be simple bindings.
+                        if let Pattern::Binding(binding) = parameter.binding(ctx.db);
+                        then {
+                            // Meta information
+                            let def = binding.name(ctx.db);
+                            let name = def.to_string(ctx.db);
+                            
+                            // Debruijin index
+                            let level = ctx.add_to_env(def);
+                            let bound = Tau::Bound(Bound::Debruijin(def, name, level));
+                            ctx.env.rigid_variables.insert(def, bound.clone());
+                            bound
+                        } else {
+                            type_rep
+                        }
+                    }
+                })
                 .collect::<im_rc::Vector<_>>();
 
             // Checks the type of each clause
@@ -899,7 +921,7 @@ impl Ty<modes::Mut> {
                 })),
                 holes::HoleKind::Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Ty::Bound(TyVar::Bound(definition, _)) if definition == name => replacement,
+            Ty::Bound(Bound::Flexible(definition, _)) if definition == name => replacement,
             Ty::Bound(bound) => Ty::Bound(bound),
             _ => self,
         }
@@ -958,20 +980,24 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Primary Types
             TypeRep::Unit => Tau::UNIT,
             TypeRep::Type => Tau::TYPE,
+            // We should not resolve the type here, but rather
+            // create a new type variable, and as it is resolved, we
+            // can replace it with the actual type.
             TypeRep::Path(reference) => self
                 .env
-                .rigid_variables
+                .variables
                 .get(&reference.definition(self.db))
                 .cloned()
+                // Tries to get from the environment, if it fails, it means
+                // that, the type variable is really a type variable, and
+                // not a constructor.
+                //
+                // A type variable is not rigid!
                 .unwrap_or_else(|| {
-                    // TODO: maybe skip this diagnostic, because it should be handled
-                    // by the resolver, maybe ?
-                    let name = reference.definition(self.db).to_string(self.db);
+                    let def = reference.definition(self.db);
+                    let name = def.to_string(self.db);
 
-                    self.accumulate(ThirDiagnostic {
-                        location: self.new_location(type_rep.location(self.db)),
-                        message: message!("unresolved type", code!(name)),
-                    })
+                    Tau::Bound(Bound::Flexible(def, name))
                 }),
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));

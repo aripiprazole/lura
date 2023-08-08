@@ -872,7 +872,15 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
         let location = self.range(tree.range());
 
-        Parameter::new(self.db, binding, type_rep, implicit, rigid, location)
+        Parameter::new(
+            self.db,
+            /* binding     = */ binding,
+            /* type_rep    = */ type_rep,
+            /* is_implicit = */ implicit,
+            /* rigid       = */ rigid,
+            /* level       = */ HirLevel::Expr,
+            /* location    = */ location,
+        )
     }
 
     /// Takes a raw parameter, and returns a high level parameter, to be handled by the resolution.
@@ -905,7 +913,15 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
                 let location = self.range(parameter.range());
 
-                self::Parameter::new(self.db, binding, type_rep, implicit, rigid, location)
+                self::Parameter::new(
+                    self.db,
+                    /* binding     = */ binding,
+                    /* type_rep    = */ type_rep,
+                    /* is_implicit = */ implicit,
+                    /* rigid       = */ rigid,
+                    /* level       = */ HirLevel::Expr,
+                    /* location    = */ location,
+                )
             }
         }
     }
@@ -923,6 +939,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let range = this.range(segment.range());
             let identifer = segment.child().ok()?;
             let txt = this.txt.clone();
+
+            // Creates an unique identifier, as it is not possible to
+            // have two parameters with the same name.
             let unique = match identifer {
                 SyntaxIdentifier::SimpleIdentifier(value) => {
                     let string = value.utf8_text(txt.as_bytes()).ok().unwrap_or_default();
@@ -951,7 +970,15 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let binding = BindingPattern::new(self.db, definition, name.location(self.db));
         let pattern = Pattern::Binding(binding);
 
-        Parameter::new(self.db, pattern, TypeRep::Hole, true, true, location)
+        Parameter::new(
+            self.db,
+            /* binding     = */ pattern,
+            /* type_rep    = */ TypeRep::Hole,
+            /* is_implicit = */ true,
+            /* rigid       = */ true,
+            /* level       = */ HirLevel::Type,
+            /* location    = */ location,
+        )
     }
 
     /// Handles a list of raw documentation items in to a list of high level documentation items

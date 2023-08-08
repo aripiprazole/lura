@@ -96,11 +96,11 @@ mod tests {
     use crate::RootDb;
 
     const EXAMPLE: &[&str] = &[
-        "data String",
-        "data List (^a)",
-        "Id : ^a. a -> a",
-        "Main (args: List String) {",
-        "  Id args",
+        "public id : ^a. a -> a",
+        "public data String {}",
+        "public data List (^a) {}",
+        "main (args: List String) {",
+        "  id args",
         "}",
     ];
 
