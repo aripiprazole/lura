@@ -2015,7 +2015,7 @@ pub mod literal {
 pub mod expr {
     use std::{fmt::Formatter, sync::Arc};
 
-    use lura_diagnostic::{Diagnostics, Report};
+    use lura_diagnostic::{message, Diagnostics, Report, ErrorId};
 
     use crate::resolve::{HirDiagnostic, Reference};
 
@@ -2463,9 +2463,10 @@ pub mod expr {
             Diagnostics::push(
                 db,
                 Report::new(HirDiagnostic {
-                    message:
-                        "Empty expression representation is not allowed to be used in any contexts"
-                            .into(),
+                    message: message![
+                        "Empty expression representation is not allowed to be used in any contexts",
+                    ],
+                    id: ErrorId("empty-expression"),
                     location: Location::call_site(db),
                 }),
             );

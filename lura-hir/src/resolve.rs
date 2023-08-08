@@ -1,5 +1,5 @@
 use im::OrdSet;
-use lura_diagnostic::{Diagnostic, Diagnostics, ErrorKind, ErrorText, Report};
+use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
 
 use crate::{
     lower::{hir_declare, hir_lower},
@@ -8,6 +8,12 @@ use crate::{
     scope::{Scope, ScopeKind},
     source::{DefaultWithDb, HirLocation, HirPath, Location, VirtualPath},
 };
+
+// Re-export the diagnostics. The diagnostics are used to report errors, warnings, and other kinds
+// of diagnostics.
+//
+// They were defined here, so we are rexporting it to avoid confusion!
+pub use crate::errors::HirDiagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -101,14 +107,6 @@ impl crate::walking::Walker for Reference {
     }
 }
 
-/// Represents the diagnostic for High-Level Intermediate Representation. It's intended to be used
-/// to report errors to the diagnostic database, by this crate, only.
-#[derive(Debug)]
-pub struct HirDiagnostic {
-    pub location: Location,
-    pub message: String,
-}
-
 impl Definition {
     /// Creates a new `Definition` with the given `kind`, `name`, and `location`, and reports
     /// an error to the diagnostic database.
@@ -121,7 +119,8 @@ impl Definition {
             db,
             Report::new(HirDiagnostic {
                 location: name.location(db),
-                message: format!("unresolved {kind_str} {:?}", name_str),
+                message: message!("unresolved", code!(kind_str), code!(name_str)),
+                id: ErrorId("unresolved-definition"),
             }),
         );
 
@@ -137,20 +136,6 @@ impl DefaultWithDb for Definition {
         let name = HirPath::new(db, Location::call_site(db), vec![]);
 
         Self::no(db, DefinitionKind::Unresolved, name)
-    }
-}
-
-impl Diagnostic for HirDiagnostic {
-    type TextRange = Location;
-
-    const KIND: ErrorKind = ErrorKind::ResolutionError;
-
-    fn text(&self) -> Vec<lura_diagnostic::ErrorText> {
-        vec![ErrorText::Text(self.message.clone())]
-    }
-
-    fn location(&self) -> Option<Self::TextRange> {
-        Some(self.location.clone())
     }
 }
 
@@ -196,7 +181,6 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    // TODO: report error
     Definition::no(db, DefinitionKind::Function, name)
 }
 
@@ -227,7 +211,6 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    // TODO: report error
     Definition::no(db, DefinitionKind::Constructor, name)
 }
 
@@ -258,7 +241,6 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    // TODO: report error
     Definition::no(db, DefinitionKind::Type, name)
 }
 

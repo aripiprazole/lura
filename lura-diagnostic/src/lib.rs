@@ -99,6 +99,13 @@ pub mod reports {
     }
 }
 
+/// Represents a piece of text that is being reported.
+///
+/// This is useful to highlight the source code that is
+/// being reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ErrorId(pub &'static str);
+
 /// Represents a range of text in the source program.
 ///
 /// This is useful to highlight the source code that is
@@ -137,6 +144,12 @@ pub trait Diagnostic: Any + Debug + Send + Sync {
     /// The kind of error that is being reported.
     const KIND: ErrorKind;
 
+    /// The id of the error that is being reported. This is useful
+    /// to group errors of the same kind together.
+    fn error_id(&self) -> ErrorId {
+        ErrorId("error")
+    }
+
     /// The text that is being reported.
     fn text(&self) -> Vec<ErrorText>;
 
@@ -150,6 +163,7 @@ pub trait Diagnostic: Any + Debug + Send + Sync {
 /// This trait is dyn because it is used as a key in the salsa database,
 /// and it needs to be dynamic.
 pub trait DiagnosticDyn: Any + Debug + Send + Sync {
+    fn error_id(&self) -> ErrorId;
     fn error_kind(&self) -> ErrorKind;
     fn text(&self) -> Vec<ErrorText>;
     fn location(&self) -> Option<Box<dyn TextRange>>;
@@ -219,6 +233,11 @@ pub mod dyn_utils {
         fn location(&self) -> Option<Box<dyn TextRange>> {
             self.location().map(|it| Box::new(it) as Box<dyn TextRange>)
         }
+
+        #[inline]
+        fn error_id(&self) -> ErrorId {
+            self.error_id()
+        }
     }
 }
 
@@ -287,11 +306,6 @@ pub enum ErrorKind {
     InternalError(Box<ErrorKind>),
 }
 
-/// Represents a specific location into the source string
-/// as a utf-8 offset.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Location(usize);
-
 /// Represents an offset in the source program relative to some anchor.
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Offset(pub usize);
@@ -299,18 +313,6 @@ pub struct Offset(pub usize);
 /// Represents a location in the source program.
 pub mod offsets {
     use super::*;
-
-    impl Location {
-        /// Gets the utf-8 offset of this location.
-        pub fn as_usize(self) -> usize {
-            self.0
-        }
-
-        /// Creates a new location from a utf-8 offset.
-        pub fn start() -> Self {
-            Self(0)
-        }
-    }
 
     impl From<usize> for Offset {
         fn from(value: usize) -> Self {
@@ -321,37 +323,6 @@ pub mod offsets {
     impl Debug for Offset {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "Offset({})", self.0)
-        }
-    }
-
-    impl std::ops::Add<Offset> for Location {
-        type Output = Location;
-
-        fn add(self, rhs: Offset) -> Self::Output {
-            Location(self.0 + rhs.0)
-        }
-    }
-
-    impl std::ops::Add<usize> for Location {
-        type Output = Location;
-
-        fn add(self, rhs: usize) -> Self::Output {
-            Location(self.0 + rhs)
-        }
-    }
-
-    impl std::ops::AddAssign<usize> for Location {
-        fn add_assign(&mut self, rhs: usize) {
-            *self = *self + rhs
-        }
-    }
-
-    impl std::ops::Sub<Location> for Location {
-        type Output = Offset;
-
-        fn sub(self, rhs: Location) -> Self::Output {
-            message!["Unable to find type: ", code!["Todo"]];
-            Offset(self.0 - rhs.0)
         }
     }
 }
@@ -368,8 +339,8 @@ macro_rules! code {
 #[macro_export]
 macro_rules! message {
     ($($x:expr),+ $(,)?) => {
-        #[allow(clippy::vec_init_then_push)]
         {
+            #[allow(clippy::vec_init_then_push)]
             let mut message: Vec<$crate::ErrorText> = vec![];
             $(message.push($x.into());)+
             message
