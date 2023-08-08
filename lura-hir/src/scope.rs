@@ -44,7 +44,7 @@ pub struct Scope {
     pub parent: Option<Arc<Scope>>,
 
     /// The imports informations
-    pub imports: im::HashSet<Import>,
+    pub imports: im::HashSet<Import, FxBuildHasher>,
 
     pub references: im::HashMap<Definition, im::OrdSet<Reference>, FxBuildHasher>,
 
@@ -116,7 +116,7 @@ impl Scope {
             types: im::HashMap::default(),
             values: im::HashMap::default(),
             variables: im::HashMap::default(),
-            imports: im::HashSet::new(),
+            imports: im::HashSet::default(),
         }
     }
 

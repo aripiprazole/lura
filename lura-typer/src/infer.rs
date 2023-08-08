@@ -1,5 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
 
+use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, Diagnostics, Report};
 use lura_hir::{
@@ -66,12 +67,11 @@ pub struct InternalVariant {
 #[derive(Default, Clone)]
 pub struct TyEnv {
     pub level: Level,
-    pub variables: im_rc::HashMap<Definition, Sigma>,
-    pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>>,
-    pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
-    pub rigid_variables: im_rc::HashMap<Definition, Tau>,
-    pub debruijin_index: im_rc::HashMap<usize, String>,
-    pub names: im_rc::HashSet<String>,
+    pub variables: im_rc::HashMap<Definition, Sigma, FxBuildHasher>,
+    pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
+    pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
+    pub rigid_variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+    pub names: im_rc::Vector<String>,
 }
 
 pub struct Substitution<'a, 'db> {
@@ -513,7 +513,7 @@ impl Infer for Expr {
                             // Tuple type
                             _ => todo!("tuple type"),
                         }
-                    },
+                    }
                     Callee::Do => match call.do_notation(ctx.db) {
                         Some(do_notation) => {
                             // TODO: return monad
@@ -912,15 +912,30 @@ impl Check for Block {
     }
 }
 
+/// Local context for type inference. This is used
+/// to infer the type of an expression, and everything
+/// that is needed to infer the type of an expression.
 pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
     pub self_type: Option<Tau>,
     pub location: Location,
-    pub expressions: im_rc::HashMap<Expr, Tau>,
-    pub parameters: im_rc::HashMap<Parameter, Tau>,
-    pub declarations: im_rc::HashMap<TopLevel, Tau>,
     pub env: TyEnv,
+
+    /// Statically typed expressions that are used in the program.
+    /// 
+    /// This is used to check that the type of the expression is
+    /// correct.
+    pub expressions: im_rc::HashMap<Expr, Tau, FxBuildHasher>,
+
+    /// Statically typed statements that are used in the program.
+    pub parameters: im_rc::HashMap<Parameter, Tau, FxBuildHasher>,
+
+    /// Statically typed statements that are used in the program.
+    pub declarations: im_rc::HashMap<TopLevel, Tau, FxBuildHasher>,
+
+    /// Debruijin index bindings for type names.
+    pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
 }
 
 impl Ty<modes::Mut> {
@@ -936,6 +951,7 @@ impl Ty<modes::Mut> {
     }
 
     fn replace(self, name: Definition, replacement: Tau) -> Tau {
+        use holes::HoleKind::*;
         match self {
             Ty::Constructor(constructor) if constructor.name == name => replacement,
             Ty::App(a, b) => Ty::App(
@@ -953,13 +969,13 @@ impl Ty<modes::Mut> {
                 phantom: PhantomData,
             }),
             Ty::Hole(hole) => match hole.data.borrow_mut().kind() {
-                holes::HoleKind::Error => Ty::Hole(HoleRef::new(Hole {
-                    kind: holes::HoleKind::Error,
+                Error => Ty::Hole(HoleRef::new(Hole {
+                    kind: Error,
                 })),
-                holes::HoleKind::Empty { scope } => Ty::Hole(HoleRef::new(Hole {
-                    kind: holes::HoleKind::Empty { scope: *scope },
+                Empty { scope } => Ty::Hole(HoleRef::new(Hole {
+                    kind: Empty { scope: *scope },
                 })),
-                holes::HoleKind::Filled(ty) => ty.clone().replace(name, replacement),
+                Filled(ty) => ty.clone().replace(name, replacement),
             },
             Ty::Bound(TyVar::Flexible(definition, _)) if definition == name => replacement,
             Ty::Bound(bound) => Ty::Bound(bound),
@@ -1053,7 +1069,6 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(pi) if matches!(pi.kind(self.db), ArrowKind::Pi) => {
                 // Transforms a type representation of pi arrow into
                 // a semantic type arrow with a pi arrow
-
                 let value = self.eval(pi.value(self.db));
 
                 pi.parameters(self.db)
@@ -1061,14 +1076,8 @@ impl<'tctx> InferCtx<'tctx> {
                     .map(|parameter| {
                         // Checks the type of the parameter
                         let ty = self.eval(parameter.parameter_type(self.db));
-                        let ty = parameter.binding(self.db).check(ty, self);
 
-                        // Stores the parameter in the environment
-                        // as debug information for the type checker
-                        // build a table.
-                        self.parameters.insert(parameter, ty.clone());
-
-                        ty
+                        parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
                         Tau::Pi(Arrow {
@@ -1081,8 +1090,8 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
                 // Transforms a type representation of forall arrow into
                 // a semantic type arrow with a forall quantifier
-
                 let value = self.eval(forall.value(self.db));
+
                 let parameters = forall
                     .parameters(self.db)
                     .into_iter()
@@ -1241,13 +1250,12 @@ impl<'tctx> InferCtx<'tctx> {
         }
 
         let refresh = fresh(self, parameter.to_string(self.db));
+        let level = self.env.level + 1;
 
+        self.debruijin_index.insert(level, refresh.clone());
         self.env.level += 1;
-        self.env
-            .debruijin_index
-            .insert(self.env.level, refresh.clone());
-        self.env.names.insert(refresh);
+        self.env.names.push_back(refresh);
 
-        self.env.level
+        level
     }
 }

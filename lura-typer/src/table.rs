@@ -1,3 +1,4 @@
+use fxhash::FxBuildHasher;
 use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, HirSource};
 
 use crate::{
@@ -8,9 +9,10 @@ use crate::{
 
 #[salsa::tracked]
 pub struct TypeTable {
-    pub declarations: im::HashMap<TopLevel, TypedDeclaration>,
-    pub parameters: im::HashMap<Parameter, TypeRep>,
-    pub expressions: im::HashMap<Expr, TypeRep>,
+    pub debruijin_index: im::HashMap<usize, String, FxBuildHasher>,
+    pub declarations: im::HashMap<TopLevel, TypedDeclaration, FxBuildHasher>,
+    pub parameters: im::HashMap<Parameter, TypeRep, FxBuildHasher>,
+    pub expressions: im::HashMap<Expr, TypeRep, FxBuildHasher>,
 }
 
 /// Defines the [`infer_type_table`] query.
@@ -23,6 +25,7 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         pkg: source.package(db),
         self_type: None,
         location: lura_hir::source::Location::CallSite,
+        debruijin_index: Default::default(),
         expressions: Default::default(),
         parameters: Default::default(),
         declarations: Default::default(),
@@ -33,6 +36,8 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
     for top_level in source.contents(db).iter().cloned() {
         top_level.infer(&mut ctx);
     }
+
+    let debrujin_index = ctx.debruijin_index.into_iter().collect();
 
     // Transforms the expressions into their sealed versions.
     let expressions = ctx
@@ -55,5 +60,5 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         .map(|(k, v)| (k, v.seal()))
         .collect();
 
-    TypeTable::new(db, declarations, parameters, expressions)
+    TypeTable::new(db, debrujin_index, declarations, parameters, expressions)
 }

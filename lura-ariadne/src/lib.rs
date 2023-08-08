@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use ariadne::Fmt;
 use eyre::Context;
+use fxhash::FxBuildHasher;
 use lura_diagnostic::Report;
 
 type Span = (String, std::ops::Range<usize>);
@@ -77,8 +78,9 @@ impl AriadneReport {
         Ok(())
     }
 
-    fn group_errors_by_file(&self) -> HashMap<FileDescriptor, Vec<Report>> {
-        let mut diagnostics = std::collections::HashMap::new();
+    // Group all errors by file.
+    fn group_errors_by_file(&self) -> HashMap<FileDescriptor, Vec<Report>, FxBuildHasher> {
+        let mut diagnostics = std::collections::HashMap::default();
         for report in self.reports.iter() {
             diagnostics
                 .entry(FileDescriptor {

@@ -448,6 +448,8 @@ where
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod declaration {
+    use fxhash::FxBuildHasher;
+
     use crate::resolve::{Definition, HirLevel};
 
     use super::*;
@@ -459,7 +461,7 @@ pub mod declaration {
         /// interpreted/generated, after the resolution step.
         ///
         /// TODO: mark reflection as an idea.
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<Attribute>;
+        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<Attribute, FxBuildHasher>;
 
         /// Returns the visibility of the declaration. It does rule "who" can access this
         /// declaration.
@@ -677,6 +679,8 @@ pub mod top_level {
     use std::fmt::Formatter;
     use std::sync::Arc;
 
+    use fxhash::FxBuildHasher;
+
     use crate::resolve::{Definition, Reference};
     use crate::walking::HirListener;
 
@@ -698,7 +702,7 @@ pub mod top_level {
     /// In this example, `f : ...` is a signature declaration, and `f x = x` is a clause.
     #[salsa::tracked]
     pub struct Signature {
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
@@ -720,7 +724,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for Signature {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -805,7 +812,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct BindingGroup {
         pub signature: Signature,
-        pub clauses: HashSet<Clause>,
+        pub clauses: HashSet<Clause, FxBuildHasher>,
     }
 
     impl walking::Walker for BindingGroup {
@@ -818,7 +825,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for BindingGroup {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             self.signature(db).attributes(db)
         }
 
@@ -908,7 +918,7 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct TypeDecl {
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
@@ -933,7 +943,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for TypeDecl {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -970,7 +983,7 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct ClassDecl {
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
@@ -999,7 +1012,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for ClassDecl {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -1036,7 +1052,7 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct TraitDecl {
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
@@ -1063,7 +1079,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for TraitDecl {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -1100,7 +1119,7 @@ pub mod top_level {
 
     #[salsa::tracked]
     pub struct DataDecl {
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub visibility: Spanned<declaration::Vis>,
         pub name: Definition,
@@ -1129,7 +1148,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for DataDecl {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -1167,7 +1189,7 @@ pub mod top_level {
     #[salsa::tracked]
     pub struct Constructor {
         pub kind: ConstructorKind,
-        pub attributes: HashSet<declaration::Attribute>,
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
         pub name: Definition,
         pub return_type: type_rep::TypeRep,
@@ -1185,7 +1207,10 @@ pub mod top_level {
     }
 
     impl declaration::Declaration for Constructor {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             Self::attributes(*self, db)
         }
 
@@ -1378,7 +1403,10 @@ pub mod top_level {
     /// It's implementation functions just pattern match the [`DeclDescriptor`] variants, and
     /// delegates the call to the [`Declaration`] trait.
     impl declaration::Declaration for DeclDescriptor {
-        fn attributes(&self, db: &dyn crate::HirDb) -> HashSet<declaration::Attribute> {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             match self {
                 Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
@@ -2015,7 +2043,7 @@ pub mod literal {
 pub mod expr {
     use std::{fmt::Formatter, sync::Arc};
 
-    use lura_diagnostic::{message, Diagnostics, Report, ErrorId};
+    use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
 
     use crate::resolve::{HirDiagnostic, Reference};
 

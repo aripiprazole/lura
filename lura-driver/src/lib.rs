@@ -123,7 +123,7 @@ mod tests {
         let hir = hir_lower(&db, local, src);
         let table = infer_type_table(&db, hir);
 
-        create_type_table_report(&db, table);
+        debug_type_table_report(&db, table);
 
         // Concats the diagnostics of the various passes and prints them.
         //
@@ -147,11 +147,10 @@ mod tests {
         db.register_package(package)
     }
 
-    fn create_type_table_report(db: &RootDb, type_table: TypeTable) {
+    fn debug_type_table_report(db: &RootDb, type_table: TypeTable) {
         let expressions = type_table.expressions(db);
 
-        let mut parameters = HashMap::new();
-        for (parameter, type_rep) in type_table.parameters(db) {
+        let mut parameters = HashMap::new(); for (parameter, type_rep) in type_table.parameters(db) {
             let location = parameter.location(db);
             let file_name = location.file_name().to_string();
 
@@ -175,8 +174,8 @@ mod tests {
 
             type Span = (String, std::ops::Range<usize>);
             ariadne::Report::<Span>::build(ariadne::ReportKind::Advice, file.clone(), 0)
-                .with_code("E0001")
                 .with_message("type table information")
+                .with_note("These are generated types, they are not part of the source code.")
                 .with_config(
                     ariadne::Config::default()
                         .with_char_set(ariadne::CharSet::Unicode)

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use fxhash::FxBuildHasher;
 use lura_diagnostic::{Offset, TextRange};
 use lura_hir::{
     reparse::reparse_hir_path,
@@ -13,7 +14,7 @@ use crate::RootDb;
 /// Renames results containing the text edits to apply to the source code. It
 #[derive(Debug, Clone)]
 pub struct RenamesResult {
-    pub edits: HashSet<TextEdit>,
+    pub edits: HashSet<TextEdit, FxBuildHasher>,
     pub definition: Definition,
 }
 

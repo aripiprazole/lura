@@ -7,6 +7,8 @@
 
 use std::sync::Arc;
 
+use fxhash::FxBuildHasher;
+
 use crate::{
     resolve::Reference,
     scope::{Scope, ScopeKind},
@@ -25,13 +27,13 @@ pub struct ReferenceWalker<'db, U: Checkable> {
     visit_reference: Box<dyn FnMut(&'db dyn crate::HirDb, Reference, Arc<Scope>) -> U>,
     enter_scope: Box<dyn FnMut(&'db dyn crate::HirDb, Location, Arc<Scope>)>,
 
-    scopes_visited: im::HashSet<Arc<Scope>>,
+    scopes_visited: im::HashSet<Arc<Scope>, FxBuildHasher>,
 
     /// The references that were already visited. It's used to avoid infinite loops
-    visited: im::HashSet<Reference>,
+    visited: im::HashSet<Reference, FxBuildHasher>,
 
     /// The references to return
-    collected: im::HashSet<Reference>,
+    collected: im::HashSet<Reference, FxBuildHasher>,
 }
 
 /// Defines a builder for a `ReferenceWalker`. It's intended to be used to build a `ReferenceWalker`
@@ -92,7 +94,7 @@ impl<'db, U: Checkable> ReferenceWalker<'db, U> {
         }
     }
 
-    pub fn collect(mut self, source: HirSource) -> im::HashSet<Reference> {
+    pub fn collect(mut self, source: HirSource) -> im::HashSet<Reference, FxBuildHasher> {
         source.accept(self.db, &mut self);
 
         // Return the collected references

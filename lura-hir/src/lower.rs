@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
 };
 
+use fxhash::FxBuildHasher;
 use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};
@@ -76,7 +77,7 @@ pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSourc
         scope: Scope::new(ScopeKind::File),
         tree: parse_tree.tree.clone(),
         root_node: parse_tree.tree.root_node(),
-        clauses: HashMap::new(),
+        clauses: Default::default(),
     };
 
     lower.declare()
@@ -101,7 +102,7 @@ pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource 
         scope: Scope::new(ScopeKind::File),
         tree: parse_tree.tree.clone(),
         root_node: parse_tree.tree.root_node(),
-        clauses: HashMap::new(),
+        clauses: Default::default(),
     };
 
     lower.declare_and_solve()
@@ -133,7 +134,7 @@ struct LowerHir<'db, 'tree> {
     pkg: Package,
     scope: Scope,
     root_node: Node<'tree>,
-    clauses: HashMap<HirPath, BindingGroup>,
+    clauses: HashMap<HirPath, BindingGroup, FxBuildHasher>,
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
@@ -701,7 +702,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     /* location    = */ location,
                 );
 
-                BindingGroup::new(db, signature, HashSet::new())
+                BindingGroup::new(db, signature, HashSet::default())
             });
 
             let signature = binding_group.signature(db);
@@ -776,7 +777,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let clause = this
                 .clauses
                 .entry(path)
-                .or_insert_with(|| BindingGroup::new(db, signature, HashSet::new()));
+                .or_insert_with(|| BindingGroup::new(db, signature, HashSet::default()));
 
             // Adds the current body to the clause, and solve it
             let mut clauses = clause.clauses(this.db);
@@ -1006,7 +1007,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     ///
     /// It will return a list of [`Attribute`] because it is possible to have multiple attributes
     /// in the same declaration, and it will be handled as a list of [`Attribute`].
-    pub fn hir_attributes<'a, I>(&mut self, attributes: I) -> HashSet<Attribute>
+    pub fn hir_attributes<'a, I>(&mut self, attributes: I) -> HashSet<Attribute, FxBuildHasher>
     where
         I: Iterator<Item = NodeResult<'a, ExtraOr<'a, lura_syntax::Attribute<'a>>>>,
     {
@@ -1765,7 +1766,7 @@ mod term_solver {
         pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr, level: HirLevel) -> Expr {
             // Reports errors, because "return expression" is equivalent
             // to pure expression, and it's only allowed inside do notation.
-            // 
+            //
             // Or in other words, it's only allowed inside a do notation scope.
             if !self.scope.is_do_notation_scope() {
                 Diagnostics::push(

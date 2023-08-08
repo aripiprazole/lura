@@ -1,6 +1,8 @@
 //! Defines a module for walking throughout the AST, searching all fields for
 //! a given pattern.
 
+use fxhash::FxBuildHasher;
+
 use crate::resolve::Reference;
 use crate::source::*;
 use std::collections::HashSet;
@@ -25,7 +27,7 @@ impl<T: Walker> Walker for Option<T> {
     }
 }
 
-impl<T: Walker> Walker for HashSet<T> {
+impl<T: Walker> Walker for HashSet<T, FxBuildHasher> {
     fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
         for item in self {
             item.accept(db, listener);

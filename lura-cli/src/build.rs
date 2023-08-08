@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use eyre::Context;
+use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use lura_diagnostic::{Diagnostics, Report};
 use lura_driver::RootDb;
@@ -19,7 +20,7 @@ pub struct Config {
     pub version: String,
     #[serde(default = "source_folder_default")]
     pub source: String,
-    pub dependencies: HashMap<String, Dependency>,
+    pub dependencies: HashMap<String, Dependency, FxBuildHasher>,
 }
 
 #[derive(Clone)]
@@ -28,7 +29,7 @@ pub struct Manifest<'db> {
     pub root_folder: PathBuf,
     pub soruce_folder: PathBuf,
     pub config: Config,
-    pub diagnostics: im::HashSet<Report>,
+    pub diagnostics: im::HashSet<Report, FxBuildHasher>,
 }
 
 impl<'db> Manifest<'db> {
@@ -113,11 +114,13 @@ impl<'db> Manifest<'db> {
         Ok(())
     }
 
-    pub fn resolve_all_files(&mut self) -> eyre::Result<im::HashMap<Package, HirSource>> {
+    pub fn resolve_all_files(
+        &mut self,
+    ) -> eyre::Result<im::HashMap<Package, HirSource, FxBuildHasher>> {
         // Clear diagnostics for new revision
         self.diagnostics = Default::default();
 
-        let mut files = im::HashMap::new();
+        let mut files = im::HashMap::default();
         for package in self.db.all_packages() {
             for file in package.all_files(self.db) {
                 // Gets the diagnostics from the CST

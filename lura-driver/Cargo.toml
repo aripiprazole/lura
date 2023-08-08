@@ -22,5 +22,6 @@ type-sitter-lib = {workspace = true}
 dashmap = {workspace = true}
 eyre = {workspace = true}
 itertools.workspace = true
+fxhash.workspace = true
 
 ariadne = { version = "0.3.0", features = ["auto-color"] }
