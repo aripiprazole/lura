@@ -773,6 +773,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "lura-ariadne"
+version = "0.0.1"
+dependencies = [
+ "ariadne",
+ "dashmap",
+ "eyre",
+ "itertools",
+ "lura-diagnostic",
+ "lura-syntax",
+ "lura-vfs",
+ "salsa-2022",
+ "tree-sitter",
+ "tree-sitter-lura",
+ "type-sitter-lib",
+]
+
+[[package]]
 name = "lura-cli"
 version = "0.0.1"
 dependencies = [
@@ -820,6 +837,7 @@ dependencies = [
  "dashmap",
  "eyre",
  "itertools",
+ "lura-ariadne",
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",

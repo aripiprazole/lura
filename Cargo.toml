@@ -8,6 +8,7 @@ members = [
   "lura-ide",
   "lura-cli",
   "lura-typer",
+  "lura-ariadne",
 ]
 
 [workspace.dependencies]

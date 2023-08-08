@@ -83,7 +83,8 @@ impl salsa::ParallelDatabase for RootDb {
 mod tests {
     use ariadne::Fmt;
     use itertools::Itertools;
-    use lura_diagnostic::{Diagnostics, Report, TextRange};
+    use lura_ariadne::AriadneReport;
+    use lura_diagnostic::{Diagnostics, TextRange};
     use lura_hir::{
         lower::hir_lower,
         package::{Package, PackageKind, Version},
@@ -120,13 +121,17 @@ mod tests {
         let hir = hir_lower(&db, local, src);
         let table = infer_type_table(&db, hir);
 
-        // NOTE: We don't use the `create_diagnostic_report` function here, because we want to
-        // concat the lowering errors and the type checking errors.
-        let mut errors = hir_lower::accumulated::<Diagnostics>(&db, local, src);
-        errors.extend(infer_type_table::accumulated::<Diagnostics>(&db, hir));
+        create_type_table_report(&db, table);
 
-        create_diagnostic_report(errors);
-        create_type_table_report(&db, table)
+        // Concats the diagnostics of the various passes and prints them.
+        //
+        // Using the aridane crate, we can print the diagnostics in a nice way,
+        // with colors and all.
+        AriadneReport::default()
+            .expand(hir_lower::accumulated::<Diagnostics>(&db, local, src))
+            .expand(infer_type_table::accumulated::<Diagnostics>(&db, hir))
+            .eprint()
+            .unwrap();
     }
 
     fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
@@ -138,74 +143,6 @@ mod tests {
 
         // Registers the package in the database.
         db.register_package(package)
-    }
-
-    fn create_diagnostic_report(errors: Vec<Report>) {
-        /// NOTE: For some reason, rust-analyzer catches [`content`] as
-        /// not used, but it's used when displaying the errors.
-        ///
-        /// So we suppress it, by using `#[allow(dead_code)]`
-        #[derive(Debug, Clone)]
-        #[allow(dead_code)]
-        struct FileDescriptor {
-            path: String,
-            content: String,
-        }
-
-        impl Eq for FileDescriptor {}
-
-        impl PartialEq for FileDescriptor {
-            fn eq(&self, other: &Self) -> bool {
-                self.path == other.path
-            }
-        }
-
-        impl std::hash::Hash for FileDescriptor {
-            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                self.path.hash(state);
-            }
-        }
-
-        let mut diagnostics = std::collections::HashMap::new();
-        for report in errors {
-            diagnostics
-                .entry(FileDescriptor {
-                    path: report.file_name().to_string(),
-                    content: report.location().unwrap().source().to_string(),
-                })
-                .or_insert_with(std::collections::HashSet::new)
-                .insert(report.clone());
-        }
-
-        for (file, diagnostics) in diagnostics {
-            use ariadne::ReportKind::*;
-
-            type Span = (String, std::ops::Range<usize>);
-            ariadne::Report::<Span>::build(Error, file.path.clone(), 0)
-                .with_code("E0001")
-                .with_message(format!("found {} errors", diagnostics.len()))
-                .with_config(
-                    ariadne::Config::default()
-                        .with_char_set(ariadne::CharSet::Unicode)
-                        .with_label_attach(ariadne::LabelAttach::Start),
-                )
-                .with_labels(diagnostics.into_iter().map(|d| {
-                    let kind = match d.error_kind() {
-                        lura_diagnostic::ErrorKind::ParseError => "parse error",
-                        lura_diagnostic::ErrorKind::TypeError => "type error",
-                        lura_diagnostic::ErrorKind::ResolutionError => "resolution error",
-                        lura_diagnostic::ErrorKind::RuntimeError => "runtime error",
-                        lura_diagnostic::ErrorKind::InternalError(_) => "internal error",
-                    };
-                    let message = d.markdown_text();
-                    ariadne::Label::new((d.file_name(), d.range().unwrap()))
-                        .with_color(ariadne::Color::Red)
-                        .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red))
-                }))
-                .finish()
-                .eprint((file.path, ariadne::Source::from(&file.content)))
-                .unwrap();
-        }
     }
 
     fn create_type_table_report(db: &RootDb, type_table: TypeTable) {

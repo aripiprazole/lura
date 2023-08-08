@@ -1,5 +1,5 @@
 [package]
-name = "lura-driver"
+name = "lura-ariadne"
 edition.workspace = true
 authors.workspace = true
 documentation.workspace = true
@@ -7,11 +7,8 @@ version.workspace = true
 
 [dependencies]
 lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
-lura-hir = {version = "0.0.1", path = "../lura-hir"}
 lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
 lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
-lura-typer = {version = "0.0.1", path = "../lura-typer"}
-lura-ariadne = {version = "0.0.1", path = "../lura-ariadne"}
 
 salsa-2022 = {workspace = true}
 
