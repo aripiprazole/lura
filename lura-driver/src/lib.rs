@@ -90,11 +90,12 @@ mod tests {
     use lura_hir::{
         lower::hir_lower,
         package::{Package, PackageKind, Version},
-        source::HirElement,
+        source::HirElement, fmt::HirFormatter,
     };
     use lura_syntax::Source;
     use lura_typer::table::{infer_type_table, TypeTable};
     use lura_vfs::SourceFile;
+    use salsa_2022::DebugWithDb;
 
     use crate::RootDb;
 
@@ -103,7 +104,8 @@ mod tests {
         "public data String {}",
         "public data List (^a) {}",
         "main (args: List String) {",
-        "  id (id args)",
+        "  let x = id 10",
+        "  id (id x)",
         "}",
     ];
 
@@ -150,7 +152,8 @@ mod tests {
     fn debug_type_table_report(db: &RootDb, type_table: TypeTable) {
         let expressions = type_table.expressions(db);
 
-        let mut parameters = HashMap::new(); for (parameter, type_rep) in type_table.parameters(db) {
+        let mut parameters = HashMap::new();
+        for (parameter, type_rep) in type_table.parameters(db) {
             let location = parameter.location(db);
             let file_name = location.file_name().to_string();
 
@@ -188,9 +191,18 @@ mod tests {
                     // TODO: use a better representation for types
                     let type_rep = type_rep.to_string();
 
+                    // Build pattern string
+                    let pattern = parameter.binding(db);
+                    let pattern = pattern.formatter();
+                    let pattern = format!("{:?}", pattern.debug_all(db));
+
                     ariadne::Label::new((file.clone(), range))
                         .with_color(Color::Yellow)
-                        .with_message(format!("parameter has type {}", type_rep.fg(Color::Red)))
+                        .with_message(format!(
+                            "parameter {} has type {}",
+                            pattern.fg(Color::Yellow),
+                            type_rep.fg(Color::Red)
+                        ))
                 }))
                 .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
                     let location = expr.location(db);
