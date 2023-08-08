@@ -401,11 +401,12 @@ pub mod modes {
         hash::Hash,
     };
 
-    use super::HoleRef;
+    use super::{HoleRef, Ty};
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
     pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug + Default {
+        type Ty: Display + Debug + PartialEq + Eq + Clone + Hash;
         type Hole: Display + Debug + PartialEq + Eq + Clone + Hash;
     }
 
@@ -415,6 +416,7 @@ pub mod modes {
 
     impl TypeMode for Ready {
         type Hole = Box<crate::type_rep::Hole<Ready>>;
+        type Ty = Ty<Ready>;
     }
 
     /// Mut is the type of mutable types.
@@ -422,6 +424,7 @@ pub mod modes {
     pub struct Mut;
 
     impl TypeMode for Mut {
+        type Ty = Ty<Mut>;
         type Hole = HoleRef<Mut>;
     }
 }

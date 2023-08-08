@@ -29,4 +29,5 @@ pub mod infer;
 pub mod table;
 pub mod thir;
 pub mod adhoc;
+pub mod kind;
 pub mod type_rep;
