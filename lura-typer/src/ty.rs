@@ -1,11 +1,6 @@
 use holes::*;
 use lura_hir::resolve::Definition;
-use std::{
-    cell::RefCell,
-    fmt::{Debug, Display},
-    hash::Hash,
-    marker::PhantomData,
-};
+use std::{cell::RefCell, fmt::Debug, hash::Hash, marker::PhantomData};
 
 pub type Level = usize;
 
@@ -66,14 +61,14 @@ pub enum Rigidness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Bound {
+pub enum TyVar {
     Flexible(Definition, String),
     Debruijin(Definition, String, Level),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
     Constructor(InternalConstructor),
@@ -81,13 +76,7 @@ pub enum Ty<M: modes::TypeMode> {
     Forall(Arrow<kinds::Forall, M>),
     Pi(Arrow<kinds::Pi, M>),
     Hole(M::Hole),
-    Bound(Bound),
-}
-
-impl<M: modes::TypeMode> Debug for Ty<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
-    }
+    Bound(TyVar),
 }
 
 impl<M: modes::TypeMode> Ty<M> {
@@ -194,11 +183,11 @@ mod display {
         }
     }
 
-    impl Display for Bound {
+    impl Display for TyVar {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Bound::Flexible(_, name) => write!(f, "{}", name),
-                Bound::Debruijin(_, name, _) => write!(f, "{}", name),
+                TyVar::Flexible(_, name) => write!(f, "{}", name),
+                TyVar::Debruijin(_, name, _) => write!(f, "{}", name),
             }
         }
     }
@@ -222,7 +211,7 @@ mod display {
             match self.kind {
                 HoleKind::Error => write!(f, "!"),
                 HoleKind::Empty { scope } => write!(f, "?{scope}"),
-                HoleKind::Filled(ref ty) => write!(f, "~{ty}"),
+                HoleKind::Filled(ref ty) => write!(f, "#[{ty}]"),
             }
         }
     }

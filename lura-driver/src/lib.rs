@@ -100,7 +100,7 @@ mod tests {
         "public data String {}",
         "public data List (^a) {}",
         "main (args: List String) {",
-        "  id args",
+        "  id 10",
         "}",
     ];
 
@@ -186,7 +186,7 @@ mod tests {
                 .with_message(format!("found {} errors", diagnostics.len()))
                 .with_config(
                     ariadne::Config::default()
-                        .with_char_set(ariadne::CharSet::Ascii)
+                        .with_char_set(ariadne::CharSet::Unicode)
                         .with_label_attach(ariadne::LabelAttach::Start),
                 )
                 .with_labels(diagnostics.into_iter().map(|d| {
@@ -235,7 +235,7 @@ mod tests {
 
                     ariadne::Label::new((file.clone(), range))
                         .with_color(colors.next())
-                        .with_message(format!("has type {type_rep:?}").fg(ariadne::Color::White))
+                        .with_message(format!("has type {type_rep}").fg(ariadne::Color::White))
                 }))
                 .finish()
                 .print((file.clone(), ariadne::Source::from(&contents)))

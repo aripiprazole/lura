@@ -70,6 +70,7 @@ pub struct TyEnv {
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>>,
     pub rigid_variables: im_rc::HashMap<Definition, Tau>,
+    pub debruijin_index: im_rc::HashMap<usize, String>,
     pub names: im_rc::HashSet<String>,
 }
 
@@ -95,7 +96,7 @@ impl Substitution<'_, '_> {
             // SECTION: Types
             Ty::Primary(_) => {}
             Ty::Constructor(_) => {}
-            Ty::Bound(Bound::Flexible(_, _)) => {}
+            Ty::Bound(TyVar::Flexible(_, _)) => {}
             Ty::Forall(forall) => {
                 self.hole_unify_prechecks(*forall.value, scope, hole);
             }
@@ -103,7 +104,7 @@ impl Substitution<'_, '_> {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*pi.value, scope, hole)
             }
-            Ty::Bound(Bound::Debruijin(_, _, level)) => {
+            Ty::Bound(TyVar::Debruijin(_, _, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
@@ -210,7 +211,7 @@ impl Substitution<'_, '_> {
                     let level = self.ctx.add_to_env(param_a.name);
                     let definition = param_a.name;
                     let name = param_a.name.to_string(self.ctx.db);
-                    let debruijin = Tau::Bound(Bound::Debruijin(definition, name, level));
+                    let debruijin = Tau::Bound(TyVar::Debruijin(definition, name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -218,7 +219,10 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (Ty::Bound(Bound::Debruijin(_, _, level_a)), Ty::Bound(Bound::Debruijin(_, _, level_b))) => {
+            (
+                Ty::Bound(TyVar::Debruijin(_, _, level_a)),
+                Ty::Bound(TyVar::Debruijin(_, _, level_b)),
+            ) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -367,7 +371,7 @@ impl Check for Pattern {
     fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            Pattern::Empty => Tau::Primary(Primary::Error),
+            Pattern::Hole => ty, // It's a hole pattern
             Pattern::Error(_) => Tau::Primary(Primary::Error),
 
             // SECTION: Patterns
@@ -688,7 +692,9 @@ impl Infer for TopLevel {
         fn check_binding_group(ctx: &mut InferCtx, binding_group: BindingGroup) {
             // Creates the type of the binding group using the
             // signature of the binding group
-            let return_ty = create_declaration_ty(ctx, true, binding_group.signature(ctx.db));
+            let function_ty = create_declaration_ty(ctx, true, binding_group.signature(ctx.db));
+
+            let return_ty = ctx.new_meta();
 
             // Gets the parameter types
             let parameters = binding_group
@@ -706,10 +712,10 @@ impl Infer for TopLevel {
                             // Meta information
                             let def = binding.name(ctx.db);
                             let name = def.to_string(ctx.db);
-                            
+
                             // Debruijin index
                             let level = ctx.add_to_env(def);
-                            let bound = Tau::Bound(Bound::Debruijin(def, name, level));
+                            let bound = Tau::Bound(TyVar::Debruijin(def, name, level));
                             ctx.env.rigid_variables.insert(def, bound.clone());
                             bound
                         } else {
@@ -718,6 +724,11 @@ impl Infer for TopLevel {
                     }
                 })
                 .collect::<im_rc::Vector<_>>();
+
+            let pi = Tau::from_pi(parameters.clone().into_iter(), return_ty.clone());
+
+            // Gets the return type
+            pi.unify(function_ty, ctx);
 
             // Checks the type of each clause
             for clause in binding_group.clauses(ctx.db) {
@@ -921,7 +932,7 @@ impl Ty<modes::Mut> {
                 })),
                 holes::HoleKind::Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Ty::Bound(Bound::Flexible(definition, _)) if definition == name => replacement,
+            Ty::Bound(TyVar::Flexible(definition, _)) if definition == name => replacement,
             Ty::Bound(bound) => Ty::Bound(bound),
             _ => self,
         }
@@ -997,7 +1008,7 @@ impl<'tctx> InferCtx<'tctx> {
                     let def = reference.definition(self.db);
                     let name = def.to_string(self.db);
 
-                    Tau::Bound(Bound::Flexible(def, name))
+                    Tau::Bound(TyVar::Flexible(def, name))
                 }),
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));
@@ -1049,7 +1060,7 @@ impl<'tctx> InferCtx<'tctx> {
                         binding.clone().check(ty, self);
 
                         Some(match binding {
-                            Pattern::Empty | Pattern::Wildcard(_) | Pattern::Error(_) => {
+                            Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
                                 let location = HirLocation::new(self.db, location);
 
                                 InternalConstructor {
@@ -1138,11 +1149,9 @@ impl<'tctx> InferCtx<'tctx> {
             .get(&reference.definition(self.db))
             .cloned()
             .unwrap_or_else(|| {
-                panic!(
-                    "variable not found {}",
-                    reference.definition(self.db).to_string(self.db)
-                );
-                // Tau::Primary(Primary::Error)
+                let name = reference.definition(self.db).to_string(self.db);
+
+                panic!("variable not found {name}");
             });
 
         self.instantiate(let_ty)
@@ -1189,10 +1198,13 @@ impl<'tctx> InferCtx<'tctx> {
             name
         }
 
+        let refresh = fresh(self, parameter.to_string(self.db));
+
         self.env.level += 1;
         self.env
-            .names
-            .insert(fresh(self, parameter.to_string(self.db)));
+            .debruijin_index
+            .insert(self.env.level, refresh.clone());
+        self.env.names.insert(refresh);
 
         self.env.level
     }

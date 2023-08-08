@@ -630,7 +630,7 @@ pub mod declaration {
         pub fn unnamed(db: &dyn crate::HirDb, type_rep: type_rep::TypeRep) -> Self {
             Self::new(
                 db,
-                /* binding     = */ pattern::Pattern::Empty,
+                /* binding     = */ pattern::Pattern::Hole,
                 /* type_rep    = */ type_rep.clone(),
                 /* is_implicit = */ false,
                 /* rigid       = */ true,
@@ -652,7 +652,7 @@ pub mod declaration {
         /// Creates a new unit parameter. Just like `(): ()`, for default and error recovery
         /// purposes.
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
-            let binding = pattern::Pattern::Empty;
+            let binding = pattern::Pattern::Hole;
             let type_rep = type_rep::TypeRep::Unit;
             let level = HirLevel::Expr;
 
@@ -1563,7 +1563,7 @@ pub mod pattern {
         /// patterns, these are:
         /// - [`Pattern::Error`]
         /// - [`Pattern::Binding`]
-        Empty,
+        Hole,
         Literal(Spanned<literal::Literal>),
         Wildcard(Location),
         Rest(Location),
@@ -1574,7 +1574,7 @@ pub mod pattern {
 
     impl DefaultWithDb for Pattern {
         fn default_with_db(_db: &dyn crate::HirDb) -> Self {
-            Self::Empty
+            Self::Hole
         }
 
         fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
@@ -1585,7 +1585,7 @@ pub mod pattern {
     impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Pattern {
         fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
             match self {
-                Pattern::Empty => write!(f, "Empty"),
+                Pattern::Hole => write!(f, "Empty"),
                 Pattern::Literal(literal) => write!(f, "Literal({literal:?})"),
                 Pattern::Wildcard(wildcard) => write!(f, "Wildcard(location: {wildcard:?})"),
                 Pattern::Rest(rest) => write!(f, "Rest(location: {rest:?})"),
@@ -1599,7 +1599,7 @@ pub mod pattern {
     impl walking::Walker for Pattern {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                Pattern::Empty => {
+                Pattern::Hole => {
                     listener.enter_empty_pattern();
                     listener.exit_empty_pattern();
                 }
@@ -1632,7 +1632,7 @@ pub mod pattern {
     impl HirElement for Pattern {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
-                Self::Empty => Location::call_site(db),
+                Self::Hole => Location::call_site(db),
                 Self::Literal(literal) => literal.location.clone().unwrap(),
                 Self::Wildcard(location) => location.clone(),
                 Self::Rest(location) => location.clone(),

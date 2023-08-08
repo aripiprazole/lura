@@ -486,7 +486,7 @@ mod impls {
             use pattern::Pattern::*;
 
             match self {
-                Empty => write!(f, "_"),
+                Hole => write!(f, "_"),
                 Wildcard(_) => write!(f, "_"),
                 Rest(_) => write!(f, ".."),
                 Error(_) => write!(f, "!"),
