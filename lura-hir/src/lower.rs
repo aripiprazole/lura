@@ -1370,8 +1370,10 @@ mod stmt_solver {
 ///
 /// It's only a module, to organization purposes.
 mod term_solver {
+    use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
+
     use crate::{
-        resolve::HirLevel,
+        resolve::{HirDiagnostic, HirLevel},
         source::{
             expr::{MatchArm, MatchExpr, MatchKind},
             literal::Literal,
@@ -1761,8 +1763,19 @@ mod term_solver {
         }
 
         pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr, level: HirLevel) -> Expr {
+            // Reports errors, because "return expression" is equivalent
+            // to pure expression, and it's only allowed inside do notation.
+            // 
+            // Or in other words, it's only allowed inside a do notation scope.
             if !self.scope.is_do_notation_scope() {
-                // TODO: report error if it's outside of a do notation
+                Diagnostics::push(
+                    self.db,
+                    Report::new(HirDiagnostic {
+                        id: ErrorId("escaping-return"),
+                        message: message!["return expression is only allowed inside do notation"],
+                        location: self.range(tree.range()),
+                    }),
+                )
             }
 
             let location = self.range(tree.range());
