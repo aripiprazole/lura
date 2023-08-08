@@ -100,7 +100,7 @@ impl Substitution<'_, '_> {
             Ty::Forall(forall) => {
                 self.hole_unify_prechecks(*forall.value, scope, hole);
             }
-            Ty::Pi(pi) => {
+            Ty::Arrow(pi) => {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*pi.value, scope, hole)
             }
@@ -189,9 +189,9 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Ty::Pi(pi_a), Ty::Pi(pi_b)) => {
-                self.internal_unify(*pi_a.domain, *pi_b.domain);
-                self.internal_unify(*pi_a.value, *pi_b.value);
+            (Ty::Arrow(arrow_a), Ty::Arrow(arrow_b)) => {
+                self.internal_unify(*arrow_a.domain, *arrow_b.domain);
+                self.internal_unify(*arrow_a.value, *arrow_b.value);
             }
             (Ty::App(callee_a, value_a), Ty::App(callee_b, value_b)) => {
                 self.internal_unify(*callee_a, *callee_b);
@@ -746,7 +746,6 @@ impl Infer for TopLevel {
             let return_ty = ctx.new_meta();
 
             // Gets the parameter types
-            // TODO: get from spine too
             let parameters = binding_group
                 .parameters(ctx.db)
                 .into_iter()
@@ -925,7 +924,6 @@ impl Check for Block {
         }
 
         // Checks the type of the last statement
-        // TODO: check returns
         let actual_ty = match self.statements(ctx.db).last() {
             Some(value) => value.clone().infer(ctx),
             None => Tau::UNIT,
@@ -987,7 +985,7 @@ impl Ty<modes::Mut> {
                 value: forall.value.replace(name, replacement).into(),
                 phantom: PhantomData,
             }),
-            Ty::Pi(pi) => Ty::Pi(Arrow {
+            Ty::Arrow(pi) => Ty::Arrow(Arrow {
                 domain: pi.domain.replace(name, replacement.clone()).into(),
                 value: pi.value.replace(name, replacement).into(),
                 phantom: PhantomData,
@@ -1104,7 +1102,7 @@ impl<'tctx> InferCtx<'tctx> {
                         parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Pi(Arrow {
+                        Tau::Arrow(Arrow {
                             domain: next.into(),
                             value: acc.into(),
                             phantom: PhantomData,

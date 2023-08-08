@@ -81,7 +81,7 @@ pub enum Ty<M: modes::TypeMode> {
     Constructor(InternalConstructor),
     App(Box<Ty<M>>, Box<Ty<M>>),
     Forall(Arrow<kinds::Forall, M>),
-    Pi(Arrow<kinds::Pi, M>),
+    Arrow(Arrow<kinds::Arrow, M>),
     Hole(M::Hole),
     Bound(TyVar),
 }
@@ -120,7 +120,7 @@ impl Ty<modes::Mut> {
         let mut spine = vec![];
         let mut last_result = self;
 
-        while let Ty::Pi(Arrow { domain, value, .. }) = last_result {
+        while let Ty::Arrow(Arrow { domain, value, .. }) = last_result {
             spine.push(*domain);
             last_result = *value;
         }
@@ -141,14 +141,14 @@ impl Ty<modes::Mut> {
         let Some(first) = parameters.next() else {
             return ty
         };
-        let mut result = Self::Pi(Arrow {
+        let mut result = Self::Arrow(Arrow {
             domain: first.into(),
             value: ty.into(),
             phantom: PhantomData,
         });
 
         for parameter in parameters {
-            result = Ty::Pi(Arrow {
+            result = Ty::Arrow(Arrow {
                 domain: Box::new(parameter),
                 value: Box::new(result),
                 phantom: PhantomData,
@@ -224,7 +224,7 @@ mod display {
                 Ty::Constructor(constructor) => write!(f, "{}", constructor.dbg_name),
                 Ty::App(app, argument) => write!(f, "({} {})", app, argument),
                 Ty::Forall(forall) => write!(f, "{forall}"),
-                Ty::Pi(pi) => write!(f, "{pi}"),
+                Ty::Arrow(pi) => write!(f, "{pi}"),
                 Ty::Hole(hole) => write!(f, "{hole}"),
                 Ty::Bound(level) => write!(f, "`{}", level),
             }
@@ -384,7 +384,7 @@ pub mod seals {
                 Ty::Primary(primary) => Ty::Primary(primary),
                 Ty::Constructor(constructor) => Ty::Constructor(constructor),
                 Ty::Forall(forall) => Ty::Forall(forall.seal()),
-                Ty::Pi(pi) => Ty::Pi(pi.seal()),
+                Ty::Arrow(pi) => Ty::Arrow(pi.seal()),
                 Ty::Bound(debruijin) => Ty::Bound(debruijin),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
                 Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
@@ -463,7 +463,7 @@ mod kinds {
 
     /// Pi is the type of functions.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Pi;
+    pub struct Arrow;
 
     impl ArrowKind for Forall {
         type Item<M: modes::TypeMode> = InternalConstructor;
@@ -497,7 +497,7 @@ mod kinds {
         }
     }
 
-    impl ArrowKind for Pi {
+    impl ArrowKind for Arrow {
         type Item<M: modes::TypeMode> = Box<Ty<M>>;
         type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
 
