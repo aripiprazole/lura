@@ -236,7 +236,7 @@ mod display {
             match self.kind {
                 HoleKind::Error => write!(f, "!"),
                 HoleKind::Empty { scope } => write!(f, "?{scope}"),
-                HoleKind::Filled(ref ty) => write!(f, "#[{ty}]"),
+                HoleKind::Filled(ref ty) => write!(f, "{ty}"),
             }
         }
     }

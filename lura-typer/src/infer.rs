@@ -502,7 +502,18 @@ impl Infer for Expr {
                 // This is used to infer the type of the callee.
                 match callee {
                     Callee::Array => todo!("array builtin, should create array type"),
-                    Callee::Tuple => todo!("array builtin, should create tuple type"),
+                    Callee::Tuple => {
+                        let arguments = call.arguments(ctx.db);
+
+                        match arguments.len() {
+                            // Unit type
+                            0 => Ty::Primary(Primary::Unit),
+                            // Group type
+                            1 => arguments[0].clone().infer(ctx),
+                            // Tuple type
+                            _ => todo!("tuple type"),
+                        }
+                    },
                     Callee::Do => match call.do_notation(ctx.db) {
                         Some(do_notation) => {
                             // TODO: return monad

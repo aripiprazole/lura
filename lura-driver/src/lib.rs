@@ -103,7 +103,7 @@ mod tests {
         "public data String {}",
         "public data List (^a) {}",
         "main (args: List String) {",
-        "  id 10",
+        "  id (id args)",
         "}",
     ];
 
@@ -169,7 +169,7 @@ mod tests {
         });
 
         for ((file, contents), type_table) in file_type_tables.into_iter() {
-            // Get all the parameters contained in the current file, 
+            // Get all the parameters contained in the current file,
             // to be able to print them in the report.
             let parameters = parameters.get(&file).cloned().unwrap_or_default();
 
@@ -191,7 +191,7 @@ mod tests {
 
                     ariadne::Label::new((file.clone(), range))
                         .with_color(Color::Yellow)
-                        .with_message(format!("parameter {}", type_rep.fg(Color::Green)))
+                        .with_message(format!("parameter has type {}", type_rep.fg(Color::Red)))
                 }))
                 .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
                     let location = expr.location(db);
