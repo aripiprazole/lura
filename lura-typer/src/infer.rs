@@ -104,7 +104,7 @@ impl Substitution<'_, '_> {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*pi.value, scope, hole)
             }
-            Ty::Bound(TyVar::Debruijin(_, _, level)) => {
+            Ty::Bound(TyVar::Index(_, _, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
@@ -194,6 +194,10 @@ impl Substitution<'_, '_> {
                 self.internal_unify(*pi_a.domain, *pi_b.domain);
                 self.internal_unify(*pi_a.value, *pi_b.value);
             }
+            (Ty::App(callee_a, value_a), Ty::App(callee_b, value_b)) => {
+                self.internal_unify(*callee_a, *callee_b);
+                self.internal_unify(*value_a, *value_b);
+            }
             (Ty::Forall(forall_a), Ty::Forall(forall_b)) => {
                 // "alpha equivalence": forall a. a -> a = forall b. b -> b
                 if forall_a.domain.len() != forall_b.domain.len() {
@@ -211,7 +215,7 @@ impl Substitution<'_, '_> {
                     let level = self.ctx.add_to_env(param_a.name);
                     let definition = param_a.name;
                     let name = param_a.name.to_string(self.ctx.db);
-                    let debruijin = Tau::Bound(TyVar::Debruijin(definition, name, level));
+                    let debruijin = Tau::Bound(TyVar::Index(definition, name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -219,10 +223,7 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (
-                Ty::Bound(TyVar::Debruijin(_, _, level_a)),
-                Ty::Bound(TyVar::Debruijin(_, _, level_b)),
-            ) => {
+            (Ty::Bound(TyVar::Index(_, _, level_a)), Ty::Bound(TyVar::Index(_, _, level_b))) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -715,7 +716,7 @@ impl Infer for TopLevel {
 
                             // Debruijin index
                             let level = ctx.add_to_env(def);
-                            let bound = Tau::Bound(TyVar::Debruijin(def, name, level));
+                            let bound = Tau::Bound(TyVar::Index(def, name, level));
                             ctx.env.rigid_variables.insert(def, bound.clone());
                             bound
                         } else {

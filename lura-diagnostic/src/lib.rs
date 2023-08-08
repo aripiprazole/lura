@@ -186,7 +186,7 @@ pub mod dyn_utils {
                     ErrorText::Break => "\n".to_string(),
                 })
                 .collect::<Vec<_>>()
-                .join("")
+                .join(" ")
         }
     }
 

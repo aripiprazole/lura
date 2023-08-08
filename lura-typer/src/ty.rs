@@ -63,7 +63,7 @@ pub enum Rigidness {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyVar {
     Flexible(Definition, String),
-    Debruijin(Definition, String, Level),
+    Index(Definition, String, Level),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -187,7 +187,7 @@ mod display {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 TyVar::Flexible(_, name) => write!(f, "{}", name),
-                TyVar::Debruijin(_, name, _) => write!(f, "{}", name),
+                TyVar::Index(_, name, _) => write!(f, "{}", name),
             }
         }
     }
