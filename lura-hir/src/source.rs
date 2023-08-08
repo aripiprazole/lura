@@ -2133,9 +2133,14 @@ pub mod expr {
         /// This function also reports an error currently, because it's not allowed dependent types
         /// on the language, this is the reason because it's good to error recovery.
         pub fn upgrade(self, _db: &dyn crate::HirDb) -> type_rep::TypeRep {
-            // TODO: report error
+            match self {
+                // Upgrades a path to a type representation. It does not require an
+                // error report, because it's not an error.
+                Self::Path(path) => type_rep::TypeRep::Path(path),
 
-            type_rep::TypeRep::Downgrade(Box::new(self))
+                // TODO: report error
+                _ => type_rep::TypeRep::Downgrade(Box::new(self)),
+            }
         }
     }
 

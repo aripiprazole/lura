@@ -1111,7 +1111,13 @@ impl<'tctx> InferCtx<'tctx> {
             .variables
             .get(&reference.definition(self.db))
             .cloned()
-            .unwrap_or_else(|| Tau::Primary(Primary::Error));
+            .unwrap_or_else(|| {
+                panic!(
+                    "variable not found {}",
+                    reference.definition(self.db).to_string(self.db)
+                );
+                // Tau::Primary(Primary::Error)
+            });
 
         self.instantiate(let_ty)
     }

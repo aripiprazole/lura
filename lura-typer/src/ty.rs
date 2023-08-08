@@ -163,7 +163,7 @@ mod display {
     impl Display for Primary {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Primary::Error => write!(f, "?"),
+                Primary::Error => write!(f, "!"),
                 Primary::Type => write!(f, "Type"),
                 Primary::Unit => write!(f, "()"),
                 Primary::Bool => write!(f, "Bool"),
@@ -222,7 +222,7 @@ mod display {
             match self.kind {
                 HoleKind::Error => write!(f, "!"),
                 HoleKind::Empty { scope } => write!(f, "?{scope}"),
-                HoleKind::Filled(ref ty) => write!(f, "{ty}"),
+                HoleKind::Filled(ref ty) => write!(f, "~{ty}"),
             }
         }
     }
