@@ -1274,10 +1274,7 @@ pub mod top_level {
     impl walking::Walker for TopLevel {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                TopLevel::Empty => {
-                    listener.enter_empty_top_level();
-                    listener.exit_empty_top_level();
-                }
+                TopLevel::Empty => listener.visit_empty_top_level(),
                 TopLevel::Error(error) => {
                     listener.enter_error_top_level(error);
                     error.accept(db, listener);
@@ -1499,7 +1496,7 @@ pub mod pattern {
     ///
     /// The constructor can have different kinds, like a tuple, a unit, a path, or a array, but
     /// the signature is the same.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct ConstructorPattern {
         pub name: Constructor,
         pub arguments: Vec<Pattern>,
@@ -1508,7 +1505,7 @@ pub mod pattern {
 
     impl walking::Walker for ConstructorPattern {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_constructor_pattern(self);
+            listener.enter_constructor_pattern(self.clone());
             self.name(db).accept(db, listener);
             self.arguments(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1516,9 +1513,42 @@ pub mod pattern {
         }
     }
 
+    impl ConstructorPattern {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            name: Constructor,
+            arguments: Vec<Pattern>,
+            location: Location,
+        ) -> ConstructorPattern {
+            ConstructorPattern {
+                name,
+                arguments,
+                location,
+            }
+        }
+
+        pub fn name(&self, _db: &dyn crate::HirDb) -> Constructor {
+            self.name.clone()
+        }
+
+        pub fn arguments(&self, _db: &dyn crate::HirDb) -> Vec<Pattern> {
+            self.arguments.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for ConstructorPattern {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for ConstructorPattern {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -1527,15 +1557,29 @@ pub mod pattern {
     ///
     /// The semantics are like a wildcard pattern, but it's not a wildcard pattern, because it
     /// defines a name.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct BindingPattern {
         pub name: Definition,
         pub location: Location,
     }
 
+    impl BindingPattern {
+        pub fn new(_: &dyn crate::HirDb, name: Definition, location: Location) -> Self {
+            Self { name, location }
+        }
+
+        pub fn name(&self, _db: &dyn crate::HirDb) -> Definition {
+            self.name
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl walking::Walker for BindingPattern {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_binding_pattern(self);
+            listener.enter_binding_pattern(self.clone());
             self.name(db).accept(db, listener);
             self.location(db).accept(db, listener);
             listener.exit_binding_pattern(self);
@@ -1543,8 +1587,14 @@ pub mod pattern {
     }
 
     impl HirElement for BindingPattern {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for BindingPattern {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -1599,10 +1649,9 @@ pub mod pattern {
     impl walking::Walker for Pattern {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                Pattern::Hole => {
-                    listener.enter_empty_pattern();
-                    listener.exit_empty_pattern();
-                }
+                Pattern::Hole => listener.visit_empty_pattern(),
+                Pattern::Constructor(constructor) => constructor.accept(db, listener),
+                Pattern::Binding(binding) => binding.accept(db, listener),
                 Pattern::Literal(literal) => {
                     listener.enter_literal_pattern(literal.clone());
                     literal.clone().accept(db, listener);
@@ -1623,8 +1672,6 @@ pub mod pattern {
                     error.accept(db, listener);
                     listener.exit_error_pattern(error);
                 }
-                Pattern::Constructor(constructor) => constructor.accept(db, listener),
-                Pattern::Binding(binding) => binding.accept(db, listener),
             }
         }
     }
@@ -1658,16 +1705,43 @@ pub mod stmt {
     ///
     /// It's a sugar for a (`>>=`) function application. In the first versions of this language,
     /// there will not exist the function to desugar, but in the future, it will be implemented.
-    #[salsa::tracked]
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub struct AskStmt {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
         pub location: Location,
     }
 
+    impl AskStmt {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            pattern: pattern::Pattern,
+            value: expr::Expr,
+            location: Location,
+        ) -> Self {
+            Self {
+                pattern,
+                value,
+                location,
+            }
+        }
+
+        pub fn pattern(&self, _db: &dyn crate::HirDb) -> pattern::Pattern {
+            self.pattern.clone()
+        }
+
+        pub fn value(&self, _db: &dyn crate::HirDb) -> expr::Expr {
+            self.value.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl walking::Walker for AskStmt {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_ask_stmt(self);
+            listener.enter_ask_stmt(self.clone());
             self.pattern(db).accept(db, listener);
             self.value(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1676,24 +1750,57 @@ pub mod stmt {
     }
 
     impl HirElement for AskStmt {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for AskStmt {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
     /// Defines a let binding statement, it will bind the value to a pattern, and it will return
     /// the value of the pattern. It's a sugar to a function application, and it's just like a
     /// [`AskStmt`], but it's not a sugar to binding the "do-notation".
-    #[salsa::tracked]
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub struct LetStmt {
         pub pattern: pattern::Pattern,
         pub value: expr::Expr,
         pub location: Location,
     }
 
+    impl LetStmt {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            pattern: pattern::Pattern,
+            value: expr::Expr,
+            location: Location,
+        ) -> Self {
+            Self {
+                pattern,
+                value,
+                location,
+            }
+        }
+
+        pub fn pattern(&self, _db: &dyn crate::HirDb) -> pattern::Pattern {
+            self.pattern.clone()
+        }
+
+        pub fn value(&self, _db: &dyn crate::HirDb) -> expr::Expr {
+            self.value.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl walking::Walker for LetStmt {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_let_stmt(self);
+            listener.enter_let_stmt(self.clone());
             self.pattern(db).accept(db, listener);
             self.value(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1702,8 +1809,14 @@ pub mod stmt {
     }
 
     impl HirElement for LetStmt {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for LetStmt {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -1722,7 +1835,7 @@ pub mod stmt {
             Self::Empty
         }
 
-        fn error(_db: &dyn crate::HirDb, error: HirError) -> Self {
+        fn error(_: &dyn crate::HirDb, error: HirError) -> Self {
             Self::Error(error)
         }
     }
@@ -1730,17 +1843,14 @@ pub mod stmt {
     impl walking::Walker for Stmt {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                Stmt::Empty => {
-                    listener.enter_empty_stmt();
-                    listener.exit_empty_stmt();
-                }
+                Stmt::Empty => listener.visit_empty_stmt(),
+                Stmt::Ask(ask_stmt) => ask_stmt.accept(db, listener),
+                Stmt::Let(let_stmt) => let_stmt.accept(db, listener),
                 Stmt::Error(error) => {
                     listener.enter_error_stmt(error);
                     error.accept(db, listener);
                     listener.exit_error_stmt(error);
                 }
-                Stmt::Ask(ask_stmt) => ask_stmt.accept(db, listener),
-                Stmt::Let(let_stmt) => let_stmt.accept(db, listener),
                 Stmt::Downgrade(expr) => {
                     listener.enter_downgrade_stmt(expr.clone());
                     expr.clone().accept(db, listener);
@@ -1777,7 +1887,7 @@ pub mod stmt {
     /// "do-notation" code block.
     ///
     /// It can be either a last function's arguments or a function body.
-    #[salsa::tracked]
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub struct Block {
         pub statements: Vec<Stmt>,
         pub location: Location,
@@ -1786,7 +1896,7 @@ pub mod stmt {
 
     impl walking::Walker for Block {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_block(self);
+            listener.enter_block(self.clone());
             self.statements(db).accept(db, listener);
             self.location(db).accept(db, listener);
             listener.exit_block(self);
@@ -1801,9 +1911,42 @@ pub mod stmt {
         }
     }
 
+    impl Block {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            statements: Vec<Stmt>,
+            location: Location,
+            scope: Arc<Scope>,
+        ) -> Self {
+            Self {
+                statements,
+                location,
+                scope,
+            }
+        }
+
+        pub fn statements(&self, _: &dyn crate::HirDb) -> Vec<Stmt> {
+            self.statements.clone()
+        }
+
+        pub fn scope(&self, _db: &dyn crate::HirDb) -> Arc<Scope> {
+            self.scope.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for Block {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for Block {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 }
@@ -1851,13 +1994,11 @@ pub mod literal {
         /// Defines the false literal. It's used to represent a boolean value.
         pub const FALSE: Literal = Literal::Boolean(false);
 
-        /// Creates a literal pattern from a literal. It's used to create a pattern from a literal.
-        ///
+        /// Creates a literal pattern from a literal. It's used to create a pattern from a
+        /// literal.
         /// It's not currently supported by the language, but it will be in the future. So the
         /// compiler will emit an error.
         pub fn upgrade_pattern(self, loc: Location, _db: &dyn crate::HirDb) -> pattern::Pattern {
-            // TODO: report error
-
             pattern::Pattern::Literal(Spanned::new(self, loc))
         }
 
@@ -1904,7 +2045,7 @@ pub mod expr {
         Pure,
         Do,
         Reference(Reference),
-        Expr(expr::Expr),
+        Expr(Box<expr::Expr>),
     }
 
     impl walking::Walker for Callee {
@@ -1954,17 +2095,17 @@ pub mod expr {
     ///
     /// This is called Abs as a short for Abstraction, because lambda abstraction is the main
     /// principle of abstraction in a functional language.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct AbsExpr {
         pub parameters: Vec<declaration::Parameter>,
-        pub value: expr::Expr,
+        pub value: Box<expr::Expr>,
         pub location: Location,
         pub scope: Arc<Scope>,
     }
 
     impl walking::Walker for AbsExpr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_abs_expr(self);
+            listener.enter_abs_expr(self.clone());
             self.parameters(db).accept(db, listener);
             self.value(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1972,9 +2113,48 @@ pub mod expr {
         }
     }
 
+    impl AbsExpr {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            parameters: Vec<declaration::Parameter>,
+            value: expr::Expr,
+            location: Location,
+            scope: Arc<Scope>,
+        ) -> Self {
+            Self {
+                parameters,
+                value: Box::new(value),
+                location,
+                scope,
+            }
+        }
+
+        pub fn parameters(&self, _db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            self.parameters.clone()
+        }
+
+        pub fn value(&self, _db: &dyn crate::HirDb) -> Expr {
+            (*self.value).clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+
+        pub fn scope(&self, _db: &dyn crate::HirDb) -> Arc<Scope> {
+            self.scope.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for AbsExpr {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
     impl HirElement for AbsExpr {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
         }
     }
 
@@ -1982,16 +2162,16 @@ pub mod expr {
     /// system, the type system will try to "cast", and if it's unsound, it will report an error.
     ///
     /// It's used to improve the type checking of the expressions.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct AnnExpr {
-        pub value: expr::Expr,
+        pub value: Box<expr::Expr>,
         pub type_rep: type_rep::TypeRep,
         pub location: Location,
     }
 
     impl walking::Walker for AnnExpr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_ann_expr(self);
+            listener.enter_ann_expr(self.clone());
             self.value(db).accept(db, listener);
             self.type_rep(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -1999,9 +2179,42 @@ pub mod expr {
         }
     }
 
+    impl AnnExpr {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            value: expr::Expr,
+            type_rep: type_rep::TypeRep,
+            location: Location,
+        ) -> Self {
+            Self {
+                value: Box::new(value),
+                type_rep,
+                location,
+            }
+        }
+
+        pub fn value(&self, _db: &dyn crate::HirDb) -> Expr {
+            (*self.value).clone()
+        }
+
+        pub fn type_rep(&self, _db: &dyn crate::HirDb) -> type_rep::TypeRep {
+            self.type_rep.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for AnnExpr {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for AnnExpr {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -2038,17 +2251,17 @@ pub mod expr {
     /// based on the match.
     ///
     /// It's used to improve the type checking of the expressions.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct MatchExpr {
         pub kind: MatchKind,
-        pub scrutinee: expr::Expr,
+        pub scrutinee: Box<expr::Expr>,
         pub clauses: Vec<MatchArm>,
         pub location: Location,
     }
 
     impl walking::Walker for MatchExpr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_match_expr(self);
+            listener.enter_match_expr(self.clone());
             self.scrutinee(db).accept(db, listener);
             self.clauses(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -2056,9 +2269,44 @@ pub mod expr {
         }
     }
 
+    impl MatchExpr {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            kind: MatchKind,
+            scrutinee: expr::Expr,
+            clauses: Vec<MatchArm>,
+            location: Location,
+        ) -> Self {
+            Self {
+                kind,
+                scrutinee: Box::new(scrutinee),
+                clauses,
+                location,
+            }
+        }
+
+        pub fn scrutinee(&self, _db: &dyn crate::HirDb) -> Expr {
+            (*self.scrutinee).clone()
+        }
+
+        pub fn clauses(&self, _db: &dyn crate::HirDb) -> Vec<MatchArm> {
+            self.clauses.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for MatchExpr {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for MatchExpr {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -2066,7 +2314,7 @@ pub mod expr {
     /// to call a [`Callee`], or a value that can be called.
     ///
     /// It does holds the kind of the call to improve the pretty printing.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct CallExpr {
         pub kind: CallKind,
         pub callee: Callee,
@@ -2082,7 +2330,7 @@ pub mod expr {
 
     impl walking::Walker for CallExpr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_call_expr(self);
+            listener.enter_call_expr(self.clone());
             self.callee(db).accept(db, listener);
             self.arguments(db).accept(db, listener);
             self.do_notation(db).accept(db, listener);
@@ -2091,9 +2339,50 @@ pub mod expr {
         }
     }
 
+    impl CallExpr {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            kind: CallKind,
+            callee: Callee,
+            arguments: Vec<expr::Expr>,
+            do_notation: Option<stmt::Block>,
+            location: Location,
+        ) -> Self {
+            Self {
+                kind,
+                callee,
+                arguments,
+                do_notation,
+                location,
+            }
+        }
+
+        pub fn callee(&self, _db: &dyn crate::HirDb) -> Callee {
+            self.callee.clone()
+        }
+
+        pub fn arguments(&self, _db: &dyn crate::HirDb) -> Vec<Expr> {
+            self.arguments.clone()
+        }
+
+        pub fn do_notation(&self, _db: &dyn crate::HirDb) -> Option<stmt::Block> {
+            self.do_notation.clone()
+        }
+
+        pub fn location(&self, _db: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for CallExpr {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for CallExpr {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -2143,7 +2432,7 @@ pub mod expr {
                 /* kind        = */ CallKind::Prefix,
                 /* callee      = */ Callee::Do,
                 /* arguments   = */ vec![],
-                /* do_notation = */ Some(do_notation),
+                /* do_notation = */ Some(do_notation.clone()),
                 /* location    = */ do_notation.location(db),
             ))
         }
@@ -2170,8 +2459,6 @@ pub mod expr {
         /// contexts, so this function should report it as an error, and return `Empty`. For better
         /// error reporting, the location of the `Empty` expression should be the same as
         /// the location of the context where it's used.
-        ///
-        /// TODO: This is not implemented yet.
         fn default_with_db(db: &dyn crate::HirDb) -> Self {
             Diagnostics::push(
                 db,
@@ -2210,10 +2497,11 @@ pub mod expr {
     impl walking::Walker for Expr {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                Expr::Empty => {
-                    listener.enter_empty_expr();
-                    listener.exit_empty_expr();
-                }
+                Expr::Empty => listener.visit_empty_expr(),
+                Expr::Call(call_expr) => call_expr.accept(db, listener),
+                Expr::Ann(ann_expr) => ann_expr.accept(db, listener),
+                Expr::Abs(abs_expr) => abs_expr.accept(db, listener),
+                Expr::Match(match_expr) => match_expr.accept(db, listener),
                 Expr::Error(error) => {
                     listener.enter_error_expr(error);
                     error.accept(db, listener);
@@ -2229,10 +2517,6 @@ pub mod expr {
                     literal.clone().accept(db, listener);
                     listener.exit_literal_expr(literal);
                 }
-                Expr::Call(call_expr) => call_expr.accept(db, listener),
-                Expr::Ann(ann_expr) => ann_expr.accept(db, listener),
-                Expr::Abs(abs_expr) => abs_expr.accept(db, listener),
-                Expr::Match(match_expr) => match_expr.accept(db, listener),
                 Expr::Upgrade(type_rep) => {
                     listener.enter_upgrade_expr(type_rep.clone());
                     type_rep.clone().accept(db, listener);
@@ -2270,7 +2554,7 @@ pub mod type_rep {
 
     /// Defines a qualified path. It's used to define a type that is qualified by a trait type, like
     /// `Foo.Bar.Baz`.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct QPath {
         /// Usually a trait type path with associated type bindings, like `Foo.Bar.Baz`.
         pub qualifier: Definition,
@@ -2284,7 +2568,7 @@ pub mod type_rep {
 
     impl walking::Walker for QPath {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_qpath_type_rep(self);
+            listener.enter_qpath_type_rep(self.clone());
             self.qualifier(db).accept(db, listener);
             self.name(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -2292,23 +2576,59 @@ pub mod type_rep {
         }
     }
 
+    impl QPath {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            qualifier: Definition,
+            name: Option<Identifier>,
+            location: Location,
+        ) -> Self {
+            Self {
+                qualifier,
+                name,
+                location,
+            }
+        }
+
+        /// Returns the qualifier of the qualified path.
+        pub fn qualifier(&self, _: &dyn crate::HirDb) -> Definition {
+            self.qualifier
+        }
+
+        /// Returns the qualifier of the qualified path.
+        pub fn name(&self, _: &dyn crate::HirDb) -> Option<Identifier> {
+            self.name
+        }
+
+        /// Returns the qualifier of the location.
+        pub fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl HirElement for QPath {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for QPath {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
     /// Defines a type application. It's used to apply a type to another type, like `Foo Bar`.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct AppTypeRep {
-        pub callee: TypeRep,
+        pub callee: Box<TypeRep>,
         pub arguments: Vec<type_rep::TypeRep>,
         pub location: Location,
     }
 
     impl walking::Walker for AppTypeRep {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_app_type_rep(self);
+            listener.enter_app_type_rep(self.clone());
             self.callee(db).accept(db, listener);
             self.arguments(db).accept(db, listener);
             self.location(db).accept(db, listener);
@@ -2316,9 +2636,42 @@ pub mod type_rep {
         }
     }
 
+    impl AppTypeRep {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            callee: TypeRep,
+            arguments: Vec<TypeRep>,
+            location: Location,
+        ) -> Self {
+            Self {
+                callee: Box::new(callee),
+                arguments,
+                location,
+            }
+        }
+
+        pub fn callee(&self, _: &dyn crate::HirDb) -> TypeRep {
+            (*self.callee).clone()
+        }
+
+        pub fn arguments(&self, _: &dyn crate::HirDb) -> Vec<TypeRep> {
+            self.arguments.iter().map(|arg| (*arg).clone()).collect()
+        }
+
+        pub fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for AppTypeRep {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
     impl HirElement for AppTypeRep {
-        fn location(&self, db: &dyn crate::HirDb) -> Location {
-            Self::location(*self, db)
+        fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
         }
     }
 
@@ -2335,22 +2688,67 @@ pub mod type_rep {
     /// dependent function, like `Foo -> Bar`.
     ///
     /// The `ArrowKind` is used to define the kind of arrow, like `->`, `=>` or `.`.
-    #[salsa::tracked]
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     pub struct ArrowTypeRep {
         pub kind: ArrowKind,
         pub parameters: Vec<declaration::Parameter>,
-        pub value: TypeRep,
+        pub value: Box<TypeRep>,
         pub location: Location,
         pub scope: Arc<Scope>,
     }
 
+    impl ArrowTypeRep {
+        pub fn new(
+            _: &dyn crate::HirDb,
+            kind: ArrowKind,
+            parameters: Vec<declaration::Parameter>,
+            value: TypeRep,
+            location: Location,
+            scope: Arc<Scope>,
+        ) -> Self {
+            Self {
+                kind,
+                parameters,
+                value: Box::new(value),
+                location,
+                scope,
+            }
+        }
+
+        pub fn kind(&self, _: &dyn crate::HirDb) -> ArrowKind {
+            self.kind
+        }
+
+        pub fn parameters(&self, _: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            self.parameters.to_vec()
+        }
+
+        pub fn value(&self, _: &dyn crate::HirDb) -> TypeRep {
+            (*self.value).clone()
+        }
+
+        pub fn scope(&self, _: &dyn crate::HirDb) -> Arc<Scope> {
+            self.scope.clone()
+        }
+
+        pub fn location(&self, _: &dyn crate::HirDb) -> Location {
+            self.location.clone()
+        }
+    }
+
     impl walking::Walker for ArrowTypeRep {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
-            listener.enter_arrow_type_rep(self);
+            listener.enter_arrow_type_rep(self.clone());
             self.parameters(db).accept(db, listener);
             self.value(db).accept(db, listener);
             self.location(db).accept(db, listener);
             listener.exit_arrow_type_rep(self);
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for ArrowTypeRep {
+        fn fmt(&self, f: &mut Formatter<'_>, _: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            Debug::fmt(self, f)
         }
     }
 
@@ -2416,9 +2814,9 @@ pub mod type_rep {
         fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
             match self {
                 TypeRep::Unit => write!(f, "Unit"),
-                TypeRep::Hole => write!(f, "Empty"),
-                TypeRep::SelfType => write!(f, "This"),
-                TypeRep::Type => write!(f, "tt"),
+                TypeRep::Hole => write!(f, "Hole"),
+                TypeRep::SelfType => write!(f, "Self"),
+                TypeRep::Type => write!(f, "Type"),
                 TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
                 TypeRep::Path(path) => path.debug_all(db).fmt(f),
                 TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
@@ -2432,22 +2830,13 @@ pub mod type_rep {
     impl walking::Walker for TypeRep {
         fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                TypeRep::Unit => {
-                    listener.enter_unit_type_rep();
-                    listener.exit_unit_type_rep();
-                }
-                TypeRep::Hole => {
-                    listener.enter_empty_type_rep();
-                    listener.exit_empty_type_rep();
-                }
-                TypeRep::SelfType => {
-                    listener.enter_this_type_rep();
-                    listener.exit_this_type_rep();
-                }
-                TypeRep::Type => {
-                    listener.enter_tt_type_rep();
-                    listener.exit_tt_type_rep();
-                }
+                TypeRep::Unit => listener.visit_unit_type_rep(),
+                TypeRep::Hole => listener.visit_hole_type_rep(),
+                TypeRep::SelfType => listener.visit_self_type_rep(),
+                TypeRep::Type => listener.visit_tt_type_rep(),
+                TypeRep::QPath(qpath) => qpath.accept(db, listener),
+                TypeRep::App(app) => app.accept(db, listener),
+                TypeRep::Arrow(arrow) => arrow.accept(db, listener),
                 TypeRep::Error(error) => {
                     listener.enter_error_type_rep(error);
                     error.accept(db, listener);
@@ -2458,9 +2847,6 @@ pub mod type_rep {
                     definition.accept(db, listener);
                     listener.exit_path_type_rep(definition);
                 }
-                TypeRep::QPath(qpath) => qpath.accept(db, listener),
-                TypeRep::App(app) => app.accept(db, listener),
-                TypeRep::Arrow(arrow) => arrow.accept(db, listener),
                 TypeRep::Downgrade(expr) => {
                     listener.enter_downgrade_type_rep(expr.clone());
                     expr.clone().accept(db, listener);
@@ -2496,10 +2882,10 @@ pub mod type_rep {
                 Self::Type => Location::call_site(db),
                 Self::Arrow(downcast) => downcast.location(db),
                 Self::Error(downcast) => downcast.location(db),
-                Self::Path(downcast) => downcast.location(db),
-                Self::QPath(downcast) => downcast.location(db),
-                Self::App(downcast) => downcast.location(db),
-                Self::Downgrade(downcast) => (*downcast).location(db),
+                Self::Path(reference) => reference.location(db),
+                Self::QPath(qpath) => qpath.location(db),
+                Self::App(app) => app.location(db),
+                Self::Downgrade(expr) => (*expr).location(db),
             }
         }
     }

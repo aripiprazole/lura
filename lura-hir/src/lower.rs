@@ -1528,7 +1528,7 @@ mod term_solver {
             Expr::Call(CallExpr::new(
                 self.db,
                 /* kind        = */ CallKind::Infix,
-                /* callee      = */ Callee::Expr(callee),
+                /* callee      = */ Callee::Expr(callee.into()),
                 /* arguments   = */ arguments,
                 /* do_notation = */ do_notation,
                 /* location    = */ location,

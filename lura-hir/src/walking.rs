@@ -52,10 +52,10 @@ pub trait HirListener {
     fn visit_reference(&mut self, reference: Reference) {}
 
     // SECTION: type_rep
-    fn enter_unit_type_rep(&mut self) {}
-    fn enter_empty_type_rep(&mut self) {}
-    fn enter_this_type_rep(&mut self) {}
-    fn enter_tt_type_rep(&mut self) {}
+    fn visit_unit_type_rep(&mut self) {}
+    fn visit_hole_type_rep(&mut self) {}
+    fn visit_self_type_rep(&mut self) {}
+    fn visit_tt_type_rep(&mut self) {}
     fn enter_arrow_type_rep(&mut self, arrow: type_rep::ArrowTypeRep) {}
     fn enter_error_type_rep(&mut self, error: HirError) {}
     fn enter_path_type_rep(&mut self, definition: Reference) {}
@@ -64,7 +64,7 @@ pub trait HirListener {
     fn enter_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}
 
     // SECTION: expr
-    fn enter_empty_expr(&mut self) {}
+    fn visit_empty_expr(&mut self) {}
     fn enter_error_expr(&mut self, error: HirError) {}
     fn enter_path_expr(&mut self, definition: Reference) {}
     fn enter_literal_expr(&mut self, literal: Spanned<literal::Literal>) {}
@@ -75,7 +75,7 @@ pub trait HirListener {
     fn enter_upgrade_expr(&mut self, type_rep: Box<type_rep::TypeRep>) {}
 
     // SECTION: stmt
-    fn enter_empty_stmt(&mut self) {}
+    fn visit_empty_stmt(&mut self) {}
     fn enter_error_stmt(&mut self, error: HirError) {}
     fn enter_let_stmt(&mut self, let_stmt: stmt::LetStmt) {}
     fn enter_ask_stmt(&mut self, ask_stmt: stmt::AskStmt) {}
@@ -83,7 +83,7 @@ pub trait HirListener {
     fn enter_block(&mut self, block: stmt::Block) {}
 
     // SECTION: pattern
-    fn enter_empty_pattern(&mut self) {}
+    fn visit_empty_pattern(&mut self) {}
     fn enter_literal_pattern(&mut self, literal: Spanned<literal::Literal>) {}
     fn enter_wildcard_pattern(&mut self, location: Location) {}
     fn enter_rest_pattern(&mut self, location: Location) {}
@@ -92,7 +92,7 @@ pub trait HirListener {
     fn enter_binding_pattern(&mut self, binding: pattern::BindingPattern) {}
 
     // SECTION: top_level
-    fn enter_empty_top_level(&mut self) {}
+    fn visit_empty_top_level(&mut self) {}
     fn enter_error_top_level(&mut self, error: HirError) {}
     fn enter_using_top_level(&mut self, using: top_level::UsingTopLevel) {}
     fn enter_binding_top_level(&mut self, binding: top_level::BindingGroup) {}
@@ -103,10 +103,6 @@ pub trait HirListener {
     fn enter_data_top_level(&mut self, data: top_level::DataDecl) {}
 
     // SECTION: type_rep
-    fn exit_unit_type_rep(&mut self) {}
-    fn exit_empty_type_rep(&mut self) {}
-    fn exit_this_type_rep(&mut self) {}
-    fn exit_tt_type_rep(&mut self) {}
     fn exit_arrow_type_rep(&mut self, arrow: type_rep::ArrowTypeRep) {}
     fn exit_error_type_rep(&mut self, error: HirError) {}
     fn exit_path_type_rep(&mut self, definition: Reference) {}
@@ -115,7 +111,6 @@ pub trait HirListener {
     fn exit_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}
 
     // SECTION: expr
-    fn exit_empty_expr(&mut self) {}
     fn exit_error_expr(&mut self, error: HirError) {}
     fn exit_path_expr(&mut self, definition: Reference) {}
     fn exit_literal_expr(&mut self, literal: Spanned<literal::Literal>) {}
@@ -126,7 +121,6 @@ pub trait HirListener {
     fn exit_upgrade_expr(&mut self, type_rep: Box<type_rep::TypeRep>) {}
 
     // SECTION: stmt
-    fn exit_empty_stmt(&mut self) {}
     fn exit_error_stmt(&mut self, error: HirError) {}
     fn exit_let_stmt(&mut self, let_stmt: stmt::LetStmt) {}
     fn exit_ask_stmt(&mut self, ask_stmt: stmt::AskStmt) {}
@@ -134,7 +128,6 @@ pub trait HirListener {
     fn exit_block(&mut self, block: stmt::Block) {}
 
     // SECTION: pattern
-    fn exit_empty_pattern(&mut self) {}
     fn exit_literal_pattern(&mut self, literal: Spanned<literal::Literal>) {}
     fn exit_wildcard_pattern(&mut self, location: Location) {}
     fn exit_rest_pattern(&mut self, location: Location) {}
@@ -143,7 +136,6 @@ pub trait HirListener {
     fn exit_binding_pattern(&mut self, binding: pattern::BindingPattern) {}
 
     // SECTION: top_level
-    fn exit_empty_top_level(&mut self) {}
     fn exit_error_top_level(&mut self, error: HirError) {}
     fn exit_using_top_level(&mut self, using: top_level::UsingTopLevel) {}
     fn exit_binding_top_level(&mut self, binding: top_level::BindingGroup) {}
