@@ -7,7 +7,7 @@ pub type Level = usize;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
     pub domain: K::Parameters<M>,
-    pub value: Box<Ty<M>>,
+    pub value: Box<M::Ty>,
 
     /// Represents the kind of arrow. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
