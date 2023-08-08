@@ -88,6 +88,7 @@ impl ThirLocation {
 /// to report errors to the diagnostic database, by this crate, only.
 #[derive(Debug)]
 pub struct ThirDiagnostic {
+    pub id: lura_diagnostic::ErrorId,
     pub location: ThirLocation,
     pub message: Vec<lura_diagnostic::ErrorText>,
 }
@@ -96,6 +97,10 @@ impl lura_diagnostic::Diagnostic for ThirDiagnostic {
     type TextRange = ThirLocation;
 
     const KIND: lura_diagnostic::ErrorKind = lura_diagnostic::ErrorKind::TypeError;
+
+    fn error_id(&self) -> lura_diagnostic::ErrorId {
+        self.id
+    }
 
     fn text(&self) -> Vec<lura_diagnostic::ErrorText> {
         self.message.clone()

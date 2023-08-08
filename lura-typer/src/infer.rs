@@ -2,7 +2,7 @@ use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
-use lura_diagnostic::{code, message, Diagnostics, Report};
+use lura_diagnostic::{code, message, Diagnostics, Report, ErrorId};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -219,6 +219,20 @@ impl Substitution<'_, '_> {
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
 
+                // As the code doesn't implement subjumption, we need to
+                // throw an error whenever this unification is called.
+                //
+                // TODO: Implement subjumption
+                //
+                // NOTE: When higher-rank poly doesn't have polymorphic
+                // subtyping, it's unsound. So, we need to implement
+                // polymorphic subtyping.
+                self.ctx.accumulate::<()>(ThirDiagnostic {
+                    id: ErrorId("polymorphic-subtyping"),
+                    location: ThirLocation::CallSite,
+                    message: message!["Polymorphic subtyping is not implemented yet"],
+                });
+
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
@@ -244,6 +258,15 @@ impl Substitution<'_, '_> {
         for error in self.errors.iter() {
             self.ctx.accumulate::<()>(ThirDiagnostic {
                 location: ThirLocation::CallSite,
+                id: ErrorId(match error {
+                    TypeError::CannotUnify(_, _) => "unify",
+                    TypeError::OccursCheck(_) => "occurs-check",
+                    TypeError::EscapingScope(_) => "escaping-scope",
+                    TypeError::IncompatibleTypes { .. } => "incompatible-types",
+                    TypeError::IncompatibleValues { .. } => "incompatible-values",
+                    TypeError::IncorrectLevel { .. } => "incompatible-level",
+                    TypeError::IncorrectArity { .. } => "incompatible-arity",
+                }),
                 message: match error.clone() {
                     TypeError::CannotUnify(a, b) => {
                         message!["cannot unify", code!(a.seal()), "with", code!(b.seal())]
@@ -523,6 +546,7 @@ impl Infer for Expr {
                         }
                         None => ctx.accumulate(ThirDiagnostic {
                             location: ThirLocation::CallSite,
+                            id: ErrorId("missing-do-notation"),
                             message: message!["do notation but without do notation parameter"],
                         }),
                     },
@@ -1125,6 +1149,7 @@ impl<'tctx> InferCtx<'tctx> {
                             },
                             _ => {
                                 return self.accumulate(ThirDiagnostic {
+                                    id: ErrorId("unsupported-pattern"),
                                     location: self.new_location(location),
                                     message: message!("unsupported pattern in forall type"),
                                 })
@@ -1141,16 +1166,19 @@ impl<'tctx> InferCtx<'tctx> {
             }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
                 self.accumulate(ThirDiagnostic {
+                    id: ErrorId("unbounded-self-type"),
                     location: self.new_location(type_rep.location(self.db)),
                     message: message!("self type outside of a self context"),
                 })
             }),
             // SECTION: Unsupported
             TypeRep::Arrow(_) => self.accumulate(ThirDiagnostic {
+                id: ErrorId("unsupported-arrow-kind"),
                 location: self.new_location(type_rep.location(self.db)),
                 message: message!("sigma types is not supported yet"),
             }),
             TypeRep::QPath(_) => self.accumulate(ThirDiagnostic {
+                id: ErrorId("unsupported-qpath-kind"),
                 location: self.new_location(type_rep.location(self.db)),
                 message: message!("qualified types is not supported yet"),
             }),
