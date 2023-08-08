@@ -3,6 +3,12 @@ use std::{fmt::Debug, sync::Arc};
 use lura_diagnostic::Offset;
 use lura_hir::source::HirSource;
 
+#[salsa::tracked]
+pub struct ThirSource {
+    pub source: HirSource,
+    pub type_table: crate::table::TypeTable,
+}
+
 /// A text range in a source file with a file name and the source text. This is the concrete
 /// implementation of [`Location`].
 ///
