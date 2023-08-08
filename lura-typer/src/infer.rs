@@ -7,7 +7,7 @@ use lura_hir::{
     package::Package,
     resolve::{unresolved, Definition, HirLevel, Reference},
     source::{
-        declaration::Declaration,
+        declaration::{Declaration, Parameter},
         expr::{Callee, Expr},
         literal::Literal,
         pattern::{Constructor, Pattern},
@@ -552,7 +552,12 @@ impl Infer for Expr {
                         if !parameter.is_implicit(local.db) {
                             let type_rep = local.eval(parameter.parameter_type(local.db));
 
-                            parameter.binding(local.db).check(type_rep, local);
+                            let ty = parameter.binding(local.db).check(type_rep, local);
+
+                            // Stores the parameter in the environment
+                            // as debug information for the type checker
+                            // build a table.
+                            local.parameters.insert(parameter, ty.clone());
                         }
                     }
 
@@ -642,7 +647,16 @@ impl Infer for TopLevel {
                 .parameters(ctx.db)
                 .into_iter()
                 .filter(|parameter| !parameter.is_implicit(ctx.db))
-                .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                .map(|parameter| {
+                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+
+                    // Stores the parameter in the environment
+                    // as debug information for the type checker
+                    // build a table.
+                    ctx.parameters.insert(parameter, ty.clone());
+
+                    ty
+                })
                 .collect::<im_rc::Vector<_>>();
 
             let constructor = match decl.type_rep(ctx.db) {
@@ -703,6 +717,7 @@ impl Infer for TopLevel {
                 .into_iter()
                 .map(|parameter| {
                     let type_rep = ctx.eval(parameter.parameter_type(ctx.db));
+
                     if_chain! {
                         if parameter.is_implicit(ctx.db);
                         if let HirLevel::Type = parameter.level(ctx.db);
@@ -892,6 +907,8 @@ pub(crate) struct InferCtx<'tctx> {
     pub self_type: Option<Tau>,
     pub location: Location,
     pub expressions: im_rc::HashMap<Expr, Tau>,
+    pub parameters: im_rc::HashMap<Parameter, Tau>,
+    pub declarations: im_rc::HashMap<TopLevel, Tau>,
     pub env: TyEnv,
 }
 
@@ -1033,8 +1050,14 @@ impl<'tctx> InferCtx<'tctx> {
                     .map(|parameter| {
                         // Checks the type of the parameter
                         let ty = self.eval(parameter.parameter_type(self.db));
+                        let ty = parameter.binding(self.db).check(ty, self);
 
-                        parameter.binding(self.db).check(ty, self)
+                        // Stores the parameter in the environment
+                        // as debug information for the type checker
+                        // build a table.
+                        self.parameters.insert(parameter, ty.clone());
+
+                        ty
                     })
                     .fold(value, |acc, next| {
                         Tau::Pi(Arrow {
@@ -1060,7 +1083,12 @@ impl<'tctx> InferCtx<'tctx> {
                         let location = binding.location(self.db);
 
                         // Checks the binding
-                        binding.clone().check(ty, self);
+                        let ty = binding.clone().check(ty, self);
+
+                        // Stores the parameter in the environment
+                        // as debug information for the type checker
+                        // build a table.
+                        self.parameters.insert(parameter, ty);
 
                         Some(match binding {
                             Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {

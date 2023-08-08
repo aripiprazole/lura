@@ -1,17 +1,20 @@
-use lura_hir::source::{expr::Expr, HirSource};
+use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, HirSource};
 
 use crate::{
+    declaration::TypedDeclaration,
     infer::{Infer, InferCtx},
-    ty::{modes, Ty},
+    ty::TypeRep,
 };
 
 #[salsa::tracked]
 pub struct TypeTable {
-    pub expressions: im::HashMap<Expr, Ty<modes::Ready>>,
+    pub declarations: im::HashMap<TopLevel, TypedDeclaration>,
+    pub parameters: im::HashMap<Parameter, TypeRep>,
+    pub expressions: im::HashMap<Expr, TypeRep>,
 }
 
 /// Defines the [`infer_type_table`] query.
-/// 
+///
 /// [`infer_type_table`]: crate::table::infer_type_table
 #[salsa::tracked]
 pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable {
@@ -21,6 +24,8 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         self_type: None,
         location: lura_hir::source::Location::CallSite,
         expressions: Default::default(),
+        parameters: Default::default(),
+        declarations: Default::default(),
         env: Default::default(),
     };
 
@@ -36,5 +41,19 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         .map(|(k, v)| (k, v.seal()))
         .collect();
 
-    TypeTable::new(db, expressions)
+    // Transforms the declarations into their sealed versions.
+    let declarations = ctx
+        .declarations
+        .into_iter()
+        .map(|(k, v)| (k, TypedDeclaration { type_rep: v.seal() }))
+        .collect();
+
+    // Transforms the parameters into their sealed versions.
+    let parameters = ctx
+        .parameters
+        .into_iter()
+        .map(|(k, v)| (k, v.seal()))
+        .collect();
+
+    TypeTable::new(db, declarations, parameters, expressions)
 }

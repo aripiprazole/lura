@@ -21,3 +21,4 @@ pub mod table;
 pub mod infer;
 pub mod thir;
 pub mod ty;
+pub mod declaration;

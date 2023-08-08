@@ -66,6 +66,13 @@ pub enum TyVar {
     Index(Definition, String, Level),
 }
 
+/// Represents a sealed type variable. This is used to represent a type variable 
+/// that has been sealed.
+/// 
+/// This means that the type variable has been unified with a type, and that type
+/// is now the only type that the type variable can be.
+pub type TypeRep = Ty<modes::Ready>;
+
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

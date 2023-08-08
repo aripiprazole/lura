@@ -81,7 +81,9 @@ impl salsa::ParallelDatabase for RootDb {
 #[cfg(test)]
 #[allow(clippy::unnecessary_mut_passed)]
 mod tests {
-    use ariadne::Fmt;
+    use std::collections::HashMap;
+
+    use ariadne::{Color, Fmt};
     use itertools::Itertools;
     use lura_ariadne::AriadneReport;
     use lura_diagnostic::{Diagnostics, TextRange};
@@ -147,6 +149,18 @@ mod tests {
 
     fn create_type_table_report(db: &RootDb, type_table: TypeTable) {
         let expressions = type_table.expressions(db);
+
+        let mut parameters = HashMap::new();
+        for (parameter, type_rep) in type_table.parameters(db) {
+            let location = parameter.location(db);
+            let file_name = location.file_name().to_string();
+
+            parameters
+                .entry(file_name)
+                .or_insert_with(Vec::new)
+                .push((parameter, type_rep));
+        }
+
         let file_type_tables = expressions.iter().group_by(|(expression, _)| {
             let location = expression.location(db);
             let file_name = location.file_name().to_string();
@@ -154,9 +168,11 @@ mod tests {
             (file_name, contents)
         });
 
-        let mut colors = ariadne::ColorGenerator::new();
-
         for ((file, contents), type_table) in file_type_tables.into_iter() {
+            // Get all the parameters contained in the current file, 
+            // to be able to print them in the report.
+            let parameters = parameters.get(&file).cloned().unwrap_or_default();
+
             type Span = (String, std::ops::Range<usize>);
             ariadne::Report::<Span>::build(ariadne::ReportKind::Advice, file.clone(), 0)
                 .with_code("E0001")
@@ -166,13 +182,27 @@ mod tests {
                         .with_char_set(ariadne::CharSet::Unicode)
                         .with_label_attach(ariadne::LabelAttach::Start),
                 )
+                .with_labels(parameters.into_iter().map(|(parameter, type_rep)| {
+                    let location = parameter.location(db);
+                    let range = location.start().0..location.end().0;
+
+                    // TODO: use a better representation for types
+                    let type_rep = type_rep.to_string();
+
+                    ariadne::Label::new((file.clone(), range))
+                        .with_color(Color::Yellow)
+                        .with_message(format!("parameter {}", type_rep.fg(Color::Green)))
+                }))
                 .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
                     let location = expr.location(db);
                     let range = location.start().0..location.end().0;
 
+                    // TODO: use a better representation for types
+                    let type_rep = type_rep.to_string();
+
                     ariadne::Label::new((file.clone(), range))
-                        .with_color(colors.next())
-                        .with_message(format!("has type {type_rep}").fg(ariadne::Color::White))
+                        .with_color(Color::Green)
+                        .with_message(format!("has type {}", type_rep.fg(Color::Green)))
                 }))
                 .finish()
                 .print((file.clone(), ariadne::Source::from(&contents)))
