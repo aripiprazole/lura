@@ -1,6 +1,7 @@
 use holes::*;
 use lura_hir::resolve::empty_definition;
 use lura_hir::resolve::Definition;
+use std::rc::Rc;
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
@@ -8,6 +9,9 @@ use std::{
 };
 
 use crate::adhoc::Qual;
+use crate::infer::InferCtx;
+use crate::kind::Kind;
+use crate::type_rep::fun::HoasFun;
 
 pub type Level = usize;
 
@@ -100,7 +104,7 @@ pub type TypeRep = Type<state::Quoted>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type<S: state::TypeState> {
     Primary(Primary),
-    Constructor(Name),
+    Constructor(Name, Kind<S>),
     App(Box<Type<S>>, Box<Type<S>>),
     Forall(Qual<S, S::Forall>),
     Pi(S::Pi),
@@ -415,17 +419,18 @@ pub mod pi {
 }
 
 impl Type<state::Hoas> {
-    pub fn spine(self) -> (Vec<Self>, Self) {
-        todo!()
-        // let mut spine = vec![];
-        // let mut last_result = self;
+    pub(crate) fn spine(self, ctx: &mut InferCtx) -> (Vec<Self>, Self) {
+        let mut spine = vec![];
+        let mut last_result = self;
 
-        // while let Ty::Fun(Fun { domain, value, .. }) = last_result {
-        //     spine.push(*domain);
-        //     last_result = *value;
-        // }
+        while let Type::Fun(ref fun @ HoasFun { ref domain, .. }) = last_result {
+            use crate::whnf::Whnf;
 
-        // (spine, last_result)
+            spine.push(domain.eval(ctx));
+            last_result = fun.codomain(Type::Bound(Bound::Hole));
+        }
+
+        (spine, last_result)
     }
 
     /// Create a new pi type. This is used to create a new pi type.
@@ -434,29 +439,27 @@ impl Type<state::Hoas> {
     ///
     /// - `domain`: The domain of the pi type.
     /// - `value`: The value of the pi type.
-    pub fn from_pi<I>(mut parameters: I, ty: Self) -> Self
+    pub fn from_pi<I>(mut parameters: I, return_type: Self) -> Self
     where
         I: Iterator<Item = Self>,
     {
-        todo!()
-        // let Some(first) = parameters.next() else {
-        //     return ty
-        // };
-        // let mut result = Self::Fun(Fun {
-        //     domain: first.into(),
-        //     value: ty.into(),
-        //     phantom: PhantomData,
-        // });
+        let Some(first) = parameters.next() else {
+            return return_type;
+        };
 
-        // for parameter in parameters {
-        //     result = Ty::Fun(Fun {
-        //         domain: Box::new(parameter),
-        //         value: Box::new(result),
-        //         phantom: PhantomData,
-        //     });
-        // }
+        let mut result = Self::Fun(HoasFun {
+            domain: first.into(),
+            value: Rc::new(move |_| return_type.clone()),
+        });
 
-        // result
+        for domain in parameters {
+            result = Type::Fun(HoasFun {
+                domain: domain.into(),
+                value: Rc::new(move |_| result.clone()),
+            });
+        }
+
+        result
     }
 }
 
@@ -504,7 +507,7 @@ mod display {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Type::Primary(primary) => write!(f, "{primary}"),
-                Type::Constructor(constructor) => write!(f, "{constructor}"),
+                Type::Constructor(constructor, _) => write!(f, "{constructor}"),
                 Type::App(app, argument) => write!(f, "({} {})", app, argument),
                 Type::Forall(forall) => write!(f, "{forall}"),
                 Type::Fun(fun) => write!(f, "{fun}"),
@@ -742,7 +745,7 @@ pub mod seals {
         fn seal(self) -> Self::Sealed {
             match self {
                 Type::Primary(primary) => Type::Primary(primary),
-                Type::Constructor(constructor) => Type::Constructor(constructor),
+                Type::Constructor(constructor, kind) => Type::Constructor(constructor, kind.seal()),
                 Type::Forall(forall) => Type::Forall(forall.seal()),
                 Type::Fun(pi) => Type::Fun(pi.seal()),
                 Type::Bound(debruijin) => Type::Bound(debruijin),

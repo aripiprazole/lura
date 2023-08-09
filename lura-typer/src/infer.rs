@@ -101,7 +101,7 @@ impl Substitution<'_, '_> {
         match ty {
             // SECTION: Types
             Type::Primary(_) => {}
-            Type::Constructor(_) => {}
+            Type::Constructor(_, _) => {}
             Type::Bound(Bound::Flexible(_)) => {}
             Tau::Bound(Bound::Hole) => {}
             Type::Forall(forall) => {
@@ -227,7 +227,7 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
+            (Type::Constructor(constructor_a, _), Type::Constructor(constructor_b, _)) => {
                 // unify the names
                 if constructor_a.definition != constructor_b.definition {
                     self.errors.push_back(TypeError::IncompatibleTypes {
@@ -778,15 +778,22 @@ impl Infer for TopLevel {
                 })
                 .collect::<im_rc::Vector<_>>();
 
+            let name = Name {
+                definition: name,
+                name: name.to_string(ctx.db),
+            };
+
             let constructor = match decl.type_rep(ctx.db) {
-                Some(TypeRep::Error(_)) => Tau::Constructor(Name {
-                    definition: name,
-                    name: name.to_string(ctx.db),
-                }),
-                Some(TypeRep::Hole) if !use_return_type => Tau::Constructor(Name {
-                    definition: name,
-                    name: name.to_string(ctx.db),
-                }),
+                Some(TypeRep::Error(_)) => Tau::Constructor(name.clone(), Kind::Star),
+                Some(TypeRep::Hole) if !use_return_type => {
+                    // Generate the type-level function
+                    // that represents the declaration
+                    let kind = parameters.iter().fold(Kind::Star, |acc, _| {
+                        Kind::Fun(Kind::Star.into(), acc.into())
+                    });
+
+                    Tau::Constructor(name.clone(), kind)
+                }
                 Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
                     // # Safety
                     // We already checked if the type is a forall, so we can
@@ -801,14 +808,11 @@ impl Infer for TopLevel {
                     let variant_ty = Type::from_pi(parameters.into_iter(), ctx.eval(type_rep));
 
                     // Early return if the type is already generalised
-                    ctx.env.extend(name, variant_ty.clone());
+                    ctx.env.extend(name.definition, variant_ty.clone());
                     return variant_ty;
                 }
                 Some(type_rep) => ctx.eval(type_rep),
-                None => Tau::Constructor(Name {
-                    definition: name,
-                    name: name.to_string(ctx.db),
-                }),
+                None => Tau::Constructor(name.clone(), Kind::Star),
             };
 
             // Creates the type of the variant
@@ -817,7 +821,7 @@ impl Infer for TopLevel {
             // Quantifies the type of the variant
             let variant_ty = ctx.quantify(variant_ty);
 
-            ctx.env.extend(name, variant_ty.clone());
+            ctx.env.extend(name.definition, variant_ty.clone());
             variant_ty
         }
 
@@ -1100,7 +1104,6 @@ impl Type<state::Hoas> {
     fn replace(self, name: Definition, replacement: Tau) -> Tau {
         use holes::HoleKind::*;
         match self {
-            Type::Constructor(constructor) if constructor.definition == name => replacement,
             Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
             Type::App(a, b) => Type::App(
                 a.replace(name, replacement.clone()).into(),
@@ -1321,20 +1324,6 @@ impl<'tctx> InferCtx<'tctx> {
         }
     }
 
-    /// Accumulates a diagnostic and returns a default value. This is used
-    /// to accumulate diagnostics and return a default value.
-    fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
-        if let ThirLocation::CallSite = diagnostic.location {
-            diagnostic.location = self.new_location(self.location.clone());
-        }
-
-        // We push the diagnostic to the diagnostics
-        Diagnostics::push(self.db, Report::new(diagnostic));
-
-        // We return the default value
-        Default::default()
-    }
-
     fn new_location(&self, location: Location) -> ThirLocation {
         // We set the location of the diagnostic, lowering the
         // source of location
@@ -1428,5 +1417,19 @@ impl<'tctx> InferCtx<'tctx> {
         self.env.names.push_back(refresh);
 
         level
+    }
+
+    /// Accumulates a diagnostic and returns a default value. This is used
+    /// to accumulate diagnostics and return a default value.
+    pub fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
+        if let ThirLocation::CallSite = diagnostic.location {
+            diagnostic.location = self.new_location(self.location.clone());
+        }
+
+        // We push the diagnostic to the diagnostics
+        Diagnostics::push(self.db, Report::new(diagnostic));
+
+        // We return the default value
+        Default::default()
     }
 }
