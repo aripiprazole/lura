@@ -4,7 +4,7 @@ use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, 
 use crate::{
     declaration::TypedDeclaration,
     infer::{Infer, InferCtx},
-    type_rep::{TypeRep, Seal},
+    type_rep::{TypeRep, Quote},
 };
 
 #[salsa::tracked]
