@@ -28,7 +28,6 @@ pub mod coverage;
 pub mod declaration;
 pub mod elaboration;
 pub mod infer;
-pub mod kind;
 pub mod table;
 pub mod thir;
 pub mod whnf;
