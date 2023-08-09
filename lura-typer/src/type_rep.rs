@@ -1,4 +1,5 @@
 use holes::*;
+use lura_hir::resolve::empty_definition;
 use lura_hir::resolve::Definition;
 use std::{
     cell::RefCell,
@@ -25,8 +26,6 @@ pub trait Quote {
 }
 
 pub mod fun {
-    use lura_hir::resolve::empty_definition;
-
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -160,6 +159,110 @@ impl Display for Name {
 pub enum Bound {
     Flexible(Name),
     Index(Name, Level),
+}
+
+/// Represents a type dependent function. This is used to
+/// represent a type dependent function.
+///
+/// This is used to represent a type variable that
+/// has not been unified with a type.
+///
+/// NOTE: This is supposed to be used to implement GADT
+/// and type families.
+pub mod forall {
+    use super::*;
+
+    /// Represents a type-level function. This is used
+    /// to represent a type-level function.
+    pub type ForallHoas<M> = dyn Fn(Vec<Type<M>>) -> Type<M> + Sync + Send;
+
+    /// Represents a type dependent function. This is used to
+    /// represent a type dependent function.
+    ///
+    /// This is used to represent a type variable that
+    /// has not been unified with a type.
+    ///
+    /// NOTE: This is supposed to be used to implement GADT
+    /// and type families.
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct QuotedForall {
+        pub name: Name,
+        pub domain: Vec<(Name, Type<state::Quoted>)>,
+        pub codomain: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let name = &self.name;
+            let domain = &self.domain;
+            let codomain = &self.codomain;
+
+            todo!()
+
+            // write!(f, "({name} : {domain}) -> {codomain}")
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasForall {
+        pub name: Name,
+        pub domain: Vec<(Name, Type<state::Hoas>)>,
+        pub codomain: Arc<ForallHoas<state::Hoas>>,
+    }
+
+    impl Eq for HoasForall {}
+
+    impl Display for HoasForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
+    impl Debug for HoasForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Forall")
+                .field("name", &self.name)
+                .field("domain", &self.domain)
+                .field("codomain", &"<function>")
+                .finish()
+        }
+    }
+
+    impl PartialEq for HoasForall {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let domain = self
+                .domain
+                .iter()
+                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
+                .collect::<Vec<_>>();
+
+            self.name == other.name
+                && self.domain == other.domain
+                && self.codomain.call((domain.clone(),)) == other.codomain.call((domain,))
+        }
+    }
+
+    impl Hash for HoasForall {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let domain = self
+                .domain
+                .iter()
+                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
+                .collect();
+
+            self.name.hash(state);
+            self.domain.hash(state);
+            self.codomain.call((domain,)).hash(state);
+        }
+    }
 }
 
 /// Represents a type dependent function. This is used to
@@ -514,9 +617,8 @@ pub mod holes {
 /// Takes a mut type and returns a ready type. This is used to seal a type, and make it ready to
 /// be used as [`Send`] and [`Sync`].
 pub mod seals {
-    use lura_hir::resolve::empty_definition;
-
     use super::{
+        forall::{HoasForall, QuotedForall},
         fun::{HoasFun, QuotedFun},
         pi::{HoasPi, QuotedPi},
         *,
@@ -558,6 +660,33 @@ pub mod seals {
             QuotedFun {
                 domain: self.domain.seal().into(),
                 value: self.value.call((variable,)).seal().into(),
+            }
+        }
+    }
+
+    impl Quote for HoasForall {
+        type Sealed = QuotedForall;
+
+        fn seal(self) -> Self::Sealed {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let domain = self
+                .domain
+                .iter()
+                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
+                .collect();
+
+            QuotedForall {
+                name: self.name,
+                domain: self
+                    .domain
+                    .iter()
+                    .cloned()
+                    .map(|(name, type_rep)| (name, type_rep.seal().into()))
+                    .collect(),
+                codomain: self.codomain.call((domain,)).seal().into(),
             }
         }
     }
@@ -630,7 +759,7 @@ pub mod state {
 
     impl TypeState for Quoted {
         type Hole = Box<crate::type_rep::Hole<Quoted>>;
-        type Forall = pi::QuotedPi;
+        type Forall = forall::QuotedForall;
         type Fun = fun::QuotedFun;
         type Pi = pi::QuotedPi;
     }
@@ -647,7 +776,7 @@ pub mod state {
 
     impl TypeState for Hoas {
         type Hole = HoleRef<Hoas>;
-        type Forall = pi::HoasPi;
+        type Forall = forall::HoasForall;
         type Fun = fun::HoasFun;
         type Pi = pi::HoasPi;
     }
