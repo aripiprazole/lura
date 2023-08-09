@@ -95,34 +95,34 @@ impl Substitution<'_, '_> {
 
         match ty {
             // SECTION: Types
-            Ty::Primary(_) => {}
-            Ty::Constructor(_) => {}
-            Ty::Bound(Bound::Flexible(_, _)) => {}
-            Ty::Forall(forall) => {
+            Type::Primary(_) => {}
+            Type::Constructor(_) => {}
+            Type::Bound(Bound::Flexible(_)) => {}
+            Type::Forall(forall) => {
                 self.hole_unify_prechecks(*forall.data.value, scope, hole);
             }
-            Ty::Pi(pi) => {
+            Type::Pi(pi) => {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
-                self.hole_unify_prechecks(*pi.codomain, scope, hole)
+                // self.hole_unify_prechecks(*pi.codomain, scope, hole)
             }
-            Ty::Fun(fun) => {
+            Type::Fun(fun) => {
                 self.hole_unify_prechecks(*fun.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*fun.value, scope, hole)
             }
-            Ty::Bound(Bound::Index(_, _, level)) => {
+            Type::Bound(Bound::Index(_, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
             }
-            Ty::App(a, b) => {
+            Type::App(a, b) => {
                 self.hole_unify_prechecks(*a, scope, hole.clone());
                 self.hole_unify_prechecks(*b, scope, hole)
             }
             // SECTION: Hole
-            Ty::Hole(h) => {
+            Type::Hole(h) => {
                 use holes::HoleKind::*;
                 if h == hole {
-                    self.errors.push_back(TypeError::OccursCheck(Ty::Hole(h)));
+                    self.errors.push_back(TypeError::OccursCheck(Type::Hole(h)));
                     return;
                 }
 
@@ -171,13 +171,13 @@ impl Substitution<'_, '_> {
         // Matches the types to equate them.
         match (a, b) {
             // SECTION: Unification
-            (Ty::Hole(hole_a), b) => self.unify_hole(b, hole_a),
-            (a, Ty::Hole(hole_b)) => self.unify_hole(a, hole_b),
+            (Type::Hole(hole_a), b) => self.unify_hole(b, hole_a),
+            (a, Type::Hole(hole_b)) => self.unify_hole(a, hole_b),
             // SECTION: Sentinel Values
-            (_, Ty::Primary(Primary::Error)) => {}
-            (Ty::Primary(Primary::Error), _) => {}
+            (_, Type::Primary(Primary::Error)) => {}
+            (Type::Primary(Primary::Error), _) => {}
             // SECTION: Types
-            (Ty::Primary(primary_a), Ty::Primary(primary_b)) => {
+            (Type::Primary(primary_a), Type::Primary(primary_b)) => {
                 if primary_a != primary_b {
                     self.errors.push_back(TypeError::IncompatibleValues {
                         expected: primary_a,
@@ -185,7 +185,7 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Ty::Constructor(constructor_a), Ty::Constructor(constructor_b)) => {
+            (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
                 // unify the names
                 if constructor_a.name != constructor_b.name {
                     self.errors.push_back(TypeError::IncompatibleTypes {
@@ -194,15 +194,15 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Ty::Fun(arrow_a), Ty::Fun(arrow_b)) => {
+            (Type::Fun(arrow_a), Type::Fun(arrow_b)) => {
                 self.internal_unify(*arrow_a.domain, *arrow_b.domain);
                 self.internal_unify(*arrow_a.value, *arrow_b.value);
             }
-            (Ty::App(callee_a, value_a), Ty::App(callee_b, value_b)) => {
+            (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
                 self.internal_unify(*callee_a, *callee_b);
                 self.internal_unify(*value_a, *value_b);
             }
-            (Ty::Forall(forall_a), Ty::Forall(forall_b)) => {
+            (Type::Forall(forall_a), Type::Forall(forall_b)) => {
                 // "alpha equivalence": forall a. a -> a = forall b. b -> b
                 if forall_a.domain.len() != forall_b.domain.len() {
                     self.errors.push_back(TypeError::IncorrectArity {
@@ -217,9 +217,8 @@ impl Substitution<'_, '_> {
                 let mut acc_b = *forall_b.data.value.clone();
                 for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
                     let level = self.ctx.add_to_env(param_a.name);
-                    let definition = param_a.name;
-                    let name = param_a.name.to_string(self.ctx.db);
-                    let debruijin = Tau::Bound(Bound::Index(definition, name, level));
+                    let name = self.ctx.create_new_name(param_a.name);
+                    let debruijin = Tau::Bound(Bound::Index(name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -241,7 +240,7 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (Ty::Bound(Bound::Index(_, _, level_a)), Ty::Bound(Bound::Index(_, _, level_b))) => {
+            (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -328,10 +327,10 @@ impl Debug for Substitution<'_, '_> {
     }
 }
 
-type Sigma = Ty<modes::Mut>;
-type Rho = Ty<modes::Mut>;
-type Tau = Ty<modes::Mut>;
-type HoleMut = HoleRef<modes::Mut>;
+type Sigma = Type<state::Hoas>;
+type Rho = Type<state::Hoas>;
+type Tau = Type<state::Hoas>;
+type HoleMut = HoleRef<state::Hoas>;
 
 pub(crate) trait Infer {
     type Output;
@@ -389,7 +388,7 @@ trait Check {
 }
 
 impl Check for Pattern {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Checks the pattern against the type. This is used to
     /// check the pattern against the type.
@@ -451,14 +450,14 @@ impl Check for Pattern {
 }
 
 impl Infer for Constructor {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Infers the type of the callee. This is used
     /// to infer the type of the callee.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Constructor
-            Constructor::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
+            Constructor::Unit => Type::Primary(Primary::Unit), // Unit = Unit
             // SECTION: Builtin
             Constructor::Array => panic!("array builtin should be handled in a different way"),
             Constructor::Tuple => panic!("array builtin should be handled in a different way"),
@@ -469,14 +468,14 @@ impl Infer for Constructor {
 }
 
 impl Infer for Callee {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Infers the type of the callee. This is used
     /// to infer the type of the callee.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Callee
-            Callee::Unit => Ty::Primary(Primary::Unit), // Unit = Unit
+            Callee::Unit => Type::Primary(Primary::Unit), // Unit = Unit
             // SECTION: Builtin
             Callee::Array => panic!("array builtin should be handled in a different way"),
             Callee::Tuple => panic!("tuple builtin should be handled in a different way"),
@@ -492,7 +491,7 @@ impl Infer for Callee {
 }
 
 impl Infer for Expr {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     // Associate the type with the expression
     // This is used to access the type of the expression in
@@ -535,7 +534,7 @@ impl Infer for Expr {
 
                         match arguments.len() {
                             // Unit type
-                            0 => Ty::Primary(Primary::Unit),
+                            0 => Type::Primary(Primary::Unit),
                             // Group type
                             1 => arguments[0].clone().infer(ctx),
                             // Tuple type
@@ -571,7 +570,7 @@ impl Infer for Expr {
                         match arguments.len() {
                             // Unit type
                             0 => {
-                                return_type.unify(Ty::Primary(Primary::Unit), ctx);
+                                return_type.unify(Type::Primary(Primary::Unit), ctx);
                                 return_type
                             }
                             // Group type
@@ -590,7 +589,7 @@ impl Infer for Expr {
                     _ => {
                         // Creates a new type variable to represent the type of the result
                         let hole = ctx.new_meta();
-                        let pi = Ty::from_pi(parameters.into_iter(), hole.clone());
+                        let pi = Type::from_pi(parameters.into_iter(), hole.clone());
 
                         // Infers the type of the callee, and then applies the arguments
                         // E.G Giving a `f : Int -> Int -> Int`
@@ -666,7 +665,7 @@ impl Infer for Expr {
 }
 
 impl Infer for Spanned<Literal> {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Infers the type of the literal. This is used
     /// to infer the type of the literal.
@@ -692,7 +691,7 @@ impl Infer for Spanned<Literal> {
 }
 
 impl Infer for TopLevel {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Infers the type of the top level. This is used
     /// to infer the type of the top level.
@@ -751,7 +750,7 @@ impl Infer for TopLevel {
                     // then it's already generalised, so we don't need to quantify it!
                     //
                     // Creates the type of the variant
-                    let variant_ty = Ty::from_pi(parameters.into_iter(), ctx.eval(type_rep));
+                    let variant_ty = Type::from_pi(parameters.into_iter(), ctx.eval(type_rep));
 
                     // Early return if the type is already generalised
                     ctx.env.extend(name, variant_ty.clone());
@@ -765,7 +764,7 @@ impl Infer for TopLevel {
             };
 
             // Creates the type of the variant
-            let variant_ty = Ty::from_pi(parameters.into_iter(), constructor);
+            let variant_ty = Type::from_pi(parameters.into_iter(), constructor);
 
             // Quantifies the type of the variant
             let variant_ty = ctx.quantify(variant_ty);
@@ -797,12 +796,12 @@ impl Infer for TopLevel {
                         if let Pattern::Binding(binding) = parameter.binding(ctx.db);
                         then {
                             // Meta information
-                            let def = binding.name(ctx.db);
-                            let name = def.to_string(ctx.db);
+                            let name = ctx.create_new_name(binding.name(ctx.db));
+                            let def = name.definition;
 
                             // Debruijin index
                             let level = ctx.add_to_env(def);
-                            let bound = Tau::Bound(Bound::Index(def, name, level));
+                            let bound = Tau::Bound(Bound::Index(name, level));
                             ctx.env.rigid_variables.insert(def, bound.clone());
                             bound
                         } else {
@@ -865,7 +864,7 @@ impl Infer for TopLevel {
                     };
 
                     // Creates the type of the variant
-                    let variant_ty = Ty::from_pi(parameters.clone().into_iter(), variant_ty);
+                    let variant_ty = Type::from_pi(parameters.clone().into_iter(), variant_ty);
 
                     // Quantifies the type of the variant
                     let variant_ty = ctx.quantify(variant_ty);
@@ -894,7 +893,7 @@ impl Infer for TopLevel {
 }
 
 impl Check for Expr {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Checks the type of the expression. This is used
     /// to check the type of the expression.
@@ -917,7 +916,7 @@ impl Check for Expr {
 }
 
 impl Infer for Stmt {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Infers the type of the statement. This is used
     /// to infer the type of the statement.
@@ -950,7 +949,7 @@ impl Infer for Stmt {
 }
 
 impl Check for Block {
-    type Output = Ty<modes::Mut>;
+    type Output = Type<state::Hoas>;
 
     /// Checks the type of the block. This is used
     /// to check the type of the block.
@@ -1007,28 +1006,28 @@ pub(crate) struct InferCtx<'tctx> {
     pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
 }
 
-impl Pred<modes::Mut> {
-    fn replace(self, name: Definition, replacement: Tau) -> Pred<modes::Mut> {
+impl Pred<state::Hoas> {
+    fn replace(self, name: Definition, replacement: Tau) -> Pred<state::Hoas> {
         match self {
             Pred::IsIn(ty, class, str) => Pred::IsIn(ty.replace(name, replacement), class, str),
         }
     }
 }
 
-impl Qual<modes::Mut, Arrow<kinds::Forall, modes::Mut>> {
+impl Qual<state::Hoas, Fun<kinds::Forall, state::Hoas>> {
     // Replaces a type variable with a type.
     fn replace(
         self,
         name: Definition,
         replacement: Tau,
-    ) -> Qual<modes::Mut, Arrow<kinds::Forall, modes::Mut>> {
+    ) -> Qual<state::Hoas, Fun<kinds::Forall, state::Hoas>> {
         Self {
             predicates: self
                 .predicates
                 .into_iter()
                 .map(|pred| pred.replace(name, replacement.clone()))
                 .collect(),
-            data: Arrow {
+            data: Fun {
                 domain: self.data.domain,
                 value: self.data.value.replace(name, replacement).into(),
                 phantom: PhantomData,
@@ -1037,7 +1036,7 @@ impl Qual<modes::Mut, Arrow<kinds::Forall, modes::Mut>> {
     }
 }
 
-impl Ty<modes::Mut> {
+impl Type<state::Hoas> {
     /// Unifies the type with another type. This is used
     /// to equate two types.
     fn unify(&self, tau: Tau, ctx: &mut InferCtx) {
@@ -1052,26 +1051,26 @@ impl Ty<modes::Mut> {
     fn replace(self, name: Definition, replacement: Tau) -> Tau {
         use holes::HoleKind::*;
         match self {
-            Ty::Constructor(constructor) if constructor.name == name => replacement,
-            Ty::Forall(forall) => Ty::Forall(forall.replace(name, replacement)),
-            Ty::App(a, b) => Ty::App(
+            Type::Constructor(constructor) if constructor.name == name => replacement,
+            Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
+            Type::App(a, b) => Type::App(
                 a.replace(name, replacement.clone()).into(),
                 b.replace(name, replacement).into(),
             ),
-            Ty::Fun(pi) => Ty::Fun(Arrow {
+            Type::Fun(pi) => Type::Fun(Fun {
                 domain: pi.domain.replace(name, replacement.clone()).into(),
                 value: pi.value.replace(name, replacement).into(),
                 phantom: PhantomData,
             }),
-            Ty::Hole(hole) => match hole.data.borrow_mut().kind() {
-                Error => Ty::Hole(HoleRef::new(Hole { kind: Error })),
-                Empty { scope } => Ty::Hole(HoleRef::new(Hole {
+            Type::Hole(hole) => match hole.data.borrow_mut().kind() {
+                Error => Type::Hole(HoleRef::new(Hole { kind: Error })),
+                Empty { scope } => Type::Hole(HoleRef::new(Hole {
                     kind: Empty { scope: *scope },
                 })),
                 Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Ty::Bound(Bound::Flexible(definition, _)) if definition == name => replacement,
-            Ty::Bound(bound) => Ty::Bound(bound),
+            Type::Bound(Bound::Flexible(flexibile)) if flexibile.definition == name => replacement,
+            Type::Bound(bound) => Type::Bound(bound),
             _ => self,
         }
     }
@@ -1145,10 +1144,9 @@ impl<'tctx> InferCtx<'tctx> {
                 //
                 // A type variable is not rigid!
                 .unwrap_or_else(|| {
-                    let def = reference.definition(self.db);
-                    let name = def.to_string(self.db);
+                    let name = self.create_new_name(reference.definition(self.db));
 
-                    Tau::Bound(Bound::Flexible(def, name))
+                    Tau::Bound(Bound::Flexible(name))
                 }),
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));
@@ -1173,7 +1171,7 @@ impl<'tctx> InferCtx<'tctx> {
                         parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Fun(Arrow {
+                        Tau::Fun(Fun {
                             domain: next.into(),
                             value: acc.into(),
                             phantom: PhantomData,
@@ -1227,7 +1225,7 @@ impl<'tctx> InferCtx<'tctx> {
                     })
                     .collect::<Vec<_>>();
 
-                Tau::Forall(Qual::new(Arrow {
+                Tau::Forall(Qual::new(Fun {
                     domain: parameters,
                     value: value.into(),
                     phantom: PhantomData,
@@ -1334,6 +1332,15 @@ impl<'tctx> InferCtx<'tctx> {
         let result = f(self);
         self.env = old_env;
         result
+    }
+
+    fn create_new_name(&self, definition: Definition) -> Name {
+        let name = definition.to_string(self.db);
+
+        Name {
+            definition,
+            name: name.clone(),
+        }
     }
 
     fn add_to_env(&mut self, parameter: Definition) -> Level {

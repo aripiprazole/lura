@@ -1,12 +1,23 @@
 use holes::*;
 use lura_hir::resolve::Definition;
-use std::{cell::RefCell, fmt::Debug, hash::Hash, marker::PhantomData};
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display},
+    hash::Hash,
+    marker::PhantomData,
+    sync::Arc,
+};
 
 use crate::adhoc::Qual;
 
 pub type Level = usize;
+
+/// Represents a type-level function. This is used
+/// to represent a type-level function.
+pub type Hoas<M> = dyn Fn(Type<M>) -> Type<M> + Sync + Send;
+
 /// Represents a type that could be sealed to erase mutability.
-pub trait Seal {
+pub trait Quote {
     /// The sealed type.
     type Sealed;
 
@@ -14,14 +25,55 @@ pub trait Seal {
     fn seal(self) -> Self::Sealed;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
-    pub domain: K::Parameters<M>,
-    pub value: Box<M::Ty>,
+pub mod fun {
+    use lura_hir::resolve::empty_definition;
 
-    /// Represents the kind of arrow. This is used to distinguish between different
-    /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
-    pub phantom: PhantomData<K>,
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub struct QuotedFun {
+        pub domain: Box<Type<state::Quoted>>,
+        pub value: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.domain)?;
+            write!(f, " -> ")?;
+            write!(f, "{}", self.value)
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasFun {
+        pub domain: Box<Type<state::Hoas>>,
+        pub value: Arc<Hoas<state::Hoas>>,
+    }
+
+    impl Debug for HoasFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Fun")
+                .field("domain", &self.domain)
+                .field("value", &"<function>")
+                .finish()
+        }
+    }
+
+    impl Hash for HoasFun {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(Name {
+                definition: empty_definition(),
+                name: "_".into(),
+            }));
+
+            self.domain.hash(state);
+            (self.value)(variable).hash(state);
+        }
+    }
 }
 
 /// Represents a primary type. This is used to represent a type that is not a constructor.
@@ -53,13 +105,6 @@ impl Primary {
     pub const I64: Self = Self::Int(64, true);
 }
 
-/// Represents a constructor. This is used to represent a type constructor.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InternalConstructor {
-    pub name: Definition,
-    pub dbg_name: String,
-}
-
 pub type Uniq = usize;
 
 /// Represents the rigidness of the type variable. This is used to represent the rigidness of the
@@ -70,26 +115,112 @@ pub enum Rigidness {
     Flexible,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Bound {
-    Flexible(Definition, String),
-    Index(Definition, String, Level),
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Name {
+    pub definition: Definition,
+    pub name: String,
 }
 
-/// Represents a type variable. This is used to
-/// represent a type variable.
+impl Debug for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.name, f)
+    }
+}
+
+impl Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.name, f)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Bound {
+    Flexible(Name),
+    Index(Name, Level),
+}
+
+/// Represents a type dependent function. This is used to
+/// represent a type dependent function.
 ///
 /// This is used to represent a type variable that
 /// has not been unified with a type.
-/// 
+///
 /// NOTE: This is supposed to be used to implement GADT
 /// and type families.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Pi<M: modes::TypeMode> {
-    pub name: Definition,
-    pub dbg_name: String,
-    pub domain: Box<Ty<M>>,
-    pub codomain: Box<Ty<M>>,
+pub mod pi {
+    use super::*;
+
+    /// Represents a type dependent function. This is used to
+    /// represent a type dependent function.
+    ///
+    /// This is used to represent a type variable that
+    /// has not been unified with a type.
+    ///
+    /// NOTE: This is supposed to be used to implement GADT
+    /// and type families.
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct QuotedPi {
+        pub name: Name,
+        pub domain: Box<Type<state::Quoted>>,
+        pub codomain: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let name = &self.name;
+            let domain = &self.domain;
+            let codomain = &self.codomain;
+
+            write!(f, "({name} : {domain}) -> {codomain}")
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasPi {
+        pub name: Name,
+        pub domain: Box<Type<state::Hoas>>,
+        pub codomain: Arc<Hoas<state::Hoas>>,
+    }
+
+    impl Debug for HoasPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Pi")
+                .field("name", &self.name)
+                .field("domain", &self.domain)
+                .field("codomain", &"<function>")
+                .finish()
+        }
+    }
+
+    impl Eq for HoasPi {}
+
+    impl PartialEq for HoasPi {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+
+            self.name == other.name
+                && self.domain == other.domain
+                && (self.codomain)(variable.clone()) == (other.codomain)(variable)
+        }
+    }
+
+    impl Hash for HoasPi {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+
+            self.name.hash(state);
+            self.domain.hash(state);
+            (self.codomain)(variable).hash(state);
+        }
+    }
 }
 
 /// Represents a sealed type variable. This is used to represent a type variable
@@ -97,25 +228,25 @@ pub struct Pi<M: modes::TypeMode> {
 ///
 /// This means that the type variable has been unified with a type, and that type
 /// is now the only type that the type variable can be.
-pub type TypeRep = Ty<modes::Ready>;
+pub type TypeRep = Type<state::Quoted>;
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Ty<M: modes::TypeMode> {
+pub enum Type<S: state::TypeState> {
     Primary(Primary),
-    Constructor(InternalConstructor),
-    App(Box<Ty<M>>, Box<Ty<M>>),
-    Forall(Qual<M, Arrow<kinds::Forall, M>>),
-    Pi(Pi<M>),
+    Constructor(Name),
+    App(Box<Type<S>>, Box<Type<S>>),
+    Forall(Qual<S, S::Forall>),
+    Pi(S::Pi),
 
     /// Represents an arrow function type. This is used
     /// to represent a function type.
-    Fun(Arrow<kinds::Arrow, M>),
+    Fun(S::Arrow),
 
     /// Represents a hole. This is used to represent a type
     /// that should be inferred.
-    Hole(M::Hole),
+    Hole(S::Hole),
 
     /// Represents a variable. This is used
     /// to represent a type variable.
@@ -124,7 +255,7 @@ pub enum Ty<M: modes::TypeMode> {
     Bound(Bound),
 }
 
-impl<M: modes::TypeMode> Ty<M> {
+impl<M: state::TypeState> Type<M> {
     pub const ERROR: Self = Self::Primary(Primary::Error);
     pub const UNIT: Self = Self::Primary(Primary::Unit);
     pub const TYPE: Self = Self::Primary(Primary::Type);
@@ -133,25 +264,26 @@ impl<M: modes::TypeMode> Ty<M> {
     pub const STRING: Self = Self::Primary(Primary::String);
 }
 
-impl<M: modes::TypeMode> Default for Ty<M> {
+impl<M: state::TypeState> Default for Type<M> {
     /// Returns the default value for a type. This is used to represent a type that is not valid.
     /// It's a sentinel value that is used to represent an error.
     fn default() -> Self {
-        Ty::Primary(Primary::Error)
+        Type::Primary(Primary::Error)
     }
 }
 
-impl Ty<modes::Mut> {
+impl Type<state::Hoas> {
     pub fn spine(self) -> (Vec<Self>, Self) {
-        let mut spine = vec![];
-        let mut last_result = self;
+        todo!()
+        // let mut spine = vec![];
+        // let mut last_result = self;
 
-        while let Ty::Fun(Arrow { domain, value, .. }) = last_result {
-            spine.push(*domain);
-            last_result = *value;
-        }
+        // while let Ty::Fun(Fun { domain, value, .. }) = last_result {
+        //     spine.push(*domain);
+        //     last_result = *value;
+        // }
 
-        (spine, last_result)
+        // (spine, last_result)
     }
 
     /// Create a new pi type. This is used to create a new pi type.
@@ -164,24 +296,25 @@ impl Ty<modes::Mut> {
     where
         I: Iterator<Item = Self>,
     {
-        let Some(first) = parameters.next() else {
-            return ty
-        };
-        let mut result = Self::Fun(Arrow {
-            domain: first.into(),
-            value: ty.into(),
-            phantom: PhantomData,
-        });
+        todo!()
+        // let Some(first) = parameters.next() else {
+        //     return ty
+        // };
+        // let mut result = Self::Fun(Fun {
+        //     domain: first.into(),
+        //     value: ty.into(),
+        //     phantom: PhantomData,
+        // });
 
-        for parameter in parameters {
-            result = Ty::Fun(Arrow {
-                domain: Box::new(parameter),
-                value: Box::new(result),
-                phantom: PhantomData,
-            });
-        }
+        // for parameter in parameters {
+        //     result = Ty::Fun(Fun {
+        //         domain: Box::new(parameter),
+        //         value: Box::new(result),
+        //         phantom: PhantomData,
+        //     });
+        // }
 
-        result
+        // result
     }
 }
 
@@ -193,12 +326,6 @@ mod display {
     use super::*;
 
     use std::fmt::Display;
-
-    impl Display for InternalConstructor {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.dbg_name)
-        }
-    }
 
     impl Display for Primary {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -220,55 +347,32 @@ mod display {
             }
         }
     }
-    impl<K: kinds::ArrowKind, M: modes::TypeMode> Display for Arrow<K, M> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            if K::INFIX {
-                for item in K::domains(self.domain.clone()) {
-                    write!(f, "{item}")?;
-                    write!(f, " -> ")?;
-                }
-                write!(f, "{}", self.value)?;
-            }
-
-            Ok(())
-        }
-    }
 
     impl Display for Bound {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Bound::Flexible(_, name) => write!(f, "{}", name),
-                Bound::Index(_, name, _) => write!(f, "{}", name),
+                Bound::Flexible(name) => write!(f, "{name}"),
+                Bound::Index(name, _) => write!(f, "{name}"),
             }
         }
     }
 
-    impl<M: modes::TypeMode> Display for Pi<M> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let dbg_name = &self.dbg_name;
-            let domain = &self.domain;
-            let codomain = &self.codomain;
-
-            write!(f, "({dbg_name} : {domain} -> {codomain})")
-        }
-    }
-
-    impl<M: modes::TypeMode> Display for Ty<M> {
+    impl<M: state::TypeState> Display for Type<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Ty::Primary(primary) => write!(f, "{primary}"),
-                Ty::Constructor(constructor) => write!(f, "{}", constructor.dbg_name),
-                Ty::App(app, argument) => write!(f, "({} {})", app, argument),
-                Ty::Forall(forall) => write!(f, "{forall}"),
-                Ty::Fun(fun) => write!(f, "{fun}"),
-                Ty::Pi(pi) => write!(f, "{pi}"),
-                Ty::Hole(hole) => write!(f, "{hole}"),
-                Ty::Bound(level) => write!(f, "`{}", level),
+                Type::Primary(primary) => write!(f, "{primary}"),
+                Type::Constructor(constructor) => write!(f, "{constructor}"),
+                Type::App(app, argument) => write!(f, "({} {})", app, argument),
+                Type::Forall(forall) => write!(f, "{forall}"),
+                Type::Fun(fun) => write!(f, "{fun}"),
+                Type::Pi(pi) => write!(f, "{pi}"),
+                Type::Hole(hole) => write!(f, "{hole}"),
+                Type::Bound(level) => write!(f, "`{}", level),
             }
         }
     }
 
-    impl<M: modes::TypeMode> Display for Hole<M> {
+    impl<M: state::TypeState> Display for Hole<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self.kind {
                 HoleKind::Error => write!(f, "!"),
@@ -278,7 +382,7 @@ mod display {
         }
     }
 
-    impl<M: modes::TypeMode> Display for HoleRef<M> {
+    impl<M: state::TypeState> Display for HoleRef<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "{}", self.data.borrow())
         }
@@ -293,11 +397,11 @@ pub mod holes {
 
     /// Represents a hole. This is used to represent a hole.
     #[derive(Default, Debug, Clone)]
-    pub struct Hole<M: modes::TypeMode> {
+    pub struct Hole<M: state::TypeState> {
         pub kind: HoleKind<M>,
     }
 
-    impl<M: modes::TypeMode> Hole<M> {
+    impl<M: state::TypeState> Hole<M> {
         pub fn kind(&self) -> &HoleKind<M> {
             &self.kind
         }
@@ -307,16 +411,16 @@ pub mod holes {
         }
     }
 
-    impl<M: modes::TypeMode> Eq for Hole<M> {}
+    impl<M: state::TypeState> Eq for Hole<M> {}
 
-    impl<M: modes::TypeMode> PartialEq for Hole<M> {
+    impl<M: state::TypeState> PartialEq for Hole<M> {
         fn eq(&self, other: &Self) -> bool {
             self.kind.eq(&other.kind)
         }
     }
 
     #[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]
-    pub enum HoleKind<M: modes::TypeMode> {
+    pub enum HoleKind<M: state::TypeState> {
         /// The error type. This is used to represent a type that is not valid. It's a sentinel value
         /// that is used to represent an error.
         #[default]
@@ -327,10 +431,10 @@ pub mod holes {
 
         /// A hole that is filled with a type. This is used to represent a hole that is filled with a
         /// type.
-        Filled(Ty<M>),
+        Filled(Type<M>),
     }
 
-    impl<M: modes::TypeMode> Hash for Hole<M> {
+    impl<M: state::TypeState> Hash for Hole<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.kind.hash(state);
         }
@@ -339,39 +443,39 @@ pub mod holes {
     /// A reference to a [`Hole`]. This is used to represent a reference to a [`Hole`].
     #[derive(Debug, Clone)]
     #[repr(transparent)]
-    pub struct HoleRef<M: modes::TypeMode> {
+    pub struct HoleRef<M: state::TypeState> {
         pub data: Rc<RefCell<Hole<M>>>,
     }
 
-    impl HoleRef<modes::Mut> {
-        pub(crate) fn new(value: Hole<modes::Mut>) -> Self {
+    impl HoleRef<state::Hoas> {
+        pub(crate) fn new(value: Hole<state::Hoas>) -> Self {
             Self {
                 data: Rc::new(RefCell::new(value)),
             }
         }
 
-        pub fn kind(&self) -> HoleKind<modes::Mut> {
+        pub fn kind(&self) -> HoleKind<state::Hoas> {
             self.data.borrow().kind.clone()
         }
     }
 
-    impl Deref for HoleRef<modes::Mut> {
-        type Target = Rc<RefCell<Hole<modes::Mut>>>;
+    impl Deref for HoleRef<state::Hoas> {
+        type Target = Rc<RefCell<Hole<state::Hoas>>>;
 
         fn deref(&self) -> &Self::Target {
             &self.data
         }
     }
 
-    impl<M: modes::TypeMode> Eq for HoleRef<M> {}
+    impl<M: state::TypeState> Eq for HoleRef<M> {}
 
-    impl<M: modes::TypeMode> PartialEq for HoleRef<M> {
+    impl<M: state::TypeState> PartialEq for HoleRef<M> {
         fn eq(&self, other: &Self) -> bool {
             self.data.borrow().eq(&other.data.borrow())
         }
     }
 
-    impl<M: modes::TypeMode> Hash for HoleRef<M> {
+    impl<M: state::TypeState> Hash for HoleRef<M> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.data.borrow().hash(state);
         }
@@ -381,10 +485,10 @@ pub mod holes {
 /// Takes a mut type and returns a ready type. This is used to seal a type, and make it ready to
 /// be used as [`Send`] and [`Sync`].
 pub mod seals {
-    use super::*;
+    use super::{*, pi::{HoasPi, QuotedPi}};
 
-    impl Seal for Hole<modes::Mut> {
-        type Sealed = Hole<modes::Ready>;
+    impl Quote for Hole<state::Hoas> {
+        type Sealed = Hole<state::Quoted>;
 
         /// Takes a mut hole and returns a ready hole. This is used to seal a hole, and make it
         /// ready to be used as [`Send`] and [`Sync`].
@@ -403,48 +507,39 @@ pub mod seals {
         }
     }
 
-    impl<K: kinds::ArrowKind> Seal for Arrow<K, modes::Mut> {
-        type Sealed = Arrow<K, modes::Ready>;
-
-        /// Takes a mut arrow and returns a ready arrow. This is used to seal an arrow, and make it
-        /// ready to be used as [`Send`] and [`Sync`].
-        fn seal(self) -> Self::Sealed {
-            Arrow {
-                domain: K::seal(self.domain),
-                value: self.value.seal().into(),
-                phantom: PhantomData,
-            }
-        }
-    }
-
-    impl Seal for Pi<modes::Mut> {
-        type Sealed = Pi<modes::Ready>;
+    impl Quote for HoasPi {
+        type Sealed = QuotedPi;
 
         fn seal(self) -> Self::Sealed {
-            Pi {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(self.name));
+
+            QuotedPi {
                 name: self.name,
                 domain: self.domain.seal().into(),
-                codomain: self.codomain.seal().into(),
-                dbg_name: self.dbg_name,
+                codomain: self.codomain.call((variable,)).seal().into(),
             }
         }
     }
 
-    impl Seal for Ty<modes::Mut> {
-        type Sealed = Ty<modes::Ready>;
+    impl Quote for Type<state::Hoas> {
+        type Sealed = Type<state::Quoted>;
 
         /// Takes a mut type and returns a ready type. This is used to seal a type, and make it
         /// ready to be used as [`Send`] and [`Sync`].
         fn seal(self) -> Self::Sealed {
             match self {
-                Ty::Primary(primary) => Ty::Primary(primary),
-                Ty::Constructor(constructor) => Ty::Constructor(constructor),
-                Ty::Forall(forall) => Ty::Forall(forall.seal()),
-                Ty::Fun(pi) => Ty::Fun(pi.seal()),
-                Ty::Bound(debruijin) => Ty::Bound(debruijin),
-                Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
-                Ty::Pi(pi) => Ty::Pi(pi.seal()),
-                Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
+                Type::Primary(primary) => Type::Primary(primary),
+                Type::Constructor(constructor) => Type::Constructor(constructor),
+                Type::Forall(forall) => Type::Forall(forall.seal()),
+                Type::Fun(pi) => Type::Fun(pi.seal()),
+                Type::Bound(debruijin) => Type::Bound(debruijin),
+                Type::Hole(hole) => Type::Hole(hole.data.borrow().clone().seal().into()),
+                Type::Pi(pi) => pi.seal(),
+                Type::App(a, b) => Type::App(a.seal().into(), b.seal().into()),
             }
         }
     }
@@ -452,131 +547,48 @@ pub mod seals {
 
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
-pub mod modes {
-    use std::{
-        fmt::{Debug, Display},
-        hash::Hash,
-    };
+pub mod state {
+    use std::{fmt::Debug, hash::Hash};
 
-    use super::{HoleRef, Ty};
+    use super::*;
+
+    pub trait Traits = PartialEq + Eq + Clone + Hash + Debug;
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
-    pub trait TypeMode: PartialEq + Eq + Clone + Hash + Debug + Default {
-        type Ty: Display + Debug + PartialEq + Eq + Clone + Hash;
-        type Hole: Display + Debug + PartialEq + Eq + Clone + Hash;
+    pub trait TypeState: Default + Traits {
+        type Forall: Traits;
+        type Arrow: Traits;
+        type Pi: Traits;
+        type Hole: Traits;
     }
 
     /// Ready is the type of build in types.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Ready;
+    pub struct Quoted;
 
-    impl TypeMode for Ready {
-        type Hole = Box<crate::type_rep::Hole<Ready>>;
-        type Ty = Ty<Ready>;
+    impl TypeState for Quoted {
+        type Hole = Box<crate::type_rep::Hole<Quoted>>;
+        type Forall = pi::QuotedPi;
+        type Arrow = fun::QuotedFun;
+        type Pi = pi::QuotedPi;
     }
 
     /// Mut is the type of mutable types.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Mut;
+    pub struct Hoas;
 
-    impl TypeMode for Mut {
-        type Ty = Ty<Mut>;
-        type Hole = HoleRef<Mut>;
-    }
-}
-
-/// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
-/// users from implementing this trait for their own types.
-pub mod kinds {
-    use std::{
-        fmt::{Debug, Display},
-        hash::Hash,
-    };
-
-    use super::{modes, InternalConstructor, Seal, Ty};
-
-    /// Represents a kind of arrow for a type. This is used to distinguish between different
-    /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
-    ///
-    /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
-    /// users from implementing this trait for their own types.
-    pub trait ArrowKind: Debug + Clone + PartialEq + Eq + Hash {
-        type Item<M: modes::TypeMode>: Display + Clone + PartialEq + Eq + Hash;
-        type Parameters<M: modes::TypeMode>: Clone + PartialEq + Eq + Hash;
-
-        const INFIX: bool;
-        const SYMBOL: &'static str;
-
-        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>>;
-
-        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready>;
-    }
-
-    /// Forall is the type of polymorphic generalization.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Forall;
-
-    /// Sigma is the type of dependent tuples.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Sigma;
-
-    /// Pi is the type of functions.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Arrow;
-
-    impl ArrowKind for Forall {
-        type Item<M: modes::TypeMode> = InternalConstructor;
-        type Parameters<M: modes::TypeMode> = Vec<Self::Item<M>>;
-
-        const INFIX: bool = false;
-        const SYMBOL: &'static str = "∀";
-
-        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
-            parameters
-        }
-
-        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
-            parameters
-        }
-    }
-
-    impl ArrowKind for Sigma {
-        type Item<M: modes::TypeMode> = Box<Ty<M>>;
-        type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
-
-        const INFIX: bool = true;
-        const SYMBOL: &'static str = "×";
-
-        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
-            parameters.seal().into()
-        }
-
-        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
-            vec![parameters]
-        }
-    }
-
-    impl ArrowKind for Arrow {
-        type Item<M: modes::TypeMode> = Box<Ty<M>>;
-        type Parameters<M: modes::TypeMode> = Box<Ty<M>>;
-
-        const INFIX: bool = true;
-        const SYMBOL: &'static str = "→";
-
-        fn seal(parameters: Self::Parameters<modes::Mut>) -> Self::Parameters<modes::Ready> {
-            parameters.seal().into()
-        }
-
-        fn domains<M: modes::TypeMode>(parameters: Self::Parameters<M>) -> Vec<Self::Item<M>> {
-            vec![parameters]
-        }
+    impl TypeState for Hoas {
+        type Hole = HoleRef<Hoas>;
+        type Forall = pi::HoasPi;
+        type Arrow = fun::HoasFun;
+        type Pi = pi::HoasPi;
     }
 }
 
 fn _assert_sync_send() {
     fn f<T: Sync + Send>() {}
 
-    f::<Ty<modes::Ready>>();
-    f::<Ty<modes::Ready>>();
+    f::<Type<state::Quoted>>();
+    f::<Type<state::Quoted>>();
 }
