@@ -55,6 +55,7 @@ pub struct Definition {
     pub name: HirPath,
 }
 
+/// Stub value just to make the compiler happy.
 pub fn empty_definition() -> Definition {
     Definition(Id::from_u32(Id::MAX_U32))
 }

@@ -4,7 +4,6 @@ use std::{
     cell::RefCell,
     fmt::{Debug, Display},
     hash::Hash,
-    marker::PhantomData,
     sync::Arc,
 };
 
@@ -30,7 +29,7 @@ pub mod fun {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
     pub struct QuotedFun {
         pub domain: Box<Type<state::Quoted>>,
         pub value: Box<Type<state::Quoted>>,
@@ -50,12 +49,36 @@ pub mod fun {
         pub value: Arc<Hoas<state::Hoas>>,
     }
 
+    impl Eq for HoasFun {}
+
+    impl Display for HoasFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
     impl Debug for HoasFun {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("Fun")
                 .field("domain", &self.domain)
                 .field("value", &"<function>")
                 .finish()
+        }
+    }
+
+    impl PartialEq for HoasFun {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(Name {
+                definition: empty_definition(),
+                name: "_".into(),
+            }));
+
+            self.domain == other.domain
+                && self.value.call((variable.clone(),)) == other.value.call((variable,))
         }
     }
 
@@ -71,7 +94,7 @@ pub mod fun {
             }));
 
             self.domain.hash(state);
-            (self.value)(variable).hash(state);
+            self.value.call((variable,)).hash(state);
         }
     }
 }
@@ -182,6 +205,14 @@ pub mod pi {
         pub codomain: Arc<Hoas<state::Hoas>>,
     }
 
+    impl Eq for HoasPi {}
+
+    impl Display for HoasPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
     impl Debug for HoasPi {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("Pi")
@@ -191,8 +222,6 @@ pub mod pi {
                 .finish()
         }
     }
-
-    impl Eq for HoasPi {}
 
     impl PartialEq for HoasPi {
         fn eq(&self, other: &Self) -> bool {
@@ -204,7 +233,7 @@ pub mod pi {
 
             self.name == other.name
                 && self.domain == other.domain
-                && (self.codomain)(variable.clone()) == (other.codomain)(variable)
+                && self.codomain.call((variable.clone(),)) == other.codomain.call((variable,))
         }
     }
 
@@ -218,7 +247,7 @@ pub mod pi {
 
             self.name.hash(state);
             self.domain.hash(state);
-            (self.codomain)(variable).hash(state);
+            self.codomain.call((variable,)).hash(state);
         }
     }
 }
@@ -242,7 +271,7 @@ pub enum Type<S: state::TypeState> {
 
     /// Represents an arrow function type. This is used
     /// to represent a function type.
-    Fun(S::Arrow),
+    Fun(S::Fun),
 
     /// Represents a hole. This is used to represent a type
     /// that should be inferred.
@@ -485,7 +514,13 @@ pub mod holes {
 /// Takes a mut type and returns a ready type. This is used to seal a type, and make it ready to
 /// be used as [`Send`] and [`Sync`].
 pub mod seals {
-    use super::{*, pi::{HoasPi, QuotedPi}};
+    use lura_hir::resolve::empty_definition;
+
+    use super::{
+        fun::{HoasFun, QuotedFun},
+        pi::{HoasPi, QuotedPi},
+        *,
+    };
 
     impl Quote for Hole<state::Hoas> {
         type Sealed = Hole<state::Quoted>;
@@ -503,6 +538,26 @@ pub mod seals {
                 HoleKind::Filled(ty) => Hole {
                     kind: HoleKind::Filled(ty.seal()),
                 },
+            }
+        }
+    }
+
+    impl Quote for HoasFun {
+        type Sealed = QuotedFun;
+
+        fn seal(self) -> Self::Sealed {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(Name {
+                definition: empty_definition(),
+                name: "_".into(),
+            }));
+
+            QuotedFun {
+                domain: self.domain.seal().into(),
+                value: self.value.call((variable,)).seal().into(),
             }
         }
     }
@@ -538,7 +593,7 @@ pub mod seals {
                 Type::Fun(pi) => Type::Fun(pi.seal()),
                 Type::Bound(debruijin) => Type::Bound(debruijin),
                 Type::Hole(hole) => Type::Hole(hole.data.borrow().clone().seal().into()),
-                Type::Pi(pi) => pi.seal(),
+                Type::Pi(pi) => Type::Pi(pi.seal()),
                 Type::App(a, b) => Type::App(a.seal().into(), b.seal().into()),
             }
         }
@@ -552,25 +607,31 @@ pub mod state {
 
     use super::*;
 
-    pub trait Traits = PartialEq + Eq + Clone + Hash + Debug;
+    pub trait TypeKind = Display + PartialEq + Eq + Clone + Hash + Debug;
 
     /// Represents a mode of a type. This is used to distinguish between different
     /// kinds of modes, such as `built` and `ready`.
-    pub trait TypeState: Default + Traits {
-        type Forall: Traits;
-        type Arrow: Traits;
-        type Pi: Traits;
-        type Hole: Traits;
+    pub trait TypeState: Default + TypeKind {
+        type Forall: TypeKind;
+        type Fun: TypeKind;
+        type Pi: TypeKind;
+        type Hole: TypeKind;
     }
 
     /// Ready is the type of build in types.
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Quoted;
 
+    impl Display for Quoted {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Quoted")
+        }
+    }
+
     impl TypeState for Quoted {
         type Hole = Box<crate::type_rep::Hole<Quoted>>;
         type Forall = pi::QuotedPi;
-        type Arrow = fun::QuotedFun;
+        type Fun = fun::QuotedFun;
         type Pi = pi::QuotedPi;
     }
 
@@ -578,10 +639,16 @@ pub mod state {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Hoas;
 
+    impl Display for Hoas {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Hoas")
+        }
+    }
+
     impl TypeState for Hoas {
         type Hole = HoleRef<Hoas>;
         type Forall = pi::HoasPi;
-        type Arrow = fun::HoasFun;
+        type Fun = fun::HoasFun;
         type Pi = pi::HoasPi;
     }
 }
