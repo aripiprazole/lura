@@ -10,8 +10,7 @@ use std::{
 
 use crate::adhoc::Qual;
 use crate::infer::InferCtx;
-use crate::kind::Kind;
-use crate::type_rep::fun::HoasFun;
+use crate::type_rep::pi::HoasPi;
 
 pub type Level = usize;
 
@@ -104,14 +103,10 @@ pub type TypeRep = Type<state::Quoted>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type<S: state::TypeState> {
     Primary(Primary),
-    Constructor(Name, Kind<S>),
+    Constructor(Name),
     App(Box<Type<S>>, Box<Type<S>>),
     Forall(Qual<S, S::Forall>),
     Pi(S::Pi),
-
-    /// Represents an arrow function type. This is used
-    /// to represent a function type.
-    Fun(S::Fun),
 
     /// Represents a hole. This is used to represent a type
     /// that should be inferred.
@@ -141,80 +136,6 @@ impl<M: state::TypeState> Default for Type<M> {
     }
 }
 
-pub mod fun {
-    use super::*;
-    use std::rc::Rc;
-
-    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-    pub struct QuotedFun {
-        pub domain: Box<Type<state::Quoted>>,
-        pub value: Box<Type<state::Quoted>>,
-    }
-
-    impl Display for QuotedFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.domain)?;
-            write!(f, " -> ")?;
-            write!(f, "{}", self.value)
-        }
-    }
-
-    #[derive(Clone)]
-    pub struct HoasFun {
-        pub domain: Box<Type<state::Hoas>>,
-        pub value: Rc<Hoas<state::Hoas>>,
-    }
-
-    impl HoasFun {
-        pub fn codomain(&self, ty: Type<state::Hoas>) -> Type<state::Hoas> {
-            (self.value)(ty)
-        }
-    }
-
-    impl Eq for HoasFun {}
-
-    impl Display for HoasFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            Debug::fmt(self, f)
-        }
-    }
-
-    impl Debug for HoasFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("Fun")
-                .field("domain", &self.domain)
-                .field("value", &"<function>")
-                .finish()
-        }
-    }
-
-    impl PartialEq for HoasFun {
-        fn eq(&self, other: &Self) -> bool {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Hole);
-
-            self.domain == other.domain
-                && self.value.call((variable.clone(),)) == other.value.call((variable,))
-        }
-    }
-
-    impl Hash for HoasFun {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Hole);
-
-            self.domain.hash(state);
-            self.value.call((variable,)).hash(state);
-        }
-    }
-}
-
 /// Represents a type dependent function. This is used to
 /// represent a type dependent function.
 ///
@@ -225,7 +146,6 @@ pub mod fun {
 /// and type families.
 pub mod forall {
     use super::*;
-    use crate::kind::Kind;
     use std::rc::Rc;
 
     /// Represents a type-level function. This is used
@@ -242,7 +162,7 @@ pub mod forall {
     /// and type families.
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct QuotedForall {
-        pub domain: Vec<(Name, Kind<state::Quoted>)>,
+        pub domain: Vec<(Name, Type<state::Quoted>)>,
         pub codomain: Box<Type<state::Quoted>>,
     }
 
@@ -259,7 +179,7 @@ pub mod forall {
 
     #[derive(Clone)]
     pub struct HoasForall {
-        pub domain: Vec<(Name, Kind<state::Hoas>)>,
+        pub domain: Vec<(Name, Type<state::Hoas>)>,
         pub codomain: Rc<ForallHoas<state::Hoas>>,
     }
 
@@ -343,14 +263,17 @@ pub mod pi {
     /// and type families.
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct QuotedPi {
-        pub name: Name,
+        pub name: Option<Name>,
         pub domain: Box<Type<state::Quoted>>,
         pub codomain: Box<Type<state::Quoted>>,
     }
 
     impl Display for QuotedPi {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let name = &self.name;
+            let name = match &self.name {
+                Some(name) => name.to_string(),
+                None => "_".to_string(),
+            };
             let domain = &self.domain;
             let codomain = &self.codomain;
 
@@ -360,7 +283,7 @@ pub mod pi {
 
     #[derive(Clone)]
     pub struct HoasPi {
-        pub name: Name,
+        pub name: Option<Name>,
         pub domain: Box<Type<state::Hoas>>,
         pub codomain: Rc<Hoas<state::Hoas>>,
     }
@@ -395,7 +318,10 @@ pub mod pi {
             //
             // This is needed because we need to create a
             // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+            let variable = Type::Bound(match self.name {
+                None => Bound::Hole,
+                Some(ref name) => Bound::Flexible(name.clone()),
+            });
 
             self.name == other.name
                 && self.domain == other.domain
@@ -409,7 +335,10 @@ pub mod pi {
             //
             // This is needed because we need to create a
             // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+            let variable = Type::Bound(match self.name {
+                None => Bound::Hole,
+                Some(ref name) => Bound::Flexible(name.clone()),
+            });
 
             self.name.hash(state);
             self.domain.hash(state);
@@ -423,7 +352,7 @@ impl Type<state::Hoas> {
         let mut spine = vec![];
         let mut last_result = self;
 
-        while let Type::Fun(ref fun @ HoasFun { ref domain, .. }) = last_result {
+        while let Type::Pi(ref fun @ pi::HoasPi { ref domain, .. }) = last_result {
             use crate::whnf::Whnf;
 
             spine.push(domain.eval(ctx));
@@ -447,15 +376,17 @@ impl Type<state::Hoas> {
             return return_type;
         };
 
-        let mut result = Self::Fun(HoasFun {
+        let mut result = Self::Pi(HoasPi {
+            name: None,
             domain: first.into(),
-            value: Rc::new(move |_| return_type.clone()),
+            codomain: Rc::new(move |_| return_type.clone()),
         });
 
         for domain in parameters {
-            result = Type::Fun(HoasFun {
+            result = Type::Pi(HoasPi {
+                name: None,
                 domain: domain.into(),
-                value: Rc::new(move |_| result.clone()),
+                codomain: Rc::new(move |_| result.clone()),
             });
         }
 
@@ -507,10 +438,9 @@ mod display {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Type::Primary(primary) => write!(f, "{primary}"),
-                Type::Constructor(constructor, _) => write!(f, "{constructor}"),
+                Type::Constructor(constructor) => write!(f, "{constructor}"),
                 Type::App(app, argument) => write!(f, "({} {})", app, argument),
                 Type::Forall(forall) => write!(f, "{forall}"),
-                Type::Fun(fun) => write!(f, "{fun}"),
                 Type::Pi(pi) => write!(f, "{pi}"),
                 Type::Hole(hole) => write!(f, "{hole}"),
                 Type::Bound(level) => write!(f, "`{}", level),
@@ -633,11 +563,9 @@ pub mod holes {
 pub mod seals {
     use super::{
         forall::{HoasForall, QuotedForall},
-        fun::{HoasFun, QuotedFun},
         pi::{HoasPi, QuotedPi},
         *,
     };
-    use crate::kind::Kind;
 
     impl Quote for Hole<state::Hoas> {
         type Sealed = Hole<state::Quoted>;
@@ -655,40 +583,6 @@ pub mod seals {
                 HoleKind::Filled(ty) => Hole {
                     kind: HoleKind::Filled(ty.seal()),
                 },
-            }
-        }
-    }
-
-    impl Quote for HoasFun {
-        type Sealed = QuotedFun;
-
-        fn seal(self) -> Self::Sealed {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(Name {
-                definition: empty_definition(),
-                name: "_".into(),
-            }));
-
-            QuotedFun {
-                domain: self.domain.seal().into(),
-                value: self.value.call((variable,)).seal().into(),
-            }
-        }
-    }
-
-    impl Quote for Kind<state::Hoas> {
-        type Sealed = Kind<state::Quoted>;
-
-        fn seal(self) -> Self::Sealed {
-            match self {
-                Kind::Star => Kind::Star,
-                Kind::Type(_) => todo!(),
-                Kind::Fun(domain, codomain) => {
-                    Kind::Fun(domain.seal().into(), codomain.seal().into())
-                }
             }
         }
     }
@@ -727,7 +621,10 @@ pub mod seals {
             //
             // This is needed because we need to create a
             // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+            let variable = Type::Bound(match self.name {
+                None => Bound::Hole,
+                Some(ref name) => Bound::Flexible(name.clone()),
+            });
 
             QuotedPi {
                 name: self.name,
@@ -745,9 +642,8 @@ pub mod seals {
         fn seal(self) -> Self::Sealed {
             match self {
                 Type::Primary(primary) => Type::Primary(primary),
-                Type::Constructor(constructor, kind) => Type::Constructor(constructor, kind.seal()),
+                Type::Constructor(constructor) => Type::Constructor(constructor),
                 Type::Forall(forall) => Type::Forall(forall.seal()),
-                Type::Fun(pi) => Type::Fun(pi.seal()),
                 Type::Bound(debruijin) => Type::Bound(debruijin),
                 Type::Hole(hole) => Type::Hole(hole.data.borrow().clone().seal().into()),
                 Type::Pi(pi) => Type::Pi(pi.seal()),
@@ -759,6 +655,16 @@ pub mod seals {
 
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
+///
+/// Implements a state for a type. This is used to distinguish between different
+/// kinds of types, such as `hoas` and `quoted`.
+///
+/// Quoted types are used to print types. They are the serialized version of a type. And
+/// the only way to create a quoted type is to quote a type.
+///
+/// Now, the HOAS type is used to represent a type that is not ready to be printed. This
+/// is because it contains holes, which are not ready to be printed. This is because holes
+/// are not ready to be printed, and they need to be filled before they can be printed.
 pub mod state {
     use std::{fmt::Debug, hash::Hash};
 
@@ -767,11 +673,15 @@ pub mod state {
     pub trait TypeKind = Display + PartialEq + Eq + Clone + Hash + Debug;
 
     /// Represents a mode of a type. This is used to distinguish between different
-    /// kinds of modes, such as `built` and `ready`.
+    /// kinds of modes, such as `hoas` and `quoted`.
     pub trait TypeState: Default + TypeKind {
+        /// The type of a forall type.
         type Forall: TypeKind;
-        type Fun: TypeKind;
+
+        /// The type of a pi type.
         type Pi: TypeKind;
+
+        /// The type of a hole type.
         type Hole: TypeKind;
     }
 
@@ -788,7 +698,6 @@ pub mod state {
     impl TypeState for Quoted {
         type Hole = Box<Hole<Quoted>>;
         type Forall = forall::QuotedForall;
-        type Fun = fun::QuotedFun;
         type Pi = pi::QuotedPi;
     }
 
@@ -805,7 +714,6 @@ pub mod state {
     impl TypeState for Hoas {
         type Hole = HoleRef<Hoas>;
         type Forall = forall::HoasForall;
-        type Fun = fun::HoasFun;
         type Pi = pi::HoasPi;
     }
 }

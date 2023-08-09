@@ -19,9 +19,7 @@ use lura_hir::{
     },
 };
 
-use crate::kind::Kind;
 use crate::type_rep::forall::HoasForall;
-use crate::type_rep::fun::HoasFun;
 use crate::type_rep::pi::HoasPi;
 use crate::whnf::Whnf;
 use crate::{
@@ -101,7 +99,7 @@ impl Substitution<'_, '_> {
         match ty {
             // SECTION: Types
             Type::Primary(_) => {}
-            Type::Constructor(_, _) => {}
+            Type::Constructor(_) => {}
             Type::Bound(Bound::Flexible(_)) => {}
             Tau::Bound(Bound::Hole) => {}
             Type::Forall(forall) => {
@@ -128,25 +126,14 @@ impl Substitution<'_, '_> {
 
                 // Unnamed holes, because this isn't a dependent
                 // function type, we can just use the same hole
-                let parameter = Tau::Bound(Bound::Flexible(pi.name.clone()));
+                let parameter = Tau::Bound(match pi.name {
+                    Some(ref name) => Bound::Flexible(name.clone()),
+                    None => Bound::Hole,
+                });
 
                 // Exeuctes the HOAS function to get the codomain
                 // and then evaluates it to WHNF
                 let codomain = pi.codomain(parameter);
-
-                self.hole_unify_prechecks(domain, scope, hole.clone());
-                self.hole_unify_prechecks(codomain, scope, hole)
-            }
-            Type::Fun(fun) => {
-                let domain = fun.domain.eval(self.ctx);
-
-                // Unnamed holes, because this isn't a dependent
-                // function type, we can just use the same hole
-                let parameter = Tau::Bound(Bound::Hole);
-
-                // Exeuctes the HOAS function to get the codomain
-                // and then evaluates it to WHNF
-                let codomain = fun.codomain(parameter);
 
                 self.hole_unify_prechecks(domain, scope, hole.clone());
                 self.hole_unify_prechecks(codomain, scope, hole)
@@ -227,7 +214,7 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Type::Constructor(constructor_a, _), Type::Constructor(constructor_b, _)) => {
+            (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
                 // unify the names
                 if constructor_a.definition != constructor_b.definition {
                     self.errors.push_back(TypeError::IncompatibleTypes {
@@ -236,12 +223,12 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Type::Fun(arrow_a), Type::Fun(arrow_b)) => {
-                let domain_a = arrow_a.domain.eval(self.ctx);
-                let domain_b = arrow_b.domain.eval(self.ctx);
+            (Type::Pi(pi_a), Type::Pi(pi_b)) => {
+                let domain_a = pi_a.domain.eval(self.ctx);
+                let domain_b = pi_b.domain.eval(self.ctx);
 
-                let codomain_a = arrow_a.codomain(Tau::Bound(Bound::Hole));
-                let codomain_b = arrow_b.codomain(Tau::Bound(Bound::Hole));
+                let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
+                let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
 
                 self.internal_unify(domain_a, domain_b);
                 self.internal_unify(codomain_a, codomain_b);
@@ -784,15 +771,23 @@ impl Infer for TopLevel {
             };
 
             let constructor = match decl.type_rep(ctx.db) {
-                Some(TypeRep::Error(_)) => Tau::Constructor(name.clone(), Kind::Star),
+                Some(TypeRep::Error(_)) => Tau::Constructor(name.clone()),
                 Some(TypeRep::Hole) if !use_return_type => {
+                    let goal = Tau::Constructor(name.clone());
+
                     // Generate the type-level function
                     // that represents the declaration
-                    let kind = parameters.iter().fold(Kind::Star, |acc, _| {
-                        Kind::Fun(Kind::Star.into(), acc.into())
-                    });
-
-                    Tau::Constructor(name.clone(), kind)
+                    parameters.iter().fold(goal, |acc, parameter| {
+                        // Creates a new type variable to represent
+                        // the type of the declaration
+                        Tau::Pi(HoasPi {
+                            name: None,
+                            domain: parameter.clone().into(),
+                            codomain: Rc::new(move |_parameter| {
+                                acc.clone()
+                            }),
+                        })
+                    })
                 }
                 Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
                     // # Safety
@@ -812,7 +807,7 @@ impl Infer for TopLevel {
                     return variant_ty;
                 }
                 Some(type_rep) => ctx.eval(type_rep),
-                None => Tau::Constructor(name.clone(), Kind::Star),
+                None => Tau::Constructor(name.clone()),
             };
 
             // Creates the type of the variant
@@ -1109,14 +1104,6 @@ impl Type<state::Hoas> {
                 a.replace(name, replacement.clone()).into(),
                 b.replace(name, replacement).into(),
             ),
-            Type::Fun(fun) => Type::Fun(HoasFun {
-                domain: fun.domain.clone().replace(name, replacement.clone()).into(),
-                value: Rc::new(move |domain| {
-                    fun.codomain(domain)
-                        .replace(name, replacement.clone())
-                        .into()
-                }),
-            }),
             Type::Pi(fun) => Type::Pi(HoasPi {
                 name: fun.name.clone(),
                 domain: fun.domain.clone().replace(name, replacement.clone()).into(),
@@ -1235,9 +1222,10 @@ impl<'tctx> InferCtx<'tctx> {
                         parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Fun(HoasFun {
+                        Tau::Pi(HoasPi {
+                            name: None,
                             domain: next.into(),
-                            value: Rc::new(move |_domain| acc.clone().into()),
+                            codomain: Rc::new(move |_| acc.clone().into()),
                         })
                     })
             }
@@ -1292,7 +1280,7 @@ impl<'tctx> InferCtx<'tctx> {
                         //
                         // NOTE: currently the type can't be specified
                         // so, whatever.
-                        Some((name, Kind::Star))
+                        Some((name, Type::TYPE))
                     })
                     .collect::<Vec<_>>();
 
