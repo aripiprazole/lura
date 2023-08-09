@@ -1,18 +1,18 @@
 use std::fmt::{Display, Formatter};
 use crate::type_rep::{state, Type};
-use crate::type_rep::state::Quoted;
 
 /// The kind of a type. It's basically the type of types.
 /// 
 /// It's used to implement higher-kinded types, and type families.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Kind<S: state::TypeState> {
     /// The type of types.
+    #[default]
     Star,
 
     /// Wraps a type, to be easier to deal with
     /// type families.
-    Type(Type<S>),
+    Type(Box<Type<S>>),
 
     /// The kind of a function.
     Fun(Box<Kind<S>>, Box<Kind<S>>),
