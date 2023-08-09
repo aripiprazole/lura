@@ -489,6 +489,9 @@ pub mod declaration {
 
         /// Upcasts the declaration to a [`DeclDescriptor`]. It's used to create a descriptor of
         /// the declaration, that can be used to create a [`Definition`].
+        /// 
+        /// TODO: remove this method, and use the [`Definition`] directly.
+        #[deprecated]
         fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor;
     }
 
@@ -676,6 +679,7 @@ pub mod declaration {
 ///
 /// The other definitions are just like declarations, but they can't be referenced by other.
 pub mod top_level {
+    use core::panic;
     use std::fmt::Formatter;
     use std::sync::Arc;
 
@@ -752,7 +756,7 @@ pub mod top_level {
         }
 
         fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
-            top_level::DeclDescriptor::Empty
+            panic!("Signature can't be upcasted")
         }
     }
 
@@ -1235,7 +1239,7 @@ pub mod top_level {
         }
 
         fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
-            top_level::DeclDescriptor::Empty
+            panic!("Constructors can't be upcasted")
         }
     }
 
@@ -1269,7 +1273,6 @@ pub mod top_level {
     /// parsing process.
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum TopLevel {
-        Empty,
         Error(HirError),
         Using(UsingTopLevel),
         Command(CommandTopLevel),
@@ -1283,7 +1286,6 @@ pub mod top_level {
     impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for TopLevel {
         fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
             match self {
-                TopLevel::Empty => write!(f, "Empty"),
                 TopLevel::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
                 TopLevel::Using(using) => using.debug_all(db).fmt(f),
                 TopLevel::Command(command) => command.debug_all(db).fmt(f),
@@ -1299,7 +1301,6 @@ pub mod top_level {
     impl walking::Walker for TopLevel {
         fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
             match self {
-                TopLevel::Empty => listener.visit_empty_top_level(),
                 TopLevel::Error(error) => {
                     listener.enter_error_top_level(error);
                     error.accept(db, listener);
@@ -1319,7 +1320,6 @@ pub mod top_level {
     impl HirElement for TopLevel {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
-                Self::Empty => Location::call_site(db),
                 Self::Error(downcast) => downcast.location(db),
                 Self::Using(downcast) => downcast.location(db),
                 Self::Command(downcast) => downcast.location(db),
@@ -1336,7 +1336,6 @@ pub mod top_level {
     /// just like a [`TopLevel`], but it doesn't have the "command-like" top level declarations.
     #[derive(Clone, Hash, PartialEq, Eq, Debug)]
     pub enum DeclDescriptor {
-        Empty,
         Error(HirError),
         BindingGroup(BindingGroup),
         ClassDecl(ClassDecl),
@@ -1348,7 +1347,6 @@ pub mod top_level {
     impl HirElement for DeclDescriptor {
         fn location(&self, db: &dyn crate::HirDb) -> Location {
             match self {
-                Self::Empty => Location::call_site(db),
                 Self::Error(downcast) => downcast.location(db),
                 Self::BindingGroup(downcast) => downcast.location(db),
                 Self::ClassDecl(downcast) => downcast.location(db),
@@ -1366,7 +1364,6 @@ pub mod top_level {
 
         fn try_from(value: DeclDescriptor) -> Result<Self, ()> {
             Ok(match value {
-                DeclDescriptor::Empty => Self::Empty,
                 DeclDescriptor::Error(downcast) => Self::Error(downcast),
                 DeclDescriptor::BindingGroup(downcast) => Self::BindingGroup(downcast),
                 DeclDescriptor::ClassDecl(downcast) => Self::ClassDecl(downcast),
@@ -1384,7 +1381,6 @@ pub mod top_level {
 
         fn try_from(value: TopLevel) -> Result<Self, ()> {
             Ok(match value {
-                TopLevel::Empty => Self::Empty,
                 TopLevel::Error(downcast) => Self::Error(downcast),
                 TopLevel::Using(_) => return Err(()),
                 TopLevel::Command(_) => return Err(()),
@@ -1408,7 +1404,6 @@ pub mod top_level {
             db: &dyn crate::HirDb,
         ) -> HashSet<declaration::Attribute, FxBuildHasher> {
             match self {
-                Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.attributes(db),
                 Self::ClassDecl(downcast) => downcast.attributes(db),
@@ -1420,7 +1415,6 @@ pub mod top_level {
 
         fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
             match self {
-                Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.visibility(db),
                 Self::ClassDecl(downcast) => downcast.visibility(db),
@@ -1432,7 +1426,6 @@ pub mod top_level {
 
         fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
             match self {
-                Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.docs(db),
                 Self::ClassDecl(downcast) => downcast.docs(db),
@@ -1444,7 +1437,6 @@ pub mod top_level {
 
         fn name(&self, db: &dyn crate::HirDb) -> Definition {
             match self {
-                Self::Empty => default_with_db(db),
                 Self::Error(_) => default_with_db(db),
                 Self::BindingGroup(downcast) => downcast.name(db),
                 Self::ClassDecl(downcast) => downcast.name(db),
@@ -1456,7 +1448,6 @@ pub mod top_level {
 
         fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
             match self {
-                Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.parameters(db),
                 Self::ClassDecl(downcast) => downcast.parameters(db),
@@ -1468,7 +1459,6 @@ pub mod top_level {
 
         fn type_rep(&self, db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
             match self {
-                Self::Empty => Default::default(),
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.type_rep(db),
                 Self::ClassDecl(downcast) => downcast.type_rep(db),

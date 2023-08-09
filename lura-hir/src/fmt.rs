@@ -378,7 +378,6 @@ mod impls {
             use top_level::TopLevel::*;
 
             match self {
-                Empty => write!(f, "_"),
                 Error(_) => write!(f, "!"),
                 Using(using_top_level) => using_top_level.hir_fmt(db, f, scope),
                 Command(command_top_level) => command_top_level.hir_fmt(db, f, scope),

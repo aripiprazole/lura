@@ -178,7 +178,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     // errors in the IDE, and it will cause blindness in the resolution.
                     //
                     // So, continue before pushing the declaration, if it is an empty declaration.
-                    if let TopLevel::Empty = decl {
+                    if let TopLevel::Error(..) = decl {
                         continue;
                     }
 

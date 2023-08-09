@@ -94,7 +94,6 @@ pub trait HirListener {
     fn enter_binding_pattern(&mut self, binding: pattern::BindingPattern) {}
 
     // SECTION: top_level
-    fn visit_empty_top_level(&mut self) {}
     fn enter_error_top_level(&mut self, error: HirError) {}
     fn enter_using_top_level(&mut self, using: top_level::UsingTopLevel) {}
     fn enter_binding_top_level(&mut self, binding: top_level::BindingGroup) {}

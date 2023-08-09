@@ -827,7 +827,6 @@ impl Infer for TopLevel {
 
         match self {
             // SECTION: Sentinel Values
-            TopLevel::Empty => {}
             TopLevel::Error(_) => {}
 
             // SECTION: Top Level
