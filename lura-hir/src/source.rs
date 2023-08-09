@@ -1271,7 +1271,7 @@ pub mod top_level {
     ///
     /// It can have recovery errors, that are used to recover from errors, and to continue the
     /// parsing process.
-    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
     pub enum TopLevel {
         Error(HirError),
         Using(UsingTopLevel),
