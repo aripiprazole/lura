@@ -5,7 +5,6 @@ use std::{
     cell::RefCell,
     fmt::{Debug, Display},
     hash::Hash,
-    sync::Arc,
 };
 
 use crate::adhoc::Qual;
@@ -14,7 +13,7 @@ pub type Level = usize;
 
 /// Represents a type-level function. This is used
 /// to represent a type-level function.
-pub type Hoas<M> = dyn Fn(Type<M>) -> Type<M> + Sync + Send;
+pub type Hoas<S> = dyn Fn(Type<S>) -> Type<S>;
 
 /// Represents a type that could be sealed to erase mutability.
 pub trait Quote {
@@ -23,79 +22,6 @@ pub trait Quote {
 
     /// Seal the type.
     fn seal(self) -> Self::Sealed;
-}
-
-pub mod fun {
-    use super::*;
-
-    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-    pub struct QuotedFun {
-        pub domain: Box<Type<state::Quoted>>,
-        pub value: Box<Type<state::Quoted>>,
-    }
-
-    impl Display for QuotedFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.domain)?;
-            write!(f, " -> ")?;
-            write!(f, "{}", self.value)
-        }
-    }
-
-    #[derive(Clone)]
-    pub struct HoasFun {
-        pub domain: Box<Type<state::Hoas>>,
-        pub value: Arc<Hoas<state::Hoas>>,
-    }
-
-    impl Eq for HoasFun {}
-
-    impl Display for HoasFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            Debug::fmt(self, f)
-        }
-    }
-
-    impl Debug for HoasFun {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("Fun")
-                .field("domain", &self.domain)
-                .field("value", &"<function>")
-                .finish()
-        }
-    }
-
-    impl PartialEq for HoasFun {
-        fn eq(&self, other: &Self) -> bool {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(Name {
-                definition: empty_definition(),
-                name: "_".into(),
-            }));
-
-            self.domain == other.domain
-                && self.value.call((variable.clone(),)) == other.value.call((variable,))
-        }
-    }
-
-    impl Hash for HoasFun {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(Name {
-                definition: empty_definition(),
-                name: "_".into(),
-            }));
-
-            self.domain.hash(state);
-            self.value.call((variable,)).hash(state);
-        }
-    }
 }
 
 /// Represents a primary type. This is used to represent a type that is not a constructor.
@@ -157,202 +83,9 @@ impl Display for Name {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Bound {
+    Hole,
     Flexible(Name),
     Index(Name, Level),
-}
-
-/// Represents a type dependent function. This is used to
-/// represent a type dependent function.
-///
-/// This is used to represent a type variable that
-/// has not been unified with a type.
-///
-/// NOTE: This is supposed to be used to implement GADT
-/// and type families.
-pub mod forall {
-    use super::*;
-
-    /// Represents a type-level function. This is used
-    /// to represent a type-level function.
-    pub type ForallHoas<M> = dyn Fn(Vec<Type<M>>) -> Type<M> + Sync + Send;
-
-    /// Represents a type dependent function. This is used to
-    /// represent a type dependent function.
-    ///
-    /// This is used to represent a type variable that
-    /// has not been unified with a type.
-    ///
-    /// NOTE: This is supposed to be used to implement GADT
-    /// and type families.
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct QuotedForall {
-        pub name: Name,
-        pub domain: Vec<(Name, Type<state::Quoted>)>,
-        pub codomain: Box<Type<state::Quoted>>,
-    }
-
-    impl Display for QuotedForall {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let name = &self.name;
-            let domain = &self.domain;
-            let codomain = &self.codomain;
-
-            todo!()
-
-            // write!(f, "({name} : {domain}) -> {codomain}")
-        }
-    }
-
-    #[derive(Clone)]
-    pub struct HoasForall {
-        pub name: Name,
-        pub domain: Vec<(Name, Type<state::Hoas>)>,
-        pub codomain: Arc<ForallHoas<state::Hoas>>,
-    }
-
-    impl Eq for HoasForall {}
-
-    impl Display for HoasForall {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            Debug::fmt(self, f)
-        }
-    }
-
-    impl Debug for HoasForall {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("Forall")
-                .field("name", &self.name)
-                .field("domain", &self.domain)
-                .field("codomain", &"<function>")
-                .finish()
-        }
-    }
-
-    impl PartialEq for HoasForall {
-        fn eq(&self, other: &Self) -> bool {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let domain = self
-                .domain
-                .iter()
-                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
-                .collect::<Vec<_>>();
-
-            self.name == other.name
-                && self.domain == other.domain
-                && self.codomain.call((domain.clone(),)) == other.codomain.call((domain,))
-        }
-    }
-
-    impl Hash for HoasForall {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let domain = self
-                .domain
-                .iter()
-                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
-                .collect();
-
-            self.name.hash(state);
-            self.domain.hash(state);
-            self.codomain.call((domain,)).hash(state);
-        }
-    }
-}
-
-/// Represents a type dependent function. This is used to
-/// represent a type dependent function.
-///
-/// This is used to represent a type variable that
-/// has not been unified with a type.
-///
-/// NOTE: This is supposed to be used to implement GADT
-/// and type families.
-pub mod pi {
-    use super::*;
-
-    /// Represents a type dependent function. This is used to
-    /// represent a type dependent function.
-    ///
-    /// This is used to represent a type variable that
-    /// has not been unified with a type.
-    ///
-    /// NOTE: This is supposed to be used to implement GADT
-    /// and type families.
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct QuotedPi {
-        pub name: Name,
-        pub domain: Box<Type<state::Quoted>>,
-        pub codomain: Box<Type<state::Quoted>>,
-    }
-
-    impl Display for QuotedPi {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let name = &self.name;
-            let domain = &self.domain;
-            let codomain = &self.codomain;
-
-            write!(f, "({name} : {domain}) -> {codomain}")
-        }
-    }
-
-    #[derive(Clone)]
-    pub struct HoasPi {
-        pub name: Name,
-        pub domain: Box<Type<state::Hoas>>,
-        pub codomain: Arc<Hoas<state::Hoas>>,
-    }
-
-    impl Eq for HoasPi {}
-
-    impl Display for HoasPi {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            Debug::fmt(self, f)
-        }
-    }
-
-    impl Debug for HoasPi {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("Pi")
-                .field("name", &self.name)
-                .field("domain", &self.domain)
-                .field("codomain", &"<function>")
-                .finish()
-        }
-    }
-
-    impl PartialEq for HoasPi {
-        fn eq(&self, other: &Self) -> bool {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
-
-            self.name == other.name
-                && self.domain == other.domain
-                && self.codomain.call((variable.clone(),)) == other.codomain.call((variable,))
-        }
-    }
-
-    impl Hash for HoasPi {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            // Create a dummy value to use as the variable.
-            //
-            // This is needed because we need to create a
-            // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
-
-            self.name.hash(state);
-            self.domain.hash(state);
-            self.codomain.call((variable,)).hash(state);
-        }
-    }
 }
 
 /// Represents a sealed type variable. This is used to represent a type variable
@@ -401,6 +134,283 @@ impl<M: state::TypeState> Default for Type<M> {
     /// It's a sentinel value that is used to represent an error.
     fn default() -> Self {
         Type::Primary(Primary::Error)
+    }
+}
+
+pub mod fun {
+    use super::*;
+    use std::rc::Rc;
+
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    pub struct QuotedFun {
+        pub domain: Box<Type<state::Quoted>>,
+        pub value: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.domain)?;
+            write!(f, " -> ")?;
+            write!(f, "{}", self.value)
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasFun {
+        pub domain: Box<Type<state::Hoas>>,
+        pub value: Rc<Hoas<state::Hoas>>,
+    }
+
+    impl HoasFun {
+        pub fn codomain(&self, ty: Type<state::Hoas>) -> Type<state::Hoas> {
+            (self.value)(ty)
+        }
+    }
+
+    impl Eq for HoasFun {}
+
+    impl Display for HoasFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
+    impl Debug for HoasFun {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Fun")
+                .field("domain", &self.domain)
+                .field("value", &"<function>")
+                .finish()
+        }
+    }
+
+    impl PartialEq for HoasFun {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Hole);
+
+            self.domain == other.domain
+                && self.value.call((variable.clone(),)) == other.value.call((variable,))
+        }
+    }
+
+    impl Hash for HoasFun {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Hole);
+
+            self.domain.hash(state);
+            self.value.call((variable,)).hash(state);
+        }
+    }
+}
+
+/// Represents a type dependent function. This is used to
+/// represent a type dependent function.
+///
+/// This is used to represent a type variable that
+/// has not been unified with a type.
+///
+/// NOTE: This is supposed to be used to implement GADT
+/// and type families.
+pub mod forall {
+    use super::*;
+    use crate::kind::Kind;
+    use std::rc::Rc;
+
+    /// Represents a type-level function. This is used
+    /// to represent a type-level function.
+    pub type ForallHoas<S> = dyn Fn(Vec<Type<S>>) -> Type<S>;
+
+    /// Represents a type dependent function. This is used to
+    /// represent a type dependent function.
+    ///
+    /// This is used to represent a type variable that
+    /// has not been unified with a type.
+    ///
+    /// NOTE: This is supposed to be used to implement GADT
+    /// and type families.
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct QuotedForall {
+        pub domain: Vec<(Name, Kind<state::Quoted>)>,
+        pub codomain: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let domain = &self.domain;
+            let codomain = &self.codomain;
+
+            todo!()
+
+            // write!(f, "({name} : {domain}) -> {codomain}")
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasForall {
+        pub domain: Vec<(Name, Kind<state::Hoas>)>,
+        pub codomain: Rc<ForallHoas<state::Hoas>>,
+    }
+
+    impl HoasForall {
+        pub fn instantiate(&self, types: Vec<Type<state::Hoas>>) -> Type<state::Hoas> {
+            (self.codomain)(types)
+        }
+    }
+
+    impl Eq for HoasForall {}
+
+    impl Display for HoasForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
+    impl Debug for HoasForall {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Forall")
+                .field("domain", &self.domain)
+                .field("codomain", &"<function>")
+                .finish()
+        }
+    }
+
+    impl PartialEq for HoasForall {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let domain = self
+                .domain
+                .iter()
+                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
+                .collect::<Vec<_>>();
+
+            self.domain == other.domain
+                && self.codomain.call((domain.clone(),)) == other.codomain.call((domain,))
+        }
+    }
+
+    impl Hash for HoasForall {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let domain = self
+                .domain
+                .iter()
+                .map(|value| Type::Bound(Bound::Flexible(value.0.clone())))
+                .collect();
+
+            self.domain.hash(state);
+            self.codomain.call((domain,)).hash(state);
+        }
+    }
+}
+
+/// Represents a type dependent function. This is used to
+/// represent a type dependent function.
+///
+/// This is used to represent a type variable that
+/// has not been unified with a type.
+///
+/// NOTE: This is supposed to be used to implement GADT
+/// and type families.
+pub mod pi {
+    use super::*;
+    use std::rc::Rc;
+
+    /// Represents a type dependent function. This is used to
+    /// represent a type dependent function.
+    ///
+    /// This is used to represent a type variable that
+    /// has not been unified with a type.
+    ///
+    /// NOTE: This is supposed to be used to implement GADT
+    /// and type families.
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct QuotedPi {
+        pub name: Name,
+        pub domain: Box<Type<state::Quoted>>,
+        pub codomain: Box<Type<state::Quoted>>,
+    }
+
+    impl Display for QuotedPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let name = &self.name;
+            let domain = &self.domain;
+            let codomain = &self.codomain;
+
+            write!(f, "({name} : {domain}) -> {codomain}")
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct HoasPi {
+        pub name: Name,
+        pub domain: Box<Type<state::Hoas>>,
+        pub codomain: Rc<Hoas<state::Hoas>>,
+    }
+
+    impl HoasPi {
+        pub fn codomain(&self, ty: Type<state::Hoas>) -> Type<state::Hoas> {
+            (self.codomain)(ty)
+        }
+    }
+
+    impl Eq for HoasPi {}
+
+    impl Display for HoasPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
+    impl Debug for HoasPi {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("Pi")
+                .field("name", &self.name)
+                .field("domain", &self.domain)
+                .field("codomain", &"<function>")
+                .finish()
+        }
+    }
+
+    impl PartialEq for HoasPi {
+        fn eq(&self, other: &Self) -> bool {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+
+            self.name == other.name
+                && self.domain == other.domain
+                && self.codomain.call((variable.clone(),)) == other.codomain.call((variable,))
+        }
+    }
+
+    impl Hash for HoasPi {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Create a dummy value to use as the variable.
+            //
+            // This is needed because we need to create a
+            // variable that is not bound to anything.
+            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
+
+            self.name.hash(state);
+            self.domain.hash(state);
+            self.codomain.call((variable,)).hash(state);
+        }
     }
 }
 
@@ -483,6 +493,7 @@ mod display {
     impl Display for Bound {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                Bound::Hole => write!(f, "_"),
                 Bound::Flexible(name) => write!(f, "{name}"),
                 Bound::Index(name, _) => write!(f, "{name}"),
             }
@@ -506,10 +517,10 @@ mod display {
 
     impl<M: state::TypeState> Display for Hole<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self.kind {
+            match &self.kind {
                 HoleKind::Error => write!(f, "!"),
                 HoleKind::Empty { scope } => write!(f, "?{scope}"),
-                HoleKind::Filled(ref ty) => write!(f, "{ty}"),
+                HoleKind::Filled(ty) => write!(f, "{ty}"),
             }
         }
     }
@@ -623,6 +634,7 @@ pub mod seals {
         pi::{HoasPi, QuotedPi},
         *,
     };
+    use crate::kind::Kind;
 
     impl Quote for Hole<state::Hoas> {
         type Sealed = Hole<state::Quoted>;
@@ -664,6 +676,20 @@ pub mod seals {
         }
     }
 
+    impl Quote for Kind<state::Hoas> {
+        type Sealed = Kind<state::Quoted>;
+
+        fn seal(self) -> Self::Sealed {
+            match self {
+                Kind::Star => Kind::Star,
+                Kind::Type(_) => todo!(),
+                Kind::Fun(domain, codomain) => {
+                    Kind::Fun(domain.seal().into(), codomain.seal().into())
+                }
+            }
+        }
+    }
+
     impl Quote for HoasForall {
         type Sealed = QuotedForall;
 
@@ -679,7 +705,6 @@ pub mod seals {
                 .collect();
 
             QuotedForall {
-                name: self.name,
                 domain: self
                     .domain
                     .iter()
@@ -699,7 +724,7 @@ pub mod seals {
             //
             // This is needed because we need to create a
             // variable that is not bound to anything.
-            let variable = Type::Bound(Bound::Flexible(self.name));
+            let variable = Type::Bound(Bound::Flexible(self.name.clone()));
 
             QuotedPi {
                 name: self.name,
@@ -758,7 +783,7 @@ pub mod state {
     }
 
     impl TypeState for Quoted {
-        type Hole = Box<crate::type_rep::Hole<Quoted>>;
+        type Hole = Box<Hole<Quoted>>;
         type Forall = forall::QuotedForall;
         type Fun = fun::QuotedFun;
         type Pi = pi::QuotedPi;

@@ -31,4 +31,5 @@ pub mod infer;
 pub mod kind;
 pub mod table;
 pub mod thir;
+pub mod whnf;
 pub mod type_rep;

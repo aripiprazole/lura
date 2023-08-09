@@ -2699,7 +2699,7 @@ pub mod type_rep {
     pub enum ArrowKind {
         Forall,
         Sigma,
-        Pi,
+        Fun,
     }
 
     /// Defines a type arrow representation. It's used to define a type that is a function, like

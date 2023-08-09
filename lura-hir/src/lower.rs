@@ -603,7 +603,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                     // The Self type is used here, to avoid confusion in the resolution.
                     let type_rep = TypeRep::Arrow(ArrowTypeRep::new(
                         db,
-                        /* kind       = */ ArrowKind::Pi,
+                        /* kind       = */ ArrowKind::Fun,
                         /* parameters = */ parameters,
                         /* value      = */ TypeRep::SelfType,
                         /* location   = */ Location::CallSite,
@@ -1585,7 +1585,7 @@ mod term_solver {
 
             TypeRep::Arrow(ArrowTypeRep::new(
                 self.db,
-                /* kind       = */ ArrowKind::Pi,
+                /* kind       = */ ArrowKind::Fun,
                 /* parameters = */ parameters,
                 /* value      = */ value,
                 /* location   = */ self.range(tree.range()),
