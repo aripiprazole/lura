@@ -24,7 +24,7 @@ use crate::{
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
     type_rep::{
         holes::{Hole, HoleRef},
-        kinds, *,
+        *,
     },
 };
 
