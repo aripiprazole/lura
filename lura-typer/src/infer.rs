@@ -19,6 +19,11 @@ use lura_hir::{
     },
 };
 
+use crate::kind::Kind;
+use crate::type_rep::forall::HoasForall;
+use crate::type_rep::fun::HoasFun;
+use crate::type_rep::pi::HoasPi;
+use crate::whnf::Whnf;
 use crate::{
     adhoc::{ClassEnv, Pred, Qual},
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
@@ -98,16 +103,53 @@ impl Substitution<'_, '_> {
             Type::Primary(_) => {}
             Type::Constructor(_) => {}
             Type::Bound(Bound::Flexible(_)) => {}
+            Tau::Bound(Bound::Hole) => {}
             Type::Forall(forall) => {
-                self.hole_unify_prechecks(*forall.data.value, scope, hole);
+                // Named holes, because this is a dependent
+                // function type, we need to create a new hole
+                // for each parameter
+                let domain = forall
+                    .domain
+                    .clone()
+                    .into_iter()
+                    .map(|(name, _)| Tau::Bound(Bound::Flexible(name)))
+                    .collect::<Vec<_>>();
+
+                // Exeuctes the HOAS function to get the codomain
+                // and then evaluates it to WHNF
+                let codomain = forall.instantiate(domain);
+
+                // TODO: check dependent kinds
+                // self.hole_unify_prechecks(domain, scope, hole.clone());
+                self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Pi(pi) => {
-                self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
-                // self.hole_unify_prechecks(*pi.codomain, scope, hole)
+                let domain = pi.domain.eval(self.ctx);
+
+                // Unnamed holes, because this isn't a dependent
+                // function type, we can just use the same hole
+                let parameter = Tau::Bound(Bound::Flexible(pi.name.clone()));
+
+                // Exeuctes the HOAS function to get the codomain
+                // and then evaluates it to WHNF
+                let codomain = pi.codomain(parameter);
+
+                self.hole_unify_prechecks(domain, scope, hole.clone());
+                self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Fun(fun) => {
-                self.hole_unify_prechecks(*fun.domain, scope, hole.clone());
-                self.hole_unify_prechecks(*fun.value, scope, hole)
+                let domain = fun.domain.eval(self.ctx);
+
+                // Unnamed holes, because this isn't a dependent
+                // function type, we can just use the same hole
+                let parameter = Tau::Bound(Bound::Hole);
+
+                // Exeuctes the HOAS function to get the codomain
+                // and then evaluates it to WHNF
+                let codomain = fun.codomain(parameter);
+
+                self.hole_unify_prechecks(domain, scope, hole.clone());
+                self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Bound(Bound::Index(_, level)) => {
                 if level > scope {
@@ -187,16 +229,22 @@ impl Substitution<'_, '_> {
             }
             (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
                 // unify the names
-                if constructor_a.name != constructor_b.name {
+                if constructor_a.definition != constructor_b.definition {
                     self.errors.push_back(TypeError::IncompatibleTypes {
-                        expected: constructor_a.name,
-                        actual: constructor_b.name,
+                        expected: constructor_a.definition,
+                        actual: constructor_b.definition,
                     });
                 }
             }
             (Type::Fun(arrow_a), Type::Fun(arrow_b)) => {
-                self.internal_unify(*arrow_a.domain, *arrow_b.domain);
-                self.internal_unify(*arrow_a.value, *arrow_b.value);
+                let domain_a = arrow_a.domain.eval(self.ctx);
+                let domain_b = arrow_b.domain.eval(self.ctx);
+
+                let codomain_a = arrow_a.codomain(Tau::Bound(Bound::Hole));
+                let codomain_b = arrow_b.codomain(Tau::Bound(Bound::Hole));
+
+                self.internal_unify(domain_a, domain_b);
+                self.internal_unify(codomain_a, codomain_b);
             }
             (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
                 self.internal_unify(*callee_a, *callee_b);
@@ -213,15 +261,15 @@ impl Substitution<'_, '_> {
                     return;
                 }
 
-                let mut acc_a = *forall_a.data.value.clone();
-                let mut acc_b = *forall_b.data.value.clone();
-                for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
-                    let level = self.ctx.add_to_env(param_a.name);
-                    let name = self.ctx.create_new_name(param_a.name);
-                    let debruijin = Tau::Bound(Bound::Index(name, level));
-                    acc_a = acc_a.replace(param_a.name, debruijin.clone());
-                    acc_b = acc_b.replace(param_b.name, debruijin);
-                }
+                // let mut acc_a = *forall_a.data.value.clone();
+                // let mut acc_b = *forall_b.data.value.clone();
+                // for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
+                //     let level = self.ctx.add_to_env(param_a.name);
+                //     let name = self.ctx.create_new_name(param_a.name);
+                //     let debruijin = Tau::Bound(Bound::Index(name, level));
+                //     acc_a = acc_a.replace(param_a.name, debruijin.clone());
+                //     acc_b = acc_b.replace(param_b.name, debruijin);
+                // }
 
                 // As the code doesn't implement subjumption, we need to
                 // throw an error whenever this unification is called.
@@ -238,7 +286,7 @@ impl Substitution<'_, '_> {
                 });
 
                 // Unify the results to compare the results
-                self.internal_unify(acc_a, acc_b);
+                // self.internal_unify(acc_a, acc_b);
             }
             (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
                 if level_a != level_b {
@@ -731,13 +779,13 @@ impl Infer for TopLevel {
                 .collect::<im_rc::Vector<_>>();
 
             let constructor = match decl.type_rep(ctx.db) {
-                Some(TypeRep::Error(_)) => Tau::Constructor(InternalConstructor {
-                    name,
-                    dbg_name: name.to_string(ctx.db),
+                Some(TypeRep::Error(_)) => Tau::Constructor(Name {
+                    definition: name,
+                    name: name.to_string(ctx.db),
                 }),
-                Some(TypeRep::Hole) if !use_return_type => Tau::Constructor(InternalConstructor {
-                    name,
-                    dbg_name: name.to_string(ctx.db),
+                Some(TypeRep::Hole) if !use_return_type => Tau::Constructor(Name {
+                    definition: name,
+                    name: name.to_string(ctx.db),
                 }),
                 Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
                     // # Safety
@@ -757,9 +805,9 @@ impl Infer for TopLevel {
                     return variant_ty;
                 }
                 Some(type_rep) => ctx.eval(type_rep),
-                None => Tau::Constructor(InternalConstructor {
-                    name,
-                    dbg_name: name.to_string(ctx.db),
+                None => Tau::Constructor(Name {
+                    definition: name,
+                    name: name.to_string(ctx.db),
                 }),
             };
 
@@ -1014,23 +1062,24 @@ impl Pred<state::Hoas> {
     }
 }
 
-impl Qual<state::Hoas, Fun<kinds::Forall, state::Hoas>> {
+impl Qual<state::Hoas, HoasForall> {
     // Replaces a type variable with a type.
-    fn replace(
-        self,
-        name: Definition,
-        replacement: Tau,
-    ) -> Qual<state::Hoas, Fun<kinds::Forall, state::Hoas>> {
+    fn replace(self, name: Definition, replacement: Tau) -> Qual<state::Hoas, HoasForall> {
         Self {
             predicates: self
                 .predicates
                 .into_iter()
                 .map(|pred| pred.replace(name, replacement.clone()))
                 .collect(),
-            data: Fun {
+            data: HoasForall {
                 domain: self.data.domain,
-                value: self.data.value.replace(name, replacement).into(),
-                phantom: PhantomData,
+                codomain: Rc::new(move |parameters| {
+                    let codomain = self.data.codomain.clone();
+
+                    (codomain)(parameters)
+                        .replace(name, replacement.clone())
+                        .into()
+                }),
             },
         }
     }
@@ -1051,16 +1100,28 @@ impl Type<state::Hoas> {
     fn replace(self, name: Definition, replacement: Tau) -> Tau {
         use holes::HoleKind::*;
         match self {
-            Type::Constructor(constructor) if constructor.name == name => replacement,
+            Type::Constructor(constructor) if constructor.definition == name => replacement,
             Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
             Type::App(a, b) => Type::App(
                 a.replace(name, replacement.clone()).into(),
                 b.replace(name, replacement).into(),
             ),
-            Type::Fun(pi) => Type::Fun(Fun {
-                domain: pi.domain.replace(name, replacement.clone()).into(),
-                value: pi.value.replace(name, replacement).into(),
-                phantom: PhantomData,
+            Type::Fun(fun) => Type::Fun(HoasFun {
+                domain: fun.domain.clone().replace(name, replacement.clone()).into(),
+                value: Rc::new(move |domain| {
+                    fun.codomain(domain)
+                        .replace(name, replacement.clone())
+                        .into()
+                }),
+            }),
+            Type::Pi(fun) => Type::Pi(HoasPi {
+                name: fun.name.clone(),
+                domain: fun.domain.clone().replace(name, replacement.clone()).into(),
+                codomain: Rc::new(move |domain| {
+                    fun.codomain(domain)
+                        .replace(name, replacement.clone())
+                        .into()
+                }),
             }),
             Type::Hole(hole) => match hole.data.borrow_mut().kind() {
                 Error => Type::Hole(HoleRef::new(Hole { kind: Error })),
@@ -1095,9 +1156,9 @@ impl<'tctx> InferCtx<'tctx> {
             .map(|_| self.new_meta())
             .collect::<Vec<_>>();
 
-        let mut codomain = *forall.data.value.clone();
-        for (constructor, hole) in forall.domain.iter().zip(parameters) {
-            codomain = codomain.replace(constructor.name, hole);
+        let mut codomain = forall.data.instantiate(parameters.clone());
+        for ((name, _), hole) in forall.domain.iter().zip(parameters) {
+            codomain = codomain.replace(name.definition, hole);
         }
 
         codomain
@@ -1157,12 +1218,12 @@ impl<'tctx> InferCtx<'tctx> {
                         Tau::App(acc.into(), self.eval(next).into())
                     })
             }
-            TypeRep::Arrow(pi) if matches!(pi.kind(self.db), ArrowKind::Pi) => {
+            TypeRep::Arrow(fun) if matches!(fun.kind(self.db), ArrowKind::Fun) => {
                 // Transforms a type representation of pi arrow into
                 // a semantic type arrow with a pi arrow
-                let value = self.eval(pi.value(self.db));
+                let value = self.eval(fun.value(self.db));
 
-                pi.parameters(self.db)
+                fun.parameters(self.db)
                     .into_iter()
                     .map(|parameter| {
                         // Checks the type of the parameter
@@ -1171,10 +1232,9 @@ impl<'tctx> InferCtx<'tctx> {
                         parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Fun(Fun {
+                        Tau::Fun(HoasFun {
                             domain: next.into(),
-                            value: acc.into(),
-                            phantom: PhantomData,
+                            value: Rc::new(move |_domain| acc.clone().into()),
                         })
                     })
             }
@@ -1201,18 +1261,19 @@ impl<'tctx> InferCtx<'tctx> {
                         // build a table.
                         self.parameters.insert(parameter, ty);
 
-                        Some(match binding {
+                        // Gets the forall's binding name.
+                        let name = match binding {
                             Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
                                 let location = HirLocation::new(self.db, location);
 
-                                InternalConstructor {
-                                    name: unresolved(self.db, location),
-                                    dbg_name: "_".into(),
+                                Name {
+                                    definition: unresolved(self.db, location),
+                                    name: "_".into(),
                                 }
                             }
-                            Pattern::Binding(binding) => InternalConstructor {
-                                name: binding.name(self.db),
-                                dbg_name: binding.name(self.db).to_string(self.db),
+                            Pattern::Binding(binding) => Name {
+                                definition: binding.name(self.db),
+                                name: binding.name(self.db).to_string(self.db),
                             },
                             _ => {
                                 return self.accumulate(ThirDiagnostic {
@@ -1221,14 +1282,20 @@ impl<'tctx> InferCtx<'tctx> {
                                     message: message!("unsupported pattern in forall type"),
                                 })
                             }
-                        })
+                        };
+
+                        // Falls back to a star if the type is not
+                        // specified.
+                        //
+                        // NOTE: currently the type can't be specified
+                        // so, whatever.
+                        Some((name, Kind::Star))
                     })
                     .collect::<Vec<_>>();
 
-                Tau::Forall(Qual::new(Fun {
+                Tau::Forall(Qual::new(HoasForall {
                     domain: parameters,
-                    value: value.into(),
-                    phantom: PhantomData,
+                    codomain: Rc::new(move |_domain| value.clone()),
                 }))
             }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
