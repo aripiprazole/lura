@@ -2,7 +2,17 @@ use holes::*;
 use lura_hir::resolve::Definition;
 use std::{cell::RefCell, fmt::Debug, hash::Hash, marker::PhantomData};
 
+use crate::adhoc::Qual;
+
 pub type Level = usize;
+/// Represents a type that could be sealed to erase mutability.
+pub trait Seal {
+    /// The sealed type.
+    type Sealed;
+
+    /// Seal the type.
+    fn seal(self) -> Self::Sealed;
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Arrow<K: kinds::ArrowKind, M: modes::TypeMode> {
@@ -61,14 +71,14 @@ pub enum Rigidness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TyVar {
+pub enum Bound {
     Flexible(Definition, String),
     Index(Definition, String, Level),
 }
 
-/// Represents a sealed type variable. This is used to represent a type variable 
+/// Represents a sealed type variable. This is used to represent a type variable
 /// that has been sealed.
-/// 
+///
 /// This means that the type variable has been unified with a type, and that type
 /// is now the only type that the type variable can be.
 pub type TypeRep = Ty<modes::Ready>;
@@ -80,10 +90,21 @@ pub enum Ty<M: modes::TypeMode> {
     Primary(Primary),
     Constructor(InternalConstructor),
     App(Box<Ty<M>>, Box<Ty<M>>),
-    Forall(Arrow<kinds::Forall, M>),
-    Arrow(Arrow<kinds::Arrow, M>),
+    Forall(Qual<M, Arrow<kinds::Forall, M>>),
+
+    /// Represents an arrow function type. This is used
+    /// to represent a function type.
+    Fun(Arrow<kinds::Arrow, M>),
+
+    /// Represents a hole. This is used to represent a type
+    /// that should be inferred.
     Hole(M::Hole),
-    Bound(TyVar),
+
+    /// Represents a variable. This is used
+    /// to represent a type variable.
+    ///
+    /// The variables can be either rigid or flexible.
+    Bound(Bound),
 }
 
 impl<M: modes::TypeMode> Ty<M> {
@@ -93,18 +114,6 @@ impl<M: modes::TypeMode> Ty<M> {
     pub const BOOL: Self = Self::Primary(Primary::Bool);
     pub const CHAR: Self = Self::Primary(Primary::Char);
     pub const STRING: Self = Self::Primary(Primary::String);
-}
-
-/// Represents a type. This is the core type of the system. It's a recursive type that can be
-/// either a primary type, a constructor, a forall, a pi, or a hole.
-///
-/// This is a tracked type, which means that it can be used as a key in the salsa database. It's
-/// a wrapper around [`Ty`], which is not tracked.
-#[salsa::tracked]
-pub struct ThirTy {
-    /// The kind of the type. This is used to distinguish between different kinds of types, such as
-    /// `forall`, `pi`, and `sigma`.
-    pub kind: Ty<modes::Ready>,
 }
 
 impl<M: modes::TypeMode> Default for Ty<M> {
@@ -120,7 +129,7 @@ impl Ty<modes::Mut> {
         let mut spine = vec![];
         let mut last_result = self;
 
-        while let Ty::Arrow(Arrow { domain, value, .. }) = last_result {
+        while let Ty::Fun(Arrow { domain, value, .. }) = last_result {
             spine.push(*domain);
             last_result = *value;
         }
@@ -129,9 +138,9 @@ impl Ty<modes::Mut> {
     }
 
     /// Create a new pi type. This is used to create a new pi type.
-    /// 
+    ///
     /// # Parameters
-    /// 
+    ///
     /// - `domain`: The domain of the pi type.
     /// - `value`: The value of the pi type.
     pub fn from_pi<I>(mut parameters: I, ty: Self) -> Self
@@ -141,14 +150,14 @@ impl Ty<modes::Mut> {
         let Some(first) = parameters.next() else {
             return ty
         };
-        let mut result = Self::Arrow(Arrow {
+        let mut result = Self::Fun(Arrow {
             domain: first.into(),
             value: ty.into(),
             phantom: PhantomData,
         });
 
         for parameter in parameters {
-            result = Ty::Arrow(Arrow {
+            result = Ty::Fun(Arrow {
                 domain: Box::new(parameter),
                 value: Box::new(result),
                 phantom: PhantomData,
@@ -208,11 +217,11 @@ mod display {
         }
     }
 
-    impl Display for TyVar {
+    impl Display for Bound {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                TyVar::Flexible(_, name) => write!(f, "{}", name),
-                TyVar::Index(_, name, _) => write!(f, "{}", name),
+                Bound::Flexible(_, name) => write!(f, "{}", name),
+                Bound::Index(_, name, _) => write!(f, "{}", name),
             }
         }
     }
@@ -224,7 +233,7 @@ mod display {
                 Ty::Constructor(constructor) => write!(f, "{}", constructor.dbg_name),
                 Ty::App(app, argument) => write!(f, "({} {})", app, argument),
                 Ty::Forall(forall) => write!(f, "{forall}"),
-                Ty::Arrow(pi) => write!(f, "{pi}"),
+                Ty::Fun(pi) => write!(f, "{pi}"),
                 Ty::Hole(hole) => write!(f, "{hole}"),
                 Ty::Bound(level) => write!(f, "`{}", level),
             }
@@ -346,10 +355,12 @@ pub mod holes {
 pub mod seals {
     use super::*;
 
-    impl Hole<modes::Mut> {
+    impl Seal for Hole<modes::Mut> {
+        type Sealed = Hole<modes::Ready>;
+
         /// Takes a mut hole and returns a ready hole. This is used to seal a hole, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Hole<modes::Ready> {
+        fn seal(self) -> Self::Sealed {
             match self.kind {
                 HoleKind::Error => Hole {
                     kind: HoleKind::Error,
@@ -364,10 +375,12 @@ pub mod seals {
         }
     }
 
-    impl<K: kinds::ArrowKind> Arrow<K, modes::Mut> {
+    impl<K: kinds::ArrowKind> Seal for Arrow<K, modes::Mut> {
+        type Sealed = Arrow<K, modes::Ready>;
+
         /// Takes a mut arrow and returns a ready arrow. This is used to seal an arrow, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Arrow<K, modes::Ready> {
+        fn seal(self) -> Self::Sealed {
             Arrow {
                 domain: K::seal(self.domain),
                 value: self.value.seal().into(),
@@ -376,15 +389,17 @@ pub mod seals {
         }
     }
 
-    impl Ty<modes::Mut> {
+    impl Seal for Ty<modes::Mut> {
+        type Sealed = Ty<modes::Ready>;
+
         /// Takes a mut type and returns a ready type. This is used to seal a type, and make it
         /// ready to be used as [`Send`] and [`Sync`].
-        pub fn seal(self) -> Ty<modes::Ready> {
+        fn seal(self) -> Self::Sealed {
             match self {
                 Ty::Primary(primary) => Ty::Primary(primary),
                 Ty::Constructor(constructor) => Ty::Constructor(constructor),
                 Ty::Forall(forall) => Ty::Forall(forall.seal()),
-                Ty::Arrow(pi) => Ty::Arrow(pi.seal()),
+                Ty::Fun(pi) => Ty::Fun(pi.seal()),
                 Ty::Bound(debruijin) => Ty::Bound(debruijin),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
                 Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
@@ -431,13 +446,13 @@ pub mod modes {
 
 /// This trait is sealed and cannot be implemented outside of this crate. This is to prevent
 /// users from implementing this trait for their own types.
-mod kinds {
+pub mod kinds {
     use std::{
         fmt::{Debug, Display},
         hash::Hash,
     };
 
-    use super::{modes, InternalConstructor, Ty};
+    use super::{modes, InternalConstructor, Ty, Seal};
 
     /// Represents a kind of arrow for a type. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.

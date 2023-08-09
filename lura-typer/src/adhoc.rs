@@ -1,4 +1,8 @@
-use crate::type_rep::{self, Ty};
+use std::{fmt::Display, ops::Deref};
+
+use lura_hir::resolve::Definition;
+
+use crate::type_rep::{self, Seal, Ty};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassEnv {}
@@ -19,7 +23,46 @@ pub type Instance<M> = Qual<M, Pred<M>>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Qual<M: type_rep::modes::TypeMode, T> {
     pub predicates: Vec<Pred<M>>,
-    pub value: T,
+    pub data: T,
+}
+
+impl<M: type_rep::modes::TypeMode, T> Qual<M, T> {
+    /// Creates a new qualified type.
+    pub fn new(value: T) -> Self {
+        Self {
+            predicates: vec![],
+            data: value,
+        }
+    }
+}
+
+impl<T: Seal> Seal for Qual<type_rep::modes::Mut, T> {
+    type Sealed = Qual<type_rep::modes::Ready, T::Sealed>;
+
+    fn seal(self) -> Self::Sealed {
+        Qual {
+            predicates: self.predicates.into_iter().map(|p| p.seal()).collect(),
+            data: self.data.seal(),
+        }
+    }
+}
+
+impl<M: type_rep::modes::TypeMode, T> Deref for Qual<M, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<M: type_rep::modes::TypeMode, T: Display> Display for Qual<M, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for pred in &self.predicates {
+            write!(f, "{pred}")?;
+        }
+        write!(f, " => ")?;
+        write!(f, "{}", self.data)
+    }
 }
 
 /// Represents a predicate, i.e. a constraint on a type.
@@ -28,5 +71,23 @@ pub struct Qual<M: type_rep::modes::TypeMode, T> {
 /// type value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pred<M: type_rep::modes::TypeMode> {
-    IsIn(Ty<M>, String),
+    IsIn(Ty<M>, Definition, String),
+}
+
+impl Seal for Pred<type_rep::modes::Mut> {
+    type Sealed = Pred<type_rep::modes::Ready>;
+
+    fn seal(self) -> Self::Sealed {
+        match self {
+            Pred::IsIn(ty, class, name) => Pred::IsIn(ty.seal(), class, name),
+        }
+    }
+}
+
+impl<M: type_rep::modes::TypeMode> Display for Pred<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Pred::IsIn(ty, _, name) => write!(f, "{ty} {name}"),
+        }
+    }
 }

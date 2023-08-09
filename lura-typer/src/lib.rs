@@ -9,7 +9,6 @@ extern crate salsa_2022 as salsa;
 
 #[salsa::jar(db = TyperDb)]
 pub struct Jar(
-    type_rep::ThirTy,
     table::TypeTable,
     table::infer_type_table,
     elaboration::thir_elab,
@@ -22,12 +21,12 @@ pub trait TyperDb: HirDb + DbWithJar<Jar> {}
 
 impl<DB> TyperDb for DB where DB: ?Sized + HirDb + salsa::DbWithJar<Jar> {}
 
+pub mod adhoc;
 pub mod coverage;
 pub mod declaration;
 pub mod elaboration;
 pub mod infer;
+pub mod kind;
 pub mod table;
 pub mod thir;
-pub mod adhoc;
-pub mod kind;
 pub mod type_rep;

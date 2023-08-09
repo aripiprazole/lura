@@ -20,11 +20,12 @@ use lura_hir::{
 };
 
 use crate::{
+    adhoc::{ClassEnv, Pred, Qual},
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
     type_rep::{
         holes::{Hole, HoleRef},
-        *,
-    }, adhoc::ClassEnv,
+        kinds, *,
+    },
 };
 
 /// Represents the type errors that can occur during type checking,
@@ -96,15 +97,15 @@ impl Substitution<'_, '_> {
             // SECTION: Types
             Ty::Primary(_) => {}
             Ty::Constructor(_) => {}
-            Ty::Bound(TyVar::Flexible(_, _)) => {}
+            Ty::Bound(Bound::Flexible(_, _)) => {}
             Ty::Forall(forall) => {
-                self.hole_unify_prechecks(*forall.value, scope, hole);
+                self.hole_unify_prechecks(*forall.data.value, scope, hole);
             }
-            Ty::Arrow(pi) => {
+            Ty::Fun(pi) => {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
                 self.hole_unify_prechecks(*pi.value, scope, hole)
             }
-            Ty::Bound(TyVar::Index(_, _, level)) => {
+            Ty::Bound(Bound::Index(_, _, level)) => {
                 if level > scope {
                     self.errors.push_back(TypeError::EscapingScope(level));
                 }
@@ -189,7 +190,7 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
-            (Ty::Arrow(arrow_a), Ty::Arrow(arrow_b)) => {
+            (Ty::Fun(arrow_a), Ty::Fun(arrow_b)) => {
                 self.internal_unify(*arrow_a.domain, *arrow_b.domain);
                 self.internal_unify(*arrow_a.value, *arrow_b.value);
             }
@@ -208,13 +209,13 @@ impl Substitution<'_, '_> {
                     return;
                 }
 
-                let mut acc_a = *forall_a.value.clone();
-                let mut acc_b = *forall_b.value;
-                for (param_a, param_b) in forall_a.domain.into_iter().zip(forall_b.domain) {
+                let mut acc_a = *forall_a.data.value.clone();
+                let mut acc_b = *forall_b.data.value.clone();
+                for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
                     let level = self.ctx.add_to_env(param_a.name);
                     let definition = param_a.name;
                     let name = param_a.name.to_string(self.ctx.db);
-                    let debruijin = Tau::Bound(TyVar::Index(definition, name, level));
+                    let debruijin = Tau::Bound(Bound::Index(definition, name, level));
                     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                     acc_b = acc_b.replace(param_b.name, debruijin);
                 }
@@ -236,7 +237,7 @@ impl Substitution<'_, '_> {
                 // Unify the results to compare the results
                 self.internal_unify(acc_a, acc_b);
             }
-            (Ty::Bound(TyVar::Index(_, _, level_a)), Ty::Bound(TyVar::Index(_, _, level_b))) => {
+            (Ty::Bound(Bound::Index(_, _, level_a)), Ty::Bound(Bound::Index(_, _, level_b))) => {
                 if level_a != level_b {
                     self.errors.push_back(TypeError::IncorrectLevel {
                         expected: level_a,
@@ -797,7 +798,7 @@ impl Infer for TopLevel {
 
                             // Debruijin index
                             let level = ctx.add_to_env(def);
-                            let bound = Tau::Bound(TyVar::Index(def, name, level));
+                            let bound = Tau::Bound(Bound::Index(def, name, level));
                             ctx.env.rigid_variables.insert(def, bound.clone());
                             bound
                         } else {
@@ -986,7 +987,6 @@ pub(crate) struct InferCtx<'tctx> {
     pub self_type: Option<Tau>,
     pub return_type: Option<Tau>,
     // END SECTION: Contextual information
-
     /// Statically typed expressions that are used in the program.
     ///
     /// This is used to check that the type of the expression is
@@ -1001,6 +1001,36 @@ pub(crate) struct InferCtx<'tctx> {
 
     /// Debruijin index bindings for type names.
     pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
+}
+
+impl Pred<modes::Mut> {
+    fn replace(self, name: Definition, replacement: Tau) -> Pred<modes::Mut> {
+        match self {
+            Pred::IsIn(ty, class, str) => Pred::IsIn(ty.replace(name, replacement), class, str),
+        }
+    }
+}
+
+impl Qual<modes::Mut, Arrow<kinds::Forall, modes::Mut>> {
+    // Replaces a type variable with a type.
+    fn replace(
+        self,
+        name: Definition,
+        replacement: Tau,
+    ) -> Qual<modes::Mut, Arrow<kinds::Forall, modes::Mut>> {
+        Self {
+            predicates: self
+                .predicates
+                .into_iter()
+                .map(|pred| pred.replace(name, replacement.clone()))
+                .collect(),
+            data: Arrow {
+                domain: self.data.domain,
+                value: self.data.value.replace(name, replacement).into(),
+                phantom: PhantomData,
+            },
+        }
+    }
 }
 
 impl Ty<modes::Mut> {
@@ -1019,16 +1049,12 @@ impl Ty<modes::Mut> {
         use holes::HoleKind::*;
         match self {
             Ty::Constructor(constructor) if constructor.name == name => replacement,
+            Ty::Forall(forall) => Ty::Forall(forall.replace(name, replacement)),
             Ty::App(a, b) => Ty::App(
                 a.replace(name, replacement.clone()).into(),
                 b.replace(name, replacement).into(),
             ),
-            Ty::Forall(forall) => Ty::Forall(Arrow {
-                domain: forall.domain,
-                value: forall.value.replace(name, replacement).into(),
-                phantom: PhantomData,
-            }),
-            Ty::Arrow(pi) => Ty::Arrow(Arrow {
+            Ty::Fun(pi) => Ty::Fun(Arrow {
                 domain: pi.domain.replace(name, replacement.clone()).into(),
                 value: pi.value.replace(name, replacement).into(),
                 phantom: PhantomData,
@@ -1040,7 +1066,7 @@ impl Ty<modes::Mut> {
                 })),
                 Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Ty::Bound(TyVar::Flexible(definition, _)) if definition == name => replacement,
+            Ty::Bound(Bound::Flexible(definition, _)) if definition == name => replacement,
             Ty::Bound(bound) => Ty::Bound(bound),
             _ => self,
         }
@@ -1066,8 +1092,8 @@ impl<'tctx> InferCtx<'tctx> {
             .map(|_| self.new_meta())
             .collect::<Vec<_>>();
 
-        let mut codomain = *forall.value;
-        for (constructor, hole) in forall.domain.into_iter().zip(parameters) {
+        let mut codomain = *forall.data.value.clone();
+        for (constructor, hole) in forall.domain.iter().zip(parameters) {
             codomain = codomain.replace(constructor.name, hole);
         }
 
@@ -1118,7 +1144,7 @@ impl<'tctx> InferCtx<'tctx> {
                     let def = reference.definition(self.db);
                     let name = def.to_string(self.db);
 
-                    Tau::Bound(TyVar::Flexible(def, name))
+                    Tau::Bound(Bound::Flexible(def, name))
                 }),
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));
@@ -1143,7 +1169,7 @@ impl<'tctx> InferCtx<'tctx> {
                         parameter.binding(self.db).check(ty, self)
                     })
                     .fold(value, |acc, next| {
-                        Tau::Arrow(Arrow {
+                        Tau::Fun(Arrow {
                             domain: next.into(),
                             value: acc.into(),
                             phantom: PhantomData,
@@ -1197,11 +1223,11 @@ impl<'tctx> InferCtx<'tctx> {
                     })
                     .collect::<Vec<_>>();
 
-                Tau::Forall(Arrow {
+                Tau::Forall(Qual::new(Arrow {
                     domain: parameters,
                     value: value.into(),
                     phantom: PhantomData,
-                })
+                }))
             }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
                 self.accumulate(ThirDiagnostic {
