@@ -101,9 +101,13 @@ impl Substitution<'_, '_> {
             Ty::Forall(forall) => {
                 self.hole_unify_prechecks(*forall.data.value, scope, hole);
             }
-            Ty::Fun(pi) => {
+            Ty::Pi(pi) => {
                 self.hole_unify_prechecks(*pi.domain, scope, hole.clone());
-                self.hole_unify_prechecks(*pi.value, scope, hole)
+                self.hole_unify_prechecks(*pi.codomain, scope, hole)
+            }
+            Ty::Fun(fun) => {
+                self.hole_unify_prechecks(*fun.domain, scope, hole.clone());
+                self.hole_unify_prechecks(*fun.value, scope, hole)
             }
             Ty::Bound(Bound::Index(_, _, level)) => {
                 if level > scope {

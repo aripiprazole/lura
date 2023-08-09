@@ -76,6 +76,22 @@ pub enum Bound {
     Index(Definition, String, Level),
 }
 
+/// Represents a type variable. This is used to
+/// represent a type variable.
+///
+/// This is used to represent a type variable that
+/// has not been unified with a type.
+/// 
+/// NOTE: This is supposed to be used to implement GADT
+/// and type families.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pi<M: modes::TypeMode> {
+    pub name: Definition,
+    pub dbg_name: String,
+    pub domain: Box<Ty<M>>,
+    pub codomain: Box<Ty<M>>,
+}
+
 /// Represents a sealed type variable. This is used to represent a type variable
 /// that has been sealed.
 ///
@@ -91,6 +107,7 @@ pub enum Ty<M: modes::TypeMode> {
     Constructor(InternalConstructor),
     App(Box<Ty<M>>, Box<Ty<M>>),
     Forall(Qual<M, Arrow<kinds::Forall, M>>),
+    Pi(Pi<M>),
 
     /// Represents an arrow function type. This is used
     /// to represent a function type.
@@ -226,6 +243,16 @@ mod display {
         }
     }
 
+    impl<M: modes::TypeMode> Display for Pi<M> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let dbg_name = &self.dbg_name;
+            let domain = &self.domain;
+            let codomain = &self.codomain;
+
+            write!(f, "({dbg_name} : {domain} -> {codomain})")
+        }
+    }
+
     impl<M: modes::TypeMode> Display for Ty<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
@@ -233,7 +260,8 @@ mod display {
                 Ty::Constructor(constructor) => write!(f, "{}", constructor.dbg_name),
                 Ty::App(app, argument) => write!(f, "({} {})", app, argument),
                 Ty::Forall(forall) => write!(f, "{forall}"),
-                Ty::Fun(pi) => write!(f, "{pi}"),
+                Ty::Fun(fun) => write!(f, "{fun}"),
+                Ty::Pi(pi) => write!(f, "{pi}"),
                 Ty::Hole(hole) => write!(f, "{hole}"),
                 Ty::Bound(level) => write!(f, "`{}", level),
             }
@@ -389,6 +417,19 @@ pub mod seals {
         }
     }
 
+    impl Seal for Pi<modes::Mut> {
+        type Sealed = Pi<modes::Ready>;
+
+        fn seal(self) -> Self::Sealed {
+            Pi {
+                name: self.name,
+                domain: self.domain.seal().into(),
+                codomain: self.codomain.seal().into(),
+                dbg_name: self.dbg_name,
+            }
+        }
+    }
+
     impl Seal for Ty<modes::Mut> {
         type Sealed = Ty<modes::Ready>;
 
@@ -402,6 +443,7 @@ pub mod seals {
                 Ty::Fun(pi) => Ty::Fun(pi.seal()),
                 Ty::Bound(debruijin) => Ty::Bound(debruijin),
                 Ty::Hole(hole) => Ty::Hole(hole.data.borrow().clone().seal().into()),
+                Ty::Pi(pi) => Ty::Pi(pi.seal()),
                 Ty::App(a, b) => Ty::App(a.seal().into(), b.seal().into()),
             }
         }
@@ -452,7 +494,7 @@ pub mod kinds {
         hash::Hash,
     };
 
-    use super::{modes, InternalConstructor, Ty, Seal};
+    use super::{modes, InternalConstructor, Seal, Ty};
 
     /// Represents a kind of arrow for a type. This is used to distinguish between different
     /// kinds of arrows, such as `forall`, `pi`, and `sigma`.
