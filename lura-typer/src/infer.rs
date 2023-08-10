@@ -74,7 +74,7 @@ pub struct InternalVariant {
 /// The type environment is used to store the types of the variables
 /// and the constructors, and also the level of the variables.
 #[derive(Default, Clone)]
-pub struct TyEnv {
+pub struct TypeEnv {
     pub level: Level,
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
@@ -107,6 +107,12 @@ impl Substitution<'_, '_> {
             Type::Constructor(_) => {}
             Type::Bound(Bound::Flexible(_)) => {}
             Type::Bound(Bound::Hole) => {}
+            Type::Stuck(stuck) => {
+                self.hole_unify_prechecks(*stuck.base, scope, hole.clone());
+                for value in stuck.spine {
+                    self.hole_unify_prechecks(value, scope, hole.clone());
+                }
+            }
             Type::Forall(forall) => {
                 // Named holes, because this is a dependent
                 // function type, we need to create a new hole
@@ -212,6 +218,24 @@ impl Substitution<'_, '_> {
             // SECTION: Sentinel Values
             (_, Type::Primary(Primary::Error)) => {}
             (Type::Primary(Primary::Error), _) => {}
+
+            // SECTION: Empty variables
+            (Type::Bound(Bound::Hole), _) => {}
+            (_, Type::Bound(Bound::Hole)) => {}
+
+            // SECTION: Types
+            (Type::Type, Type::Type) => {}
+
+            // SECTION: Stuck Data
+            (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
+                // Unifies the base of the stuck values
+                self.internal_unify(*stuck_a.base, *stuck_b.base);
+
+                // Unifies the spines of the stuck values
+                for (a, b) in stuck_a.spine.iter().zip(stuck_b.spine.iter()) {
+                    self.internal_unify(a.clone(), b.clone());
+                }
+            }
 
             // SECTION: Types
             (Type::Primary(primary_a), Type::Primary(primary_b)) => {
@@ -675,7 +699,7 @@ impl Infer for Expr {
             }
 
             Expr::Ann(ann) => {
-                let ty = ctx.eval(ann.type_rep(ctx.db));
+                let ty = ctx.translate(ann.type_rep(ctx.db));
                 let value = ann.value(ctx.db);
 
                 value.check(ty, ctx)
@@ -691,7 +715,7 @@ impl Infer for Expr {
                     // Adds the parameters to the context
                     for parameter in parameters.into_iter() {
                         if !parameter.is_implicit(local.db) {
-                            let type_rep = local.eval(parameter.parameter_type(local.db));
+                            let type_rep = local.translate(parameter.parameter_type(local.db));
 
                             let ty = parameter.binding(local.db).check(type_rep, local);
 
@@ -729,7 +753,7 @@ impl Infer for Expr {
             // SECTION: Type Representations
             // Evaluates the type of the expression, and then checks if it is
             // compatible with the expected type
-            Expr::Upgrade(type_rep) => ctx.eval(*type_rep),
+            Expr::Upgrade(type_rep) => ctx.translate(*type_rep),
         }
     }
 }
@@ -775,7 +799,7 @@ impl Infer for TopLevel {
         /// The ty is optional because it does fallback to the type of the
         /// declaration, if it is not provided.
         #[inline]
-        fn create_declaration_ty(
+        fn create_declaration_type(
             ctx: &mut InferCtx,
             // Used to define if the type is a type Type, or
             // if it should use the return type.
@@ -788,16 +812,21 @@ impl Infer for TopLevel {
                 .parameters(ctx.db)
                 .into_iter()
                 .map(|parameter| {
-                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+                    // Creates a new type variable to represent
+                    // the type of the parameter
+                    let type_rep = ctx.translate(parameter.parameter_type(ctx.db));
+
+                    // // Evaluates the type of the parameter
+                    // let type_rep = type_rep.eval(&ctx.snapshot(), ctx.eval_env.clone());
 
                     // Stores the parameter in the environment
                     // as debug information for the type checker
                     // build a table.
-                    ctx.parameters.insert(parameter, ty.clone());
+                    ctx.parameters.insert(parameter, type_rep.clone());
 
-                    ty
+                    type_rep
                 })
-                .collect::<im_rc::Vector<_>>();
+                .collect::<Vec<_>>();
 
             let name = Name {
                 definition: name,
@@ -807,11 +836,13 @@ impl Infer for TopLevel {
             let constructor = match decl.type_rep(ctx.db) {
                 Some(TypeRep::Error(_)) => Tau::Constructor(name.clone()),
                 Some(TypeRep::Hole) if !use_return_type => {
-                    let goal = Tau::Constructor(name.clone());
+                    // type List a b = Cons a b
+                    // Type -> Type -> Type
+                    let goal = Type::Constructor(name.clone());
 
                     // Generate the type-level function
                     // that represents the declaration
-                    parameters.iter().fold(goal, |acc, parameter| {
+                    let return_type = parameters.iter().fold(goal, |acc, parameter| {
                         // Creates a new type variable to represent
                         // the type of the declaration
                         Tau::Pi(HoasPi {
@@ -819,7 +850,10 @@ impl Infer for TopLevel {
                             domain: parameter.clone().into(),
                             codomain: Rc::new(move |_| acc.clone()),
                         })
-                    })
+                    });
+
+                    ctx.extend(name.definition, return_type.clone());
+                    return return_type
                 }
                 Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
                     // # Safety
@@ -828,17 +862,20 @@ impl Infer for TopLevel {
                     // to be a forall.
                     let type_rep = unsafe { decl.type_rep(ctx.db).unwrap_unchecked() };
 
+                    // Creates a parameter iterator
+                    let parameters = parameters.into_iter();
+
                     // Checks if arrow is already generalised. If the `forall` is first level,
                     // then it's already generalised, so we don't need to quantify it!
                     //
                     // Creates the type of the variant
-                    let variant_ty = Type::from_pi(parameters.into_iter(), ctx.eval(type_rep));
+                    let variant_type = Type::from_pi(parameters, ctx.translate(type_rep));
 
                     // Early return if the type is already generalised
-                    ctx.extend(name.definition, variant_ty.clone());
-                    return variant_ty;
+                    ctx.extend(name.definition, variant_type.clone());
+                    return variant_type;
                 }
-                Some(type_rep) => ctx.eval(type_rep),
+                Some(type_rep) => ctx.translate(type_rep),
                 None => Tau::Constructor(name.clone()),
             };
 
@@ -853,27 +890,31 @@ impl Infer for TopLevel {
             type_rep
         }
 
+        /// Checks the binding group agains't it's return types
         #[inline]
         fn check_binding_group(ctx: &mut InferCtx, binding_group: BindingGroup) {
             // Creates the type of the binding group using the
             // signature of the binding group
-            let function_ty = create_declaration_ty(ctx, true, binding_group.signature(ctx.db));
+            let function_type = create_declaration_type(ctx, true, binding_group.signature(ctx.db));
 
             // Adds the value to the environment
             let name = binding_group.name(ctx.db);
-            ctx.env.variables.insert(name, function_ty.clone());
+            ctx.env.variables.insert(name, function_type.clone());
 
             // Creates the type of the binding group using the
             // signature of the binding group
-            let return_ty = ctx.new_meta();
+            let return_type = ctx.new_meta();
 
             // Gets the parameter types
             let parameters = binding_group
                 .parameters(ctx.db)
                 .into_iter()
                 .map(|parameter| {
-                    let type_rep = ctx.eval(parameter.parameter_type(ctx.db));
+                    // Translates the type of the parameter
+                    // into semantic information.
+                    let type_rep = ctx.translate(parameter.parameter_type(ctx.db));
 
+                    // Creates the type of the parameter
                     if_chain! {
                         if parameter.is_implicit(ctx.db);
                         if let HirLevel::Type = parameter.level(ctx.db);
@@ -898,21 +939,21 @@ impl Infer for TopLevel {
                 })
                 .collect::<im_rc::Vector<_>>();
 
-            let pi = Tau::from_pi(parameters.clone().into_iter(), return_ty.clone());
+            let pi = Tau::from_pi(parameters.clone().into_iter(), return_type.clone());
 
             // Gets the return type
-            pi.unify(function_ty, ctx);
+            pi.unify(function_type, ctx);
 
             // Checks the type of each clause
             for clause in binding_group.clauses(ctx.db) {
                 // Checks the pattern against the scrutinee
                 let arguments = clause.arguments(ctx.db);
-                for (pattern, ty) in arguments.into_iter().zip(parameters.clone()) {
-                    pattern.check(ty, ctx);
+                for (pattern, type_rep) in arguments.into_iter().zip(parameters.clone()) {
+                    pattern.check(type_rep, ctx);
                 }
 
                 // Checks the return type of the clause
-                clause.value(ctx.db).check(return_ty.clone(), ctx);
+                clause.value(ctx.db).check(return_type.clone(), ctx);
             }
         }
 
@@ -931,7 +972,7 @@ impl Infer for TopLevel {
             TopLevel::ClassDecl(_) => todo!(),
             TopLevel::TraitDecl(_) => todo!(),
             TopLevel::DataDecl(data_declaration) => {
-                let ty = create_declaration_ty(ctx, false, data_declaration);
+                let ty = create_declaration_type(ctx, false, data_declaration);
                 let self_type = replace(&mut ctx.self_type, ty.clone().into());
 
                 // Creates the type of the variant
@@ -941,27 +982,27 @@ impl Infer for TopLevel {
                         .parameters(ctx.db)
                         .into_iter()
                         .filter(|parameter| !parameter.is_implicit(ctx.db))
-                        .map(|parameter| ctx.eval(parameter.parameter_type(ctx.db)))
+                        .map(|parameter| ctx.translate(parameter.parameter_type(ctx.db)))
                         .collect::<im_rc::Vector<_>>();
 
-                    let variant_ty = match variant.type_rep(ctx.db) {
+                    let variant_type = match variant.type_rep(ctx.db) {
                         Some(TypeRep::Hole | TypeRep::Error(_)) => ty.clone(),
-                        Some(type_rep) => ctx.eval(type_rep),
+                        Some(type_rep) => ctx.translate(type_rep),
                         None => ty.clone(),
                     };
 
                     // Creates the type of the variant
-                    let variant_ty = Type::from_pi(parameters.clone().into_iter(), variant_ty);
+                    let variant_type = Type::from_pi(parameters.clone().into_iter(), variant_type);
 
                     // Quantifies the type of the variant
-                    let variant_ty = ctx.quantify(variant_ty);
+                    let variant_type = ctx.quantify(variant_type);
 
                     // Creates the internal variant
                     let internal = Rc::new(InternalVariant {
                         name: ty.clone(),
                         parameters,
                     });
-                    ctx.extend(name, variant_ty.clone());
+                    ctx.extend(name, variant_type.clone());
                     ctx.env.references.insert(ty.clone(), internal.clone());
                     ctx.env.constructors.insert(name, internal);
                 }
@@ -971,7 +1012,7 @@ impl Infer for TopLevel {
                 ctx.self_type = self_type;
             }
             TopLevel::TypeDecl(type_declaration) => {
-                create_declaration_ty(ctx, false, type_declaration);
+                create_declaration_type(ctx, false, type_declaration);
             }
         };
 
@@ -1091,7 +1132,7 @@ pub(crate) struct Snapshot {
     // END SECTION: Diagnostics
 
     // SECTION: Type environment
-    pub env: TyEnv,
+    pub env: TypeEnv,
     pub adhoc_env: ClassEnv,
     pub eval_env: EvalEnv,
     pub type_env: LocalDashMap<Definition, Tau>,
@@ -1133,7 +1174,7 @@ pub(crate) struct InferCtx<'tctx> {
     // END SECTION: Diagnostics
 
     // SECTION: Type environment
-    pub env: TyEnv,
+    pub env: TypeEnv,
     pub adhoc_env: ClassEnv,
     pub eval_env: EvalEnv,
     pub type_env: LocalDashMap<Definition, Tau>,
@@ -1225,7 +1266,7 @@ impl Type<state::Hoas> {
                 })),
                 Filled(ty) => ty.clone().replace(name, replacement),
             },
-            Type::Bound(Bound::Flexible(flexibile)) if flexibile.definition == name => replacement,
+            Type::Bound(Bound::Flexible(flexible)) if flexible.definition == name => replacement,
             Type::Bound(bound) => Type::Bound(bound),
             _ => self,
         }
@@ -1253,17 +1294,20 @@ impl<'tctx> InferCtx<'tctx> {
     //
     // This only works with [`Type::Forall`] types.
     fn instantiate(&mut self, sigma: Tau) -> Tau {
+        // Gets a forall type to instantiate, can't instantiate
+        // non-forall types.
         let Tau::Forall(forall) = sigma else {
             return sigma;
         };
 
-        let parameters = forall
-            .domain
-            .iter()
-            .map(|_| self.new_meta())
-            .collect::<Vec<_>>();
-
-        forall.instantiate(parameters)
+        // Instantiate the forall type with new meta/hole types.
+        forall.instantiate(
+            forall
+                .domain
+                .iter()
+                .map(|_| self.new_meta())
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Quantifies a type with a forall. This is used to
@@ -1289,7 +1333,7 @@ impl<'tctx> InferCtx<'tctx> {
     /// it does report errors and means the type is not inferred.
     ///
     /// This is used to transform a type representation into a semantic type.
-    fn eval(&mut self, type_rep: TypeRep) -> Tau {
+    fn translate(&mut self, type_rep: TypeRep) -> Tau {
         // Validates a forall binding to check if it is
         // compatible with the a type variable.
         fn forall_binding(ctx: &mut InferCtx, pattern: Pattern, loc: Location) -> Option<Name> {
@@ -1318,25 +1362,25 @@ impl<'tctx> InferCtx<'tctx> {
         fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Tau {
             // Transforms a type representation of forall arrow into
             // a semantic type arrow with a forall quantifier
-            let value = ctx.eval(forall.value(ctx.db));
+            let value = ctx.translate(forall.value(ctx.db));
 
             let parameters = forall
                 .parameters(ctx.db)
                 .into_iter()
                 .filter_map(|parameter| {
                     // Checks the type of the parameter
-                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+                    let ty = ctx.translate(parameter.parameter_type(ctx.db));
                     let binding = parameter.binding(ctx.db);
 
                     let location = binding.location(ctx.db);
 
                     // Checks the binding
-                    let ty = binding.clone().check(ty, ctx);
+                    let type_rep = binding.clone().check(ty, ctx);
 
                     // Stores the parameter in the environment
                     // as debug information for the type checker
                     // build a table.
-                    ctx.parameters.insert(parameter, ty);
+                    ctx.parameters.insert(parameter, type_rep);
 
                     // Gets the forall's binding name.
                     let Some(name) = forall_binding(ctx, binding, location.clone()) else {
@@ -1384,15 +1428,15 @@ impl<'tctx> InferCtx<'tctx> {
         fn eval_fun(ctx: &mut InferCtx, fun: ArrowTypeRep) -> Tau {
             // Transforms a type representation of pi arrow into
             // a semantic type arrow with a pi arrow
-            let value = ctx.eval(fun.value(ctx.db));
+            let value = ctx.translate(fun.value(ctx.db));
 
             fun.parameters(ctx.db)
                 .into_iter()
                 .map(|parameter| {
                     // Checks the type of the parameter
-                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+                    let type_rep = ctx.translate(parameter.parameter_type(ctx.db));
 
-                    parameter.binding(ctx.db).check(ty, ctx)
+                    parameter.binding(ctx.db).check(type_rep, ctx)
                 })
                 .fold(value, |acc, next| {
                     Tau::Pi(HoasPi {
@@ -1447,13 +1491,15 @@ impl<'tctx> InferCtx<'tctx> {
 
             // SECTION: Type application
             TypeRep::App(app) => {
-                let callee = self.eval(app.callee(self.db));
+                let callee = self.translate(app.callee(self.db));
 
-                app.arguments(self.db)
+                let app = app.arguments(self.db)
                     .into_iter()
                     .fold(callee, |acc, next| {
-                        Tau::App(acc.into(), self.eval(next).into())
-                    })
+                        Tau::App(acc.into(), self.translate(next).into())
+                    });
+
+                app.eval(&self.snapshot(), self.eval_env.clone())
             }
 
             // SECTION: Unsupported
@@ -1495,7 +1541,7 @@ impl<'tctx> InferCtx<'tctx> {
     /// Finds a reference to a variable in the environment
     /// and returns its type.
     fn reference(&mut self, reference: Reference) -> Tau {
-        let let_ty = self
+        let generalised = self
             .env
             .variables
             .get(&reference.definition(self.db))
@@ -1506,7 +1552,7 @@ impl<'tctx> InferCtx<'tctx> {
                 panic!("variable not found {}", name);
             });
 
-        self.instantiate(let_ty)
+        self.instantiate(generalised)
     }
 
     fn constructor(&mut self, reference: Reference) -> Tau {
@@ -1530,7 +1576,7 @@ impl<'tctx> InferCtx<'tctx> {
         Tau::Primary(Primary::Unit)
     }
 
-    fn with_env<F, U>(&mut self, env: TyEnv, f: F) -> U
+    fn with_env<F, U>(&mut self, env: TypeEnv, f: F) -> U
     where
         F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
     {

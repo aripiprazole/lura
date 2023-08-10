@@ -1,5 +1,6 @@
 use holes::*;
 use lura_hir::resolve::Definition;
+use std::fmt::Formatter;
 use std::rc::Rc;
 use std::{
     cell::RefCell,
@@ -20,6 +21,11 @@ pub type Hoas<S> = dyn Fn(Type<S>) -> Type<S>;
 pub trait Quote {
     /// The sealed type.
     type Sealed;
+
+    /// Quote the type.
+    fn quote(&self) -> Self::Sealed where Self: Clone {
+        self.clone().seal()
+    }
 
     /// Seal the type.
     fn seal(self) -> Self::Sealed;
@@ -101,7 +107,7 @@ pub type TypeRep = Type<state::Quoted>;
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
 /// either a primary type, a constructor, a forall, a pi, or a hole.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Type<S: state::TypeState> {
     Type,
     Primary(Primary),
@@ -109,6 +115,11 @@ pub enum Type<S: state::TypeState> {
     App(Box<Type<S>>, Box<Type<S>>),
     Forall(Qual<S, S::Forall>),
     Pi(S::Pi),
+
+    /// Represents a stuck type. This is used to represent a type that is stuck.
+    ///
+    /// A stuck type is a type that is not fully evaluated, and can't be evaluated
+    Stuck(stuck::Stuck<S>),
 
     /// Represents a hole. This is used to represent a type
     /// that should be inferred.
@@ -121,7 +132,29 @@ pub enum Type<S: state::TypeState> {
     Bound(Bound),
 }
 
-impl<M: state::TypeState> Type<M> {
+/// Add debug implementation for better data presentation when
+/// debugging the type system
+mod debug {
+    use super::*;
+
+    impl<S: state::TypeState> Debug for Type<S> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Type::Type => write!(f, "Type"),
+                Type::Primary(primary) => write!(f, "{primary:?}"),
+                Type::Constructor(constructor) => write!(f, "Constructor({constructor:?})"),
+                Type::App(callee, value) => write!(f, "App({callee:?}, {value:?})"),
+                Type::Forall(forall) => Debug::fmt(forall, f),
+                Type::Pi(pi) => Debug::fmt(pi, f),
+                Type::Hole(hole) => Debug::fmt(hole, f),
+                Type::Bound(bound) => Debug::fmt(bound, f),
+                Type::Stuck(stuck) => Debug::fmt(stuck, f),
+            }
+        }
+    }
+}
+
+impl<S: state::TypeState> Type<S> {
     pub const TYPE: Self = Self::Type;
     pub const ERROR: Self = Self::Primary(Primary::Error);
     pub const UNIT: Self = Self::Primary(Primary::Unit);
@@ -130,11 +163,57 @@ impl<M: state::TypeState> Type<M> {
     pub const STRING: Self = Self::Primary(Primary::String);
 }
 
-impl<M: state::TypeState> Default for Type<M> {
+impl<S: state::TypeState> Default for Type<S> {
     /// Returns the default value for a type. This is used to represent a type that is not valid.
     /// It's a sentinel value that is used to represent an error.
     fn default() -> Self {
         Type::Primary(Primary::Error)
+    }
+}
+
+/// Represents a stuck computation, like a -> List a, should return
+/// a List of a, and not just a list.
+pub mod stuck {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct Stuck<S: state::TypeState> {
+        pub base: Box<Type<S>>,
+        pub spine: Vec<Type<S>>,
+    }
+
+    impl<S: state::TypeState> Stuck<S> {
+        /// Adds new arguments to the spine of the stuck type.
+        pub fn extend_spine(&self, value: Type<S>) -> Self {
+            Self {
+                base: self.base.clone(),
+                spine: self.spine.iter().cloned().chain(Some(value)).collect(),
+            }
+        }
+    }
+
+    impl Quote for Stuck<state::Hoas> {
+        type Sealed = Stuck<state::Quoted>;
+
+        fn seal(self) -> Self::Sealed {
+            Stuck {
+                base: self.base.seal().into(),
+                spine: self.spine.into_iter().map(Quote::seal).collect(),
+            }
+        }
+    }
+
+    impl<S: state::TypeState> Display for Stuck<S>
+    where
+        S: Debug,
+    {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "({}", self.base)?;
+            for arg in &self.spine {
+                write!(f, " {}", arg)?;
+            }
+            write!(f, ")")
+        }
     }
 }
 
@@ -274,7 +353,7 @@ pub mod pi {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let name = match &self.name {
                 Some(name) => format!("({name} : {})", self.domain),
-                None => self.domain.to_string(),
+                None => format!("({})", self.domain),
             };
             let codomain = &self.codomain;
 
@@ -430,7 +509,9 @@ mod display {
                 Type::Forall(forall) => write!(f, "{forall}"),
                 Type::Pi(pi) => write!(f, "{pi}"),
                 Type::Hole(hole) => write!(f, "{hole}"),
-                Type::Bound(level) => write!(f, "`{}", level),
+                Type::Stuck(stuck) => write!(f, "{stuck}"),
+                Type::Bound(Bound::Hole) => write!(f, "_"),
+                Type::Bound(level) => write!(f, "'{}", level),
             }
         }
     }
@@ -459,31 +540,40 @@ pub mod holes {
     use super::*;
 
     /// Represents a hole. This is used to represent a hole.
-    #[derive(Default, Debug, Clone)]
-    pub struct Hole<M: state::TypeState> {
-        pub kind: HoleKind<M>,
+    #[derive(Default, Clone)]
+    pub struct Hole<S: state::TypeState> {
+        pub kind: HoleKind<S>,
     }
 
-    impl<M: state::TypeState> Hole<M> {
-        pub fn kind(&self) -> &HoleKind<M> {
+    impl<S: state::TypeState> Debug for Hole<S>
+    where
+        S: Debug,
+    {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:?}", self.kind)
+        }
+    }
+
+    impl<S: state::TypeState> Hole<S> {
+        pub fn kind(&self) -> &HoleKind<S> {
             &self.kind
         }
 
-        pub fn set_kind(&mut self, kind: HoleKind<M>) {
+        pub fn set_kind(&mut self, kind: HoleKind<S>) {
             self.kind = kind;
         }
     }
 
-    impl<M: state::TypeState> Eq for Hole<M> {}
+    impl<S: state::TypeState> Eq for Hole<S> {}
 
-    impl<M: state::TypeState> PartialEq for Hole<M> {
+    impl<S: state::TypeState> PartialEq for Hole<S> {
         fn eq(&self, other: &Self) -> bool {
             self.kind.eq(&other.kind)
         }
     }
 
     #[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]
-    pub enum HoleKind<M: state::TypeState> {
+    pub enum HoleKind<S: state::TypeState> {
         /// The error type. This is used to represent a type that is not valid. It's a sentinel value
         /// that is used to represent an error.
         #[default]
@@ -494,7 +584,7 @@ pub mod holes {
 
         /// A hole that is filled with a type. This is used to represent a hole that is filled with a
         /// type.
-        Filled(Type<M>),
+        Filled(Type<S>),
     }
 
     impl<M: state::TypeState> Hash for Hole<M> {
@@ -633,6 +723,7 @@ pub mod seals {
                 Type::Constructor(constructor) => Type::Constructor(constructor),
                 Type::Forall(forall) => Type::Forall(forall.seal()),
                 Type::Bound(debruijin) => Type::Bound(debruijin),
+                Type::Stuck(stuck) => Type::Stuck(stuck.seal()),
                 Type::Hole(hole) => Type::Hole(hole.data.borrow().clone().seal().into()),
                 Type::Pi(pi) => Type::Pi(pi.seal()),
                 Type::App(a, b) => Type::App(a.seal().into(), b.seal().into()),

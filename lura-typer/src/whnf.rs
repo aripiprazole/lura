@@ -18,6 +18,8 @@ pub(crate) trait Whnf {
 impl Whnf for Type<state::Hoas> {
     fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Self {
         match self {
+            // Applies the function to the value,
+            // like `Bool -> Bool` to `Bool`.
             Type::App(callee, value) => {
                 let callee = callee.eval(ctx, env);
 
@@ -40,7 +42,6 @@ impl Whnf for Type<state::Hoas> {
             Type::Pi(pi) => {
                 let domain = pi.domain.eval(ctx, env.clone());
 
-                let ctx = ctx.clone();
                 let name = pi.name.clone();
                 let codomain = pi.codomain.clone();
 
@@ -49,14 +50,14 @@ impl Whnf for Type<state::Hoas> {
                     domain: domain.clone().into(),
                     codomain: Rc::new(move |parameter| {
                         let mut local = env.clone();
-                        //
+
                         // Creates a new environment with the
                         // parameter bound to the name.
                         if let Some(ref name) = name.clone() {
                             local.env.insert(name.definition, parameter.clone());
                         }
 
-                        (codomain.clone())(parameter).eval(&ctx, local)
+                        (codomain.clone())(parameter)
                     }),
                 })
             }
