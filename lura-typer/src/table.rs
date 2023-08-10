@@ -1,4 +1,5 @@
 use fxhash::FxBuildHasher;
+use lura_diagnostic::{Diagnostics, Report};
 use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, HirSource};
 
 use crate::{
@@ -28,6 +29,7 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         location: lura_hir::source::Location::CallSite,
         debruijin_index: Default::default(),
         expressions: Default::default(),
+        diagnostics: Default::default(),
         parameters: Default::default(),
         declarations: Default::default(),
         env: Default::default(),
@@ -39,6 +41,11 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
     // Infer the types of all expressions.
     for top_level in source.contents(db).iter().cloned() {
         top_level.infer(&mut ctx);
+    }
+
+    // We push the diagnostic to the diagnostics
+    for diagnostic in ctx.diagnostics.borrow().iter().cloned() {
+        Diagnostics::push(db, Report::new(diagnostic));
     }
 
     let debrujin_index = ctx.debruijin_index.into_iter().collect();

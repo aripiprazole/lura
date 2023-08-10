@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::{fmt::Debug, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
@@ -122,7 +123,8 @@ impl Substitution<'_, '_> {
                 self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Pi(pi) => {
-                let domain = pi.domain.eval(self.ctx, self.ctx.eval_env.clone());
+                let ctx = self.ctx.snapshot();
+                let domain = pi.domain.eval(&ctx, self.ctx.eval_env.clone());
 
                 // Unnamed holes, because this isn't a dependent
                 // function type, we can just use the same hole
@@ -224,8 +226,9 @@ impl Substitution<'_, '_> {
                 }
             }
             (Type::Pi(pi_a), Type::Pi(pi_b)) => {
-                let domain_a = pi_a.domain.eval(self.ctx, self.ctx.eval_env.clone());
-                let domain_b = pi_b.domain.eval(self.ctx, self.ctx.eval_env.clone());
+                let ctx = self.ctx.snapshot();
+                let domain_a = pi_a.domain.eval(&ctx, self.ctx.eval_env.clone());
+                let domain_b = pi_b.domain.eval(&ctx, self.ctx.eval_env.clone());
 
                 let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
                 let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
@@ -782,7 +785,7 @@ impl Infer for TopLevel {
                         Tau::Pi(HoasPi {
                             name: None,
                             domain: parameter.clone().into(),
-                            codomain: Rc::new(move |_parameter| acc.clone()),
+                            codomain: Rc::new(move |_| acc.clone()),
                         })
                     })
                 }
@@ -1031,13 +1034,64 @@ pub(crate) struct EvalEnv {
     pub env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
 }
 
+/// This is a copy of the type environment that is used to
+/// evaluate the expression.
+///
+/// Have the same fields, but doesn't require lifetimes.
+///
+/// NODE: #[allow(dead_code)] is used to suppress the warning
+/// that the field is not used, because we want to keep the
+/// same fields as the type environment.
+#[derive(Clone)]
+#[allow(dead_code)]
+pub(crate) struct Snapshot {
+    pub pkg: Package,
+
+    // SECTION: Diagnostics
+    /// The diagnostics that are emitted by the type checker.
+    pub diagnostics: Rc<RefCell<Vec<ThirDiagnostic>>>,
+    pub location: ThirLocation,
+    // END SECTION: Diagnostics
+
+    // SECTION: Type environment
+    pub env: TyEnv,
+    pub adhoc_env: ClassEnv,
+    pub type_env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+    pub eval_env: EvalEnv,
+    // END SECTION: Type environment
+
+    // SECTION: Contextual information
+    pub self_type: Option<Tau>,
+    pub return_type: Option<Tau>,
+    // END SECTION: Contextual information
+    /// Statically typed expressions that are used in the program.
+    ///
+    /// This is used to check that the type of the expression is
+    /// correct.
+    pub expressions: im_rc::HashMap<Expr, Tau, FxBuildHasher>,
+
+    /// Statically typed statements that are used in the program.
+    pub parameters: im_rc::HashMap<Parameter, Tau, FxBuildHasher>,
+
+    /// Statically typed statements that are used in the program.
+    pub declarations: im_rc::HashMap<TopLevel, Tau, FxBuildHasher>,
+
+    /// Debruijin index bindings for type names.
+    pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
+}
+
 /// Local context for type inference. This is used
 /// to infer the type of an expression, and everything
 /// that is needed to infer the type of an expression.
 pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
+
+    // SECTION: Diagnostics
+    /// The diagnostics that are emitted by the type checker.
+    pub diagnostics: Rc<RefCell<Vec<ThirDiagnostic>>>,
     pub location: Location,
+    // END SECTION: Diagnostics
 
     // SECTION: Type environment
     pub env: TyEnv,
@@ -1133,6 +1187,21 @@ impl Type<state::Hoas> {
             Type::Bound(bound) => Type::Bound(bound),
             _ => self,
         }
+    }
+}
+
+impl Snapshot {
+    /// Accumulates a diagnostic and returns a default value. This is used
+    /// to accumulate diagnostics and return a default value.
+    pub fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
+        if let ThirLocation::CallSite = diagnostic.location {
+            diagnostic.location = self.location.clone();
+        }
+
+        self.diagnostics.borrow_mut().push(diagnostic);
+
+        // We return the default value
+        Default::default()
     }
 }
 
@@ -1413,6 +1482,29 @@ impl<'tctx> InferCtx<'tctx> {
         self.type_env.insert(name, tau);
     }
 
+    /// Creates a new snapshot, just like a photograph, of
+    /// the current context.
+    pub fn snapshot(&self) -> Snapshot {
+        // Computes the current location
+        let location = self.new_location(self.location.clone());
+
+        Snapshot {
+            location,
+            pkg: self.pkg,
+            diagnostics: self.diagnostics.clone(),
+            env: self.env.clone(),
+            adhoc_env: self.adhoc_env.clone(),
+            type_env: self.type_env.clone(),
+            eval_env: self.eval_env.clone(),
+            self_type: self.self_type.clone(),
+            return_type: self.return_type.clone(),
+            expressions: self.expressions.clone(),
+            parameters: self.parameters.clone(),
+            declarations: self.declarations.clone(),
+            debruijin_index: self.debruijin_index.clone(),
+        }
+    }
+
     /// Accumulates a diagnostic and returns a default value. This is used
     /// to accumulate diagnostics and return a default value.
     pub fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
@@ -1420,8 +1512,7 @@ impl<'tctx> InferCtx<'tctx> {
             diagnostic.location = self.new_location(self.location.clone());
         }
 
-        // We push the diagnostic to the diagnostics
-        Diagnostics::push(self.db, Report::new(diagnostic));
+        self.diagnostics.borrow_mut().push(diagnostic);
 
         // We return the default value
         Default::default()
