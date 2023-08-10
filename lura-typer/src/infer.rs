@@ -1002,10 +1002,17 @@ impl Infer for TopLevel {
             }
             TopLevel::BindingGroup(binding_group) => check_binding_group(ctx, binding_group),
             TopLevel::ClassDecl(_) => todo!(),
-            TopLevel::TraitDecl(_) => todo!(),
-            TopLevel::DataDecl(data_declaration) => {
-                let ty = create_declaration_type(ctx, false, data_declaration);
+            TopLevel::TraitDecl(trait_declaration) => {
+                let ty = create_declaration_type(ctx, false, trait_declaration);
                 let self_type = replace(&mut ctx.self_type, ty.clone().into());
+
+                // Returns the old self type to the original position,
+                // as the self type is only valid in the data declaration
+                ctx.self_type = self_type;
+            },
+            TopLevel::DataDecl(data_declaration) => {
+                let tau = create_declaration_type(ctx, false, data_declaration);
+                let self_type = replace(&mut ctx.self_type, tau.clone().into());
 
                 // Creates the type of the variant
                 for variant in data_declaration.variants(ctx.db) {
@@ -1017,9 +1024,9 @@ impl Infer for TopLevel {
                         .collect::<im_rc::Vector<_>>();
 
                     let variant_type = match variant.type_rep(ctx.db) {
-                        Some(TypeRep::Hole | TypeRep::Error(_)) => ty.clone(),
+                        Some(TypeRep::Hole | TypeRep::Error(_)) => tau.clone(),
                         Some(type_rep) => ctx.translate(type_rep),
-                        None => ty.clone(),
+                        None => tau.clone(),
                     };
 
                     // Creates the type of the variant
@@ -1030,11 +1037,11 @@ impl Infer for TopLevel {
 
                     // Creates the internal variant
                     let internal = Rc::new(InternalVariant {
-                        name: ty.clone(),
+                        name: tau.clone(),
                         parameters,
                     });
                     ctx.extend(name, variant_type.clone());
-                    ctx.env.references.insert(ty.clone(), internal.clone());
+                    ctx.env.references.insert(tau.clone(), internal.clone());
                     ctx.env.constructors.insert(name, internal);
                 }
 
