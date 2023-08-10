@@ -122,7 +122,7 @@ impl Substitution<'_, '_> {
                 self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Pi(pi) => {
-                let domain = pi.domain.eval(self.ctx);
+                let domain = pi.domain.eval(self.ctx, self.ctx.eval_env.clone());
 
                 // Unnamed holes, because this isn't a dependent
                 // function type, we can just use the same hole
@@ -224,8 +224,8 @@ impl Substitution<'_, '_> {
                 }
             }
             (Type::Pi(pi_a), Type::Pi(pi_b)) => {
-                let domain_a = pi_a.domain.eval(self.ctx);
-                let domain_b = pi_b.domain.eval(self.ctx);
+                let domain_a = pi_a.domain.eval(self.ctx, self.ctx.eval_env.clone());
+                let domain_b = pi_b.domain.eval(self.ctx, self.ctx.eval_env.clone());
 
                 let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
                 let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
@@ -1023,6 +1023,14 @@ impl Check for Block {
     }
 }
 
+#[derive(Default, Clone)]
+pub(crate) struct EvalEnv {
+    /// The environment that is used to evaluate the expression.
+    ///
+    /// This is used to evaluate the expression.
+    pub env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+}
+
 /// Local context for type inference. This is used
 /// to infer the type of an expression, and everything
 /// that is needed to infer the type of an expression.
@@ -1035,6 +1043,7 @@ pub(crate) struct InferCtx<'tctx> {
     pub env: TyEnv,
     pub adhoc_env: ClassEnv,
     pub type_env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+    pub eval_env: EvalEnv,
     // END SECTION: Type environment
 
     // SECTION: Contextual information
