@@ -23,7 +23,7 @@ pub use generated::*;
 use std::{hash::Hash, ops::Deref, sync::Arc};
 
 use lura_diagnostic::DiagnosticDb;
-use lura_vfs::{SourceFile, VfsDb};
+use lura_vfs::VfsDb;
 use tree_sitter::{Parser, Tree};
 
 extern crate salsa_2022 as salsa;
@@ -70,7 +70,7 @@ pub struct Source {
 /// Parses a Lura program into a syntax tree. This query is memoized, so it will only be executed
 /// once for each program.
 #[salsa::tracked]
-pub fn parse(db: &dyn ParseDb, program: SourceFile) -> Source {
+pub fn parse(db: &dyn ParseDb, program: lura_vfs::SourceFile) -> Source {
     let mut parser = Parser::new();
     parser
         .set_language(tree_sitter_lura::language())

@@ -1120,6 +1120,7 @@ pub(crate) struct Snapshot {
 /// Local context for type inference. This is used
 /// to infer the type of an expression, and everything
 /// that is needed to infer the type of an expression.
+#[allow(dead_code)]
 pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
@@ -1159,6 +1160,7 @@ pub(crate) struct InferCtx<'tctx> {
 }
 
 impl Pred<state::Hoas> {
+    // Replaces a type variable with a type.
     fn replace(self, name: Definition, replacement: Tau) -> Pred<state::Hoas> {
         match self {
             Pred::IsIn(ty, class, str) => Pred::IsIn(ty.replace(name, replacement), class, str),
@@ -1199,6 +1201,8 @@ impl Type<state::Hoas> {
         substitution.publish_all_errors();
     }
 
+    /// Substitutes a type variable with a type. This is used
+    /// to make substitutions in the type.
     fn replace(self, name: Definition, replacement: Tau) -> Tau {
         use holes::HoleKind::*;
         match self {
@@ -1274,8 +1278,6 @@ impl<'tctx> InferCtx<'tctx> {
     /// Creates a new meta type. This is used to
     /// create a new empty hole.
     fn new_meta(&mut self) -> Tau {
-        self.env.level += 1;
-
         Tau::Hole(HoleRef::new(Hole {
             kind: holes::HoleKind::Empty {
                 scope: self.env.level,
