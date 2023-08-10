@@ -3,7 +3,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
-use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
+use lura_diagnostic::{code, message, ErrorId};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -22,6 +22,7 @@ use lura_hir::{
 
 use crate::type_rep::forall::HoasForall;
 use crate::type_rep::pi::HoasPi;
+use crate::utils::LocalDashMap;
 use crate::whnf::Whnf;
 use crate::{
     adhoc::{ClassEnv, Pred, Qual},
@@ -1056,8 +1057,8 @@ pub(crate) struct Snapshot {
     // SECTION: Type environment
     pub env: TyEnv,
     pub adhoc_env: ClassEnv,
-    pub type_env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
     pub eval_env: EvalEnv,
+    pub type_env: LocalDashMap<Definition, Tau>,
     // END SECTION: Type environment
 
     // SECTION: Contextual information
@@ -1096,7 +1097,7 @@ pub(crate) struct InferCtx<'tctx> {
     // SECTION: Type environment
     pub env: TyEnv,
     pub adhoc_env: ClassEnv,
-    pub type_env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+    pub type_env: LocalDashMap<Definition, Tau, FxBuildHasher>,
     pub eval_env: EvalEnv,
     // END SECTION: Type environment
 
@@ -1258,7 +1259,6 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Path(reference) => self
                 .type_env
                 .get(&reference.definition(self.db))
-                .cloned()
                 // Tries to get from the environment, if it fails, it means
                 // that, the type variable is really a type variable, and
                 // not a constructor.

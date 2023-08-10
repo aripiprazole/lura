@@ -1,4 +1,4 @@
-use crate::infer::{EvalEnv, InferCtx, Snapshot};
+use crate::infer::{EvalEnv, Snapshot};
 use crate::thir::{ThirDiagnostic, ThirLocation};
 use crate::type_rep::pi::HoasPi;
 use crate::type_rep::state;
@@ -66,20 +66,15 @@ impl Whnf for Type<state::Hoas> {
             //
             // Or, if it has a kind like: `* -> *`, it should
             // return a pi type. To be executed.
-            Type::Constructor(name) => {
-                ctx.type_env
-                    .get(&name.definition)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        ctx.accumulate::<()>(ThirDiagnostic {
-                            id: ErrorId("unbound-constructor"),
-                            location: ThirLocation::CallSite,
-                            message: message!["unbound constructor", code!(name.to_string())],
-                        });
+            Type::Constructor(name) => ctx.type_env.get(&name.definition).unwrap_or_else(|| {
+                ctx.accumulate::<()>(ThirDiagnostic {
+                    id: ErrorId("unbound-constructor"),
+                    location: ThirLocation::CallSite,
+                    message: message!["unbound constructor", code!(name.to_string())],
+                });
 
-                        Type::Constructor(name.clone())
-                    })
-            }
+                Type::Constructor(name.clone())
+            }),
             _ => self.clone(),
         }
     }
