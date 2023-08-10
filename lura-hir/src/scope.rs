@@ -50,6 +50,7 @@ pub struct Scope {
 
     // The values informations
     pub constructors: im::HashMap<String, Definition, FxBuildHasher>,
+    pub traits: im::HashMap<String, Definition, FxBuildHasher>,
     pub values: im::HashMap<String, Definition, FxBuildHasher>,
     pub variables: im::HashMap<String, Definition, FxBuildHasher>,
     pub types: im::HashMap<String, Definition, FxBuildHasher>,
@@ -66,6 +67,7 @@ impl Scope {
             types: im::HashMap::default(),
             values: im::HashMap::default(),
             variables: im::HashMap::default(),
+            traits: im::HashMap::default(),
             imports: im::HashSet::default(),
         }
     }
@@ -114,6 +116,7 @@ impl Scope {
             references: im::HashMap::default(),
             constructors: im::HashMap::default(),
             types: im::HashMap::default(),
+            traits: im::HashMap::default(),
             values: im::HashMap::default(),
             variables: im::HashMap::default(),
             imports: im::HashSet::default(),
@@ -151,6 +154,7 @@ impl Scope {
             DefinitionKind::Constructor => self.constructors.insert(name, def),
             DefinitionKind::Type => self.types.insert(name, def),
             DefinitionKind::Variable => self.variables.insert(name, def),
+            DefinitionKind::Trait => self.traits.insert(name, def),
             DefinitionKind::Module => todo!("Nested modules are not supported yet"),
             DefinitionKind::Command => todo!("Nested commands are not supported yet"),
             DefinitionKind::Unresolved => panic!("Illegal definition kind: Unresolved"),
@@ -188,6 +192,15 @@ impl Scope {
                         Some(root) => root.search(db, path, DefinitionKind::Constructor),
                         None => None,
                     })
+            }
+            DefinitionKind::Trait => {
+                self.traits
+                  .get(&name)
+                  .copied()
+                  .or_else(|| match self.parent.as_ref() {
+                      Some(root) => root.search(db, path, DefinitionKind::Trait),
+                      None => None,
+                  })
             }
             DefinitionKind::Type => {
                 self.types

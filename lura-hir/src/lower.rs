@@ -21,6 +21,7 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
+use crate::resolve::find_trait;
 use crate::{
     package::Package,
     resolve::{find_function, find_type, query_module, Definition, DefinitionKind, HirLevel},
@@ -418,6 +419,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
         let node = self
             .scope
             .define(self.db, path, range.clone(), DefinitionKind::Type);
+
+        // Defines a trait for the trait too, so we can destruct it later.
+        self.scope
+            .define(self.db, path, range.clone(), DefinitionKind::Trait);
 
         let methods = tree
             .fields(&mut tree.walk())
@@ -1095,6 +1100,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             DefinitionKind::Function => find_function(self.db, path),
             DefinitionKind::Constructor => find_constructor(self.db, path),
             DefinitionKind::Type => find_type(self.db, path),
+            DefinitionKind::Trait => find_trait(self.db, path),
             DefinitionKind::Variable => Definition::no(self.db, kind, path),
             DefinitionKind::Module => Definition::no(self.db, kind, path),
             DefinitionKind::Command => Definition::no(self.db, kind, path),
@@ -1134,6 +1140,47 @@ mod pattern_solver {
     type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>;
 
     impl LowerHir<'_, '_> {
+        pub fn trait_pattern(&mut self, tree: SyntaxPattern) -> Pattern {
+            use lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern::*;
+
+            let location = self.range(tree.range());
+
+            match tree {
+                // Defines a custom solver for the constructor pattern,
+                // because it needs to search for the trait constructor in the scope.
+                ConsPattern(pattern) => {
+                    let name = pattern.name().solve(self, |this, node| this.path(node));
+                    let patterns = self.patterns(pattern.patterns(&mut pattern.walk()));
+                    let location = self.range(pattern.range());
+
+                    // If the patterns are empty, it's a binding pattern, otherwise, it's a constructor
+                    // pattern.
+                    if patterns.is_empty() {
+                        // Defines the node on the scope
+                        let name = self.scope.define(
+                            self.db,
+                            name,
+                            location.clone(),
+                            DefinitionKind::Type,
+                        );
+
+                        Pattern::Binding(BindingPattern::new(self.db, name, location))
+                    } else {
+                        let def = self.qualify(name, DefinitionKind::Trait);
+                        let reference = self.scope.using(self.db, def, name.location(self.db));
+                        let name = Constructor::Path(reference);
+
+                        Pattern::Constructor(ConstructorPattern::new(
+                            self.db, name, patterns, location,
+                        ))
+                    }
+                }
+                GroupPattern(group_pattern) => self.group_pattern(group_pattern),
+                Literal(literal) => self.literal(literal).upgrade_pattern(location, self.db),
+                RestPattern(_) => Pattern::Rest(location),
+            }
+        }
+
         pub fn pattern(&mut self, tree: SyntaxPattern) -> Pattern {
             use lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern::*;
 
@@ -1607,7 +1654,10 @@ mod term_solver {
                     match parameter {
                         Parameter(parameter) => self.parameter(true, true, parameter),
                         _ => {
-                            let pattern = self.pattern(parameter.into_node().try_into().unwrap());
+                            // This handles the case where the parameter is unnamed, and only haves a
+                            // pattern. The name should not be shown in the IDE in this case.
+                            let pattern =
+                                self.trait_pattern(parameter.into_node().try_into().unwrap());
 
                             let location = pattern.location(self.db);
 

@@ -24,10 +24,11 @@ pub enum DefinitionKind {
     Variable = 4,
     Module = 5,
     Command = 6,
+    Trait = 7,
 
     /// This is a temporary state that should never be returned by the resolver. Only if there's
     /// an unresolved name.
-    Unresolved = 7,
+    Unresolved = 8,
 }
 
 /// Represents the level of the expression in the High-Level Intermediate Representation. It's
@@ -212,6 +213,36 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
     }
 
     Definition::no(db, DefinitionKind::Constructor, name)
+}
+
+/// Defines the [`find_trait`] query.
+///
+/// It does search for a trait with the given `name` in all packages, and returns it as a
+/// [`Definition`].
+///
+/// If it can't find a type with the given `name`, it returns a [`Definition`] with the
+/// [`DefinitionKind::Trait`] and [`DefinitionKind::Unresolved`] kind. And will report an error to
+/// the revision diagnostic database.
+#[salsa::tracked]
+pub fn find_trait(db: &dyn crate::HirDb, name: HirPath) -> Definition {
+    for package in db.all_packages() {
+        for file in package.all_files(db) {
+            let hir = hir_declare(db, package, file);
+            let mut target = Scope::new(ScopeKind::InternalFile);
+
+            hir.scope(db).publish_all_definitions_to(
+                db,
+                /* prefix = */ hir.source(db).module_name(db),
+                /* scope  = */ &mut target,
+            );
+
+            if let Some(function) = target.search(db, name, DefinitionKind::Trait) {
+                return function;
+            }
+        }
+    }
+
+    Definition::no(db, DefinitionKind::Trait, name)
 }
 
 /// Defines the [`find_type`] query.

@@ -24,6 +24,7 @@ pub struct Jar(
     resolve::find_constructor,
     resolve::find_function,
     resolve::find_type,
+    resolve::find_trait,
     resolve::query_module,
     resolve::references,
     source::HirSource,
