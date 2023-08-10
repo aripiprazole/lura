@@ -1241,6 +1241,27 @@ impl<'tctx> InferCtx<'tctx> {
     /// Creates a new semantic type from a syntatic type representation,
     /// it does report errors and means the type is not inferred.
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
+        fn forall_binding(
+            ctx: &mut InferCtx,
+            pattern: Pattern,
+            location: Location,
+        ) -> Option<Name> {
+            match pattern {
+                Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
+                    let location = HirLocation::new(ctx.db, location);
+
+                    Some(Name {
+                        definition: unresolved(ctx.db, location),
+                        name: "_".into(),
+                    })
+                }
+                Pattern::Binding(binding) => Some(Name {
+                    definition: binding.name(ctx.db),
+                    name: binding.name(ctx.db).to_string(ctx.db),
+                }),
+                _ => None,
+            }
+        }
         fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Tau {
             // Transforms a type representation of forall arrow into
             // a semantic type arrow with a forall quantifier
@@ -1265,26 +1286,12 @@ impl<'tctx> InferCtx<'tctx> {
                     ctx.parameters.insert(parameter, ty);
 
                     // Gets the forall's binding name.
-                    let name = match binding {
-                        Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
-                            let location = HirLocation::new(ctx.db, location);
-
-                            Name {
-                                definition: unresolved(ctx.db, location),
-                                name: "_".into(),
-                            }
-                        }
-                        Pattern::Binding(binding) => Name {
-                            definition: binding.name(ctx.db),
-                            name: binding.name(ctx.db).to_string(ctx.db),
-                        },
-                        _ => {
-                            return ctx.accumulate(ThirDiagnostic {
-                                id: ErrorId("unsupported-pattern"),
-                                location: ctx.new_location(location),
-                                message: message!("unsupported pattern in forall type"),
-                            })
-                        }
+                    let Some(name) = forall_binding(ctx, binding, location.clone()) else {
+                        return ctx.accumulate(ThirDiagnostic {
+                            id: ErrorId("unsupported-pattern"),
+                            location: ctx.new_location(location),
+                            message: message!("unsupported pattern in forall type"),
+                        });
                     };
 
                     // Falls back to a star if the type is not
@@ -1358,7 +1365,7 @@ impl<'tctx> InferCtx<'tctx> {
                         Tau::Pi(HoasPi {
                             name: None,
                             domain: next.into(),
-                            codomain: Rc::new(move |_| acc.clone().into()),
+                            codomain: Rc::new(move |_| acc.clone()),
                         })
                     })
             }
