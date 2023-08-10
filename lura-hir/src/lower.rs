@@ -1372,6 +1372,7 @@ mod stmt_solver {
 /// It's only a module, to organization purposes.
 mod term_solver {
     use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
+    use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern;
 
     use crate::{
         resolve::{HirDiagnostic, HirLevel},
@@ -1600,9 +1601,29 @@ mod term_solver {
                 .parameters(&mut tree.walk())
                 .flatten()
                 .filter_map(|parameter| parameter.regular())
-                .filter_map(|parameter| parameter.parameter())
-                // Everything in a SIGMA is implicit.
-                .map(|parameter| self.parameter(true, true, parameter))
+                .map(|parameter| {
+                    use Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern::*;
+
+                    match parameter {
+                        Parameter(parameter) => self.parameter(true, true, parameter),
+                        _ => {
+                            let pattern = self.pattern(parameter.into_node().try_into().unwrap());
+
+                            let location = pattern.location(self.db);
+
+                            // Creates a new parameter, with no type, but a pattern
+                            self::Parameter::new(
+                                self.db,
+                                /* binding     = */ pattern,
+                                /* type_rep    = */ TypeRep::Hole,
+                                /* is_implicit = */ true,
+                                /* rigid       = */ false,
+                                /* level       = */ HirLevel::Type,
+                                /* location    = */ location,
+                            )
+                        }
+                    }
+                })
                 .collect::<Vec<_>>();
 
             let value = tree.value().solve(self, |this, expr| this.type_expr(expr));

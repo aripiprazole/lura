@@ -105,15 +105,23 @@ mod tests {
         "public data String {}",
         "public data Int {}",
         "public data List (^a) {}",
+
+        // Type class tests
+        "public trait Show (^a) {}",
         "println : [Show a] => ()",
-        "f (args: List String)",
+
+        // Defines test functions to test
+        // instantiation.
+        "fa (args: List String)",
         "fb (args: List Int)",
+
+        // Defines a main function
         "main (args: List String) {",
-        "  let a = f args",
+        "  let a = fa args",
         "  let b = fb args",
         "  let x = id 10",
         "  let y = id \"hello\"",
-        "  id (id x)",
+        "  y",
         "}",
     ];
 

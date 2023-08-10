@@ -2880,13 +2880,13 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ReturnExpr<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `sigma_expr`\n\nThis node has these fields:\n- `parameter`: `{, | forall_parameter | parameter}+` ([anon_unions::Comma_ForallParameter_Parameter])\n- `value`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
+#[doc = "Typed node `sigma_expr`\n\nThis node has these fields:\n- `parameter`: `{, | cons_pattern | group_pattern | literal | parameter | rest_pattern}+` ([anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern])\n- `value`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct SigmaExpr<'tree>(tree_sitter::Node<'tree>);
 #[automatically_derived]
 impl<'tree> SigmaExpr<'tree> {
-    #[doc = "Get the field `parameter` which has kind `{, | forall_parameter | parameter}+` ([anon_unions::Comma_ForallParameter_Parameter])"]
+    #[doc = "Get the field `parameter` which has kind `{, | cons_pattern | group_pattern | literal | parameter | rest_pattern}+` ([anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern])"]
     #[doc = "This is guaranteed to return at least one child"]
     #[allow(dead_code)]
     #[inline]
@@ -2896,10 +2896,18 @@ impl<'tree> SigmaExpr<'tree> {
     ) -> impl Iterator<
         Item = type_sitter_lib::NodeResult<
             'tree,
-            type_sitter_lib::ExtraOr<'tree, anon_unions::Comma_ForallParameter_Parameter<'tree>>,
+            type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree>,
+            >,
         >,
     > + 'a {
-        self . 0 . children_by_field_name ("parameter" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: Comma_ForallParameter_Parameter < 'tree > > as TryFrom < _ >> :: try_from (n))
+        self.0.children_by_field_name("parameter", c).map(|n| {
+            <type_sitter_lib::ExtraOr<
+                'tree,
+                anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree>,
+            > as TryFrom<_>>::try_from(n)
+        })
     }
     #[doc = "Get the field `value` which has kind `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
     #[allow(dead_code)]
@@ -9302,6 +9310,151 @@ pub mod anon_unions {
                 Self::Path(x) => x.into_node(),
                 Self::ReturnExpr(x) => x.into_node(),
                 Self::TupleExpr(x) => x.into_node(),
+            }
+        }
+    }
+    #[doc = "one of `{, | cons_pattern | group_pattern | literal | parameter | rest_pattern}`:\n- [symbols::Comma]\n- [ConsPattern]\n- [GroupPattern]\n- [Literal]\n- [Parameter]\n- [RestPattern]"]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[allow(non_camel_case_types)]
+    pub enum Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree> {
+        Comma(symbols::Comma<'tree>),
+        ConsPattern(ConsPattern<'tree>),
+        GroupPattern(GroupPattern<'tree>),
+        Literal(Literal<'tree>),
+        Parameter(Parameter<'tree>),
+        RestPattern(RestPattern<'tree>),
+    }
+    #[automatically_derived]
+    impl<'tree> Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree> {
+        #[doc = "Returns the node if it is of kind `,` ([symbols::Comma]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn comma(self) -> Option<symbols::Comma<'tree>> {
+            match self {
+                Self::Comma(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `cons_pattern` ([ConsPattern]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn cons_pattern(self) -> Option<ConsPattern<'tree>> {
+            match self {
+                Self::ConsPattern(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `group_pattern` ([GroupPattern]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn group_pattern(self) -> Option<GroupPattern<'tree>> {
+            match self {
+                Self::GroupPattern(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `literal` ([Literal]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn literal(self) -> Option<Literal<'tree>> {
+            match self {
+                Self::Literal(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `parameter` ([Parameter]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn parameter(self) -> Option<Parameter<'tree>> {
+            match self {
+                Self::Parameter(x) => Some(x),
+                _ => None,
+            }
+        }
+        #[doc = "Returns the node if it is of kind `rest_pattern` ([RestPattern]), otherwise returns None"]
+        #[inline]
+        #[allow(unused, non_snake_case)]
+        pub fn rest_pattern(self) -> Option<RestPattern<'tree>> {
+            match self {
+                Self::RestPattern(x) => Some(x),
+                _ => None,
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<'tree> TryFrom<tree_sitter::Node<'tree>>
+        for Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree>
+    {
+        type Error = type_sitter_lib::IncorrectKind<'tree>;
+        #[inline]
+        fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+            match node.kind() {
+                "," => Ok(unsafe {
+                    Self::Comma(<symbols::Comma<'tree> as type_sitter_lib::TypedNode<
+                        'tree,
+                    >>::from_node_unchecked(node))
+                }),
+                "cons_pattern" => Ok(unsafe {
+                    Self :: ConsPattern (< ConsPattern < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "group_pattern" => Ok(unsafe {
+                    Self :: GroupPattern (< GroupPattern < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "literal" => {
+                    Ok(unsafe {
+                        Self :: Literal (< Literal < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                    })
+                }
+                "parameter" => Ok(unsafe {
+                    Self :: Parameter (< Parameter < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                "rest_pattern" => Ok(unsafe {
+                    Self :: RestPattern (< RestPattern < 'tree > as type_sitter_lib :: TypedNode < 'tree >> :: from_node_unchecked (node))
+                }),
+                _ => Err(type_sitter_lib::IncorrectKind {
+                    node,
+                    kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+                }),
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<'tree> type_sitter_lib::TypedNode<'tree>
+        for Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern<'tree>
+    {
+        const KIND: &'static str =
+            "{, | cons_pattern | group_pattern | literal | parameter | rest_pattern}";
+        #[inline]
+        fn node(&self) -> &tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.node(),
+                Self::ConsPattern(x) => x.node(),
+                Self::GroupPattern(x) => x.node(),
+                Self::Literal(x) => x.node(),
+                Self::Parameter(x) => x.node(),
+                Self::RestPattern(x) => x.node(),
+            }
+        }
+        #[inline]
+        fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.node_mut(),
+                Self::ConsPattern(x) => x.node_mut(),
+                Self::GroupPattern(x) => x.node_mut(),
+                Self::Literal(x) => x.node_mut(),
+                Self::Parameter(x) => x.node_mut(),
+                Self::RestPattern(x) => x.node_mut(),
+            }
+        }
+        #[inline]
+        fn into_node(self) -> tree_sitter::Node<'tree> {
+            match self {
+                Self::Comma(x) => x.into_node(),
+                Self::ConsPattern(x) => x.into_node(),
+                Self::GroupPattern(x) => x.into_node(),
+                Self::Literal(x) => x.into_node(),
+                Self::Parameter(x) => x.into_node(),
+                Self::RestPattern(x) => x.into_node(),
             }
         }
     }
