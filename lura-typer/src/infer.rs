@@ -4,6 +4,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
+use lura_hir::source::type_rep::ArrowTypeRep;
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -1218,12 +1219,7 @@ impl<'tctx> InferCtx<'tctx> {
             .map(|_| self.new_meta())
             .collect::<Vec<_>>();
 
-        let mut codomain = forall.data.instantiate(parameters.clone());
-        for ((name, _), hole) in forall.domain.iter().zip(parameters) {
-            codomain = codomain.replace(name.definition, hole);
-        }
-
-        codomain
+        forall.instantiate(parameters)
     }
 
     fn quantify(&self, ty: Rho) -> Sigma {
@@ -1245,6 +1241,73 @@ impl<'tctx> InferCtx<'tctx> {
     /// Creates a new semantic type from a syntatic type representation,
     /// it does report errors and means the type is not inferred.
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
+        fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Tau {
+            // Transforms a type representation of forall arrow into
+            // a semantic type arrow with a forall quantifier
+            let value = ctx.eval(forall.value(ctx.db));
+
+            let parameters = forall
+                .parameters(ctx.db)
+                .into_iter()
+                .filter_map(|parameter| {
+                    // Checks the type of the parameter
+                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+                    let binding = parameter.binding(ctx.db);
+
+                    let location = binding.location(ctx.db);
+
+                    // Checks the binding
+                    let ty = binding.clone().check(ty, ctx);
+
+                    // Stores the parameter in the environment
+                    // as debug information for the type checker
+                    // build a table.
+                    ctx.parameters.insert(parameter, ty);
+
+                    // Gets the forall's binding name.
+                    let name = match binding {
+                        Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
+                            let location = HirLocation::new(ctx.db, location);
+
+                            Name {
+                                definition: unresolved(ctx.db, location),
+                                name: "_".into(),
+                            }
+                        }
+                        Pattern::Binding(binding) => Name {
+                            definition: binding.name(ctx.db),
+                            name: binding.name(ctx.db).to_string(ctx.db),
+                        },
+                        _ => {
+                            return ctx.accumulate(ThirDiagnostic {
+                                id: ErrorId("unsupported-pattern"),
+                                location: ctx.new_location(location),
+                                message: message!("unsupported pattern in forall type"),
+                            })
+                        }
+                    };
+
+                    // Falls back to a star if the type is not
+                    // specified.
+                    //
+                    // NOTE: currently the type can't be specified
+                    // so, whatever.
+                    Some((name, Type::TYPE))
+                })
+                .collect::<Vec<_>>();
+
+            Tau::Forall(Qual::new(HoasForall {
+                domain: parameters.clone(),
+                codomain: Rc::new(move |domain| {
+                    let mut value = value.clone();
+                    for ((name, _kind), type_rep) in parameters.clone().into_iter().zip(domain) {
+                        value = value.replace(name.definition, type_rep)
+                    }
+                    value
+                }),
+            }))
+        }
+
         match type_rep {
             // SECTION: Sentinel Values
             TypeRep::Hole => self.new_meta(), // Infer the type
@@ -1300,64 +1363,7 @@ impl<'tctx> InferCtx<'tctx> {
                     })
             }
             TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
-                // Transforms a type representation of forall arrow into
-                // a semantic type arrow with a forall quantifier
-                let value = self.eval(forall.value(self.db));
-
-                let parameters = forall
-                    .parameters(self.db)
-                    .into_iter()
-                    .filter_map(|parameter| {
-                        // Checks the type of the parameter
-                        let ty = self.eval(parameter.parameter_type(self.db));
-                        let binding = parameter.binding(self.db);
-
-                        let location = binding.location(self.db);
-
-                        // Checks the binding
-                        let ty = binding.clone().check(ty, self);
-
-                        // Stores the parameter in the environment
-                        // as debug information for the type checker
-                        // build a table.
-                        self.parameters.insert(parameter, ty);
-
-                        // Gets the forall's binding name.
-                        let name = match binding {
-                            Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
-                                let location = HirLocation::new(self.db, location);
-
-                                Name {
-                                    definition: unresolved(self.db, location),
-                                    name: "_".into(),
-                                }
-                            }
-                            Pattern::Binding(binding) => Name {
-                                definition: binding.name(self.db),
-                                name: binding.name(self.db).to_string(self.db),
-                            },
-                            _ => {
-                                return self.accumulate(ThirDiagnostic {
-                                    id: ErrorId("unsupported-pattern"),
-                                    location: self.new_location(location),
-                                    message: message!("unsupported pattern in forall type"),
-                                })
-                            }
-                        };
-
-                        // Falls back to a star if the type is not
-                        // specified.
-                        //
-                        // NOTE: currently the type can't be specified
-                        // so, whatever.
-                        Some((name, Type::TYPE))
-                    })
-                    .collect::<Vec<_>>();
-
-                Tau::Forall(Qual::new(HoasForall {
-                    domain: parameters,
-                    codomain: Rc::new(move |_domain| value.clone()),
-                }))
+                eval_forall(self, forall)
             }
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
                 self.accumulate(ThirDiagnostic {
