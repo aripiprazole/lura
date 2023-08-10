@@ -1,5 +1,4 @@
 use holes::*;
-use lura_hir::resolve::empty_definition;
 use lura_hir::resolve::Definition;
 use std::rc::Rc;
 use std::{
@@ -9,7 +8,6 @@ use std::{
 };
 
 use crate::adhoc::Qual;
-use crate::infer::InferCtx;
 use crate::type_rep::pi::HoasPi;
 
 pub type Level = usize;
@@ -37,7 +35,6 @@ pub enum Primary {
     #[default]
     Error,
 
-    Type,
     Unit,
     Bool,
     String,
@@ -102,6 +99,7 @@ pub type TypeRep = Type<state::Quoted>;
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type<S: state::TypeState> {
+    Type,
     Primary(Primary),
     Constructor(Name),
     App(Box<Type<S>>, Box<Type<S>>),
@@ -120,9 +118,9 @@ pub enum Type<S: state::TypeState> {
 }
 
 impl<M: state::TypeState> Type<M> {
+    pub const TYPE: Self = Self::Type;
     pub const ERROR: Self = Self::Primary(Primary::Error);
     pub const UNIT: Self = Self::Primary(Primary::Unit);
-    pub const TYPE: Self = Self::Primary(Primary::Type);
     pub const BOOL: Self = Self::Primary(Primary::Bool);
     pub const CHAR: Self = Self::Primary(Primary::Char);
     pub const STRING: Self = Self::Primary(Primary::String);
@@ -167,9 +165,9 @@ pub mod forall {
     }
 
     impl Display for QuotedForall {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let domain = &self.domain;
-            let codomain = &self.codomain;
+        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let _domain = &self.domain;
+            let _codomain = &self.codomain;
 
             todo!()
 
@@ -271,13 +269,12 @@ pub mod pi {
     impl Display for QuotedPi {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let name = match &self.name {
-                Some(name) => name.to_string(),
-                None => "_".to_string(),
+                Some(name) => format!("({name} : {})", self.domain),
+                None => self.domain.to_string(),
             };
-            let domain = &self.domain;
             let codomain = &self.codomain;
 
-            write!(f, "({name} : {domain}) -> {codomain}")
+            write!(f, "{name} -> {codomain}")
         }
     }
 
@@ -348,20 +345,6 @@ pub mod pi {
 }
 
 impl Type<state::Hoas> {
-    pub(crate) fn spine(self, ctx: &mut InferCtx) -> (Vec<Self>, Self) {
-        let mut spine = vec![];
-        let mut last_result = self;
-
-        while let Type::Pi(ref fun @ pi::HoasPi { ref domain, .. }) = last_result {
-            use crate::whnf::Whnf;
-
-            spine.push(domain.eval(ctx));
-            last_result = fun.codomain(Type::Bound(Bound::Hole));
-        }
-
-        (spine, last_result)
-    }
-
     /// Create a new pi type. This is used to create a new pi type.
     ///
     /// # Parameters
@@ -407,7 +390,6 @@ mod display {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Primary::Error => write!(f, "!"),
-                Primary::Type => write!(f, "Type"),
                 Primary::Unit => write!(f, "()"),
                 Primary::Bool => write!(f, "Bool"),
                 Primary::String => write!(f, "String"),
@@ -437,6 +419,7 @@ mod display {
     impl<M: state::TypeState> Display for Type<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                Type::Type => write!(f, "Type"),
                 Type::Primary(primary) => write!(f, "{primary}"),
                 Type::Constructor(constructor) => write!(f, "{constructor}"),
                 Type::App(app, argument) => write!(f, "({} {})", app, argument),
@@ -641,6 +624,7 @@ pub mod seals {
         /// ready to be used as [`Send`] and [`Sync`].
         fn seal(self) -> Self::Sealed {
             match self {
+                Type::Type => Type::Type,
                 Type::Primary(primary) => Type::Primary(primary),
                 Type::Constructor(constructor) => Type::Constructor(constructor),
                 Type::Forall(forall) => Type::Forall(forall.seal()),
