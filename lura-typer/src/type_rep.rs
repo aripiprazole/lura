@@ -368,7 +368,7 @@ pub mod pi {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let name = match &self.name {
                 Some(name) => format!("({name} : {})", self.domain),
-                None => format!("({})", self.domain),
+                None => format!("{}", self.domain),
             };
             let codomain = &self.codomain;
 

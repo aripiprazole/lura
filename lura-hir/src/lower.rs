@@ -1601,7 +1601,8 @@ mod term_solver {
                 .flatten()
                 .filter_map(|parameter| parameter.regular())
                 .filter_map(|parameter| parameter.parameter())
-                .map(|parameter| self.parameter(false, true, parameter))
+                // Everything in a SIGMA is implicit.
+                .map(|parameter| self.parameter(true, true, parameter))
                 .collect::<Vec<_>>();
 
             let value = tree.value().solve(self, |this, expr| this.type_expr(expr));
