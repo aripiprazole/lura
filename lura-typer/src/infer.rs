@@ -33,6 +33,7 @@ use crate::{
         *,
     },
 };
+use crate::options::TyperFeatures;
 
 /// Represents the type errors that can occur during type checking,
 /// specially on the unification step.
@@ -1088,6 +1089,7 @@ pub(crate) struct Snapshot {
 pub(crate) struct InferCtx<'tctx> {
     pub db: &'tctx dyn crate::TyperDb,
     pub pkg: Package,
+    pub options: TyperFeatures,
 
     // SECTION: Diagnostics
     /// The diagnostics that are emitted by the type checker.
@@ -1098,14 +1100,15 @@ pub(crate) struct InferCtx<'tctx> {
     // SECTION: Type environment
     pub env: TyEnv,
     pub adhoc_env: ClassEnv,
-    pub type_env: LocalDashMap<Definition, Tau, FxBuildHasher>,
     pub eval_env: EvalEnv,
+    pub type_env: LocalDashMap<Definition, Tau>,
     // END SECTION: Type environment
 
     // SECTION: Contextual information
     pub self_type: Option<Tau>,
     pub return_type: Option<Tau>,
     // END SECTION: Contextual information
+
     /// Statically typed expressions that are used in the program.
     ///
     /// This is used to check that the type of the expression is

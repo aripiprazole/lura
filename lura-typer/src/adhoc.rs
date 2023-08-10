@@ -1,32 +1,37 @@
 use std::{fmt::Display, ops::Deref};
 
 use lura_hir::resolve::Definition;
+use lura_hir::source::expr::Expr;
 
 use crate::type_rep::{self, Quote, Type};
+use crate::type_rep::state::Hoas;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ClassEnv {}
+pub struct ClassEnv {
+    pub type_predicates: im_rc::HashMap<Type<Hoas>, Vec<Pred<Hoas>>>,
+    pub expressions: im_rc::HashMap<Expr, Vec<Pred<Hoas>>>
+}
 
 /// Represents a class, i.e. a collection of types that share a common
 /// interface.
-pub struct Trait<M: type_rep::state::TypeState> {
+pub struct Trait<S: type_rep::state::TypeState> {
     pub superclasses: Vec<String>,
-    pub instances: Vec<Instance<M>>,
+    pub instances: Vec<Instance<S>>,
 }
 
-pub type Instance<M> = Qual<M, Pred<M>>;
+pub type Instance<S> = Qual<S, Pred<S>>;
 
 /// Represents a qualified type, i.e. a type with predicates.
 ///
 /// For example, `Eq a => a` is a qualified type, where `Eq a` is the predicate
 /// and `a` is the type value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Qual<M: type_rep::state::TypeState, T> {
-    pub predicates: Vec<Pred<M>>,
+pub struct Qual<S: type_rep::state::TypeState, T> {
+    pub predicates: Vec<Pred<S>>,
     pub data: T,
 }
 
-impl<M: type_rep::state::TypeState, T> Qual<M, T> {
+impl<S: type_rep::state::TypeState, T> Qual<S, T> {
     /// Creates a new qualified type.
     pub fn new(value: T) -> Self {
         Self {
@@ -47,7 +52,7 @@ impl<T: Quote> Quote for Qual<type_rep::state::Hoas, T> {
     }
 }
 
-impl<M: type_rep::state::TypeState, T> Deref for Qual<M, T> {
+impl<S: type_rep::state::TypeState, T> Deref for Qual<S, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
