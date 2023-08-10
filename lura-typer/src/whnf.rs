@@ -20,6 +20,8 @@ impl Whnf for Type<state::Hoas> {
         match self {
             // Applies the function to the value,
             // like `Bool -> Bool` to `Bool`.
+            //
+            // TODO: add stuck on application
             Type::App(callee, value) => {
                 let callee = callee.eval(ctx, env);
 
