@@ -29,6 +29,7 @@ pub mod declaration;
 pub mod elaboration;
 pub mod infer;
 pub mod table;
+pub mod utils;
 pub mod thir;
 pub mod whnf;
 pub mod type_rep;
