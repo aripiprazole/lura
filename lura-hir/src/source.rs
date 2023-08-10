@@ -111,10 +111,12 @@ pub struct HirTextRange {
 
 /// A location in a source file. It can be either a text range or a lazy location to be evaluated
 /// in the `call_site`.
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Default, Clone, Hash, PartialEq, Eq)]
 pub enum Location {
     /// A text range in a source file.
     TextRange(HirTextRange),
+
+    #[default]
     CallSite,
 }
 

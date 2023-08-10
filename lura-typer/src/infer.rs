@@ -30,7 +30,7 @@ use crate::type_rep::stuck::Stuck;
 use crate::utils::LocalDashMap;
 use crate::whnf::Whnf;
 use crate::{
-    adhoc::{ClassEnv, Pred, Qual},
+    adhoc::{ClassEnv, Predicate, Qual},
     thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
     type_rep::{
         holes::{Hole, HoleRef},
@@ -1245,11 +1245,19 @@ pub(crate) struct InferCtx<'tctx> {
     pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
 }
 
-impl Pred<state::Hoas> {
+impl Predicate<state::Hoas> {
     // Replaces a type variable with a type.
-    fn replace(self, name: Definition, replacement: Tau) -> Pred<state::Hoas> {
+    fn replace(self, name: Definition, replacement: Tau) -> Predicate<state::Hoas> {
         match self {
-            Pred::IsIn(ty, class, str) => Pred::IsIn(ty.replace(name, replacement), class, str),
+            Predicate::None => Predicate::None,
+            Predicate::IsIn(class_name, arguments) => Predicate::IsIn(
+                /* name      = */ class_name,
+                /* arguments = */
+                arguments
+                    .into_iter()
+                    .map(|value| value.replace(name, replacement.clone()))
+                    .collect(),
+            ),
         }
     }
 }
@@ -1368,8 +1376,8 @@ impl<'tctx> InferCtx<'tctx> {
     ///
     /// This is only enabled by language feature flag in the
     /// CLI.
-    fn quantify(&self, ty: Tau) -> Tau {
-        ty
+    fn quantify(&self, tau: Tau) -> Tau {
+        tau
     }
 
     /// Creates a new meta type. This is used to
@@ -1600,7 +1608,7 @@ impl<'tctx> InferCtx<'tctx> {
         }
     }
 
-    fn new_location(&self, location: Location) -> ThirLocation {
+    pub(crate) fn new_location(&self, location: Location) -> ThirLocation {
         // We set the location of the diagnostic, lowering the
         // source of location
         match location {
