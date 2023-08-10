@@ -21,6 +21,7 @@ use lura_hir::{
     },
 };
 
+use crate::adhoc::{no_preds, Preds};
 use crate::options::TyperFeatures;
 use crate::type_rep::forall::HoasForall;
 use crate::type_rep::holes::HoleKind;
@@ -98,11 +99,11 @@ impl Substitution<'_, '_> {
     /// - "occurs  check" : check that the hole doesn't occur in the type
     ///                     or simplier, check that you aren't making recursive types
     /// - "scope check"   : check that you aren't using bound vars outside its scope
-    fn hole_unify_prechecks(&mut self, ty: Tau, scope: Level, hole: HoleMut) {
+    fn hole_unify_prechecks(&mut self, tau: Tau, scope: Level, hole: HoleMut) {
         let _ = scope;
         let _ = hole;
 
-        match ty {
+        match tau {
             // SECTION: Types
             Type::Type => {}
             Type::Primary(_) => {}
@@ -564,21 +565,21 @@ impl Infer for Constructor {
 }
 
 impl Infer for Callee {
-    type Output = Type<state::Hoas>;
+    type Output = (Preds, Type<state::Hoas>);
 
     /// Infers the type of the callee. This is used
     /// to infer the type of the callee.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Callee
-            Callee::Unit => Type::Primary(Primary::Unit), // Unit = Unit
+            Callee::Unit => (no_preds(), Type::Primary(Primary::Unit)), // Unit = Unit
             // SECTION: Builtin
             Callee::Array => panic!("array builtin should be handled in a different way"),
             Callee::Tuple => panic!("tuple builtin should be handled in a different way"),
             Callee::Pure => panic!("pure builtin should be handled in a different way"),
             Callee::Do => todo!("do builtin"),
             // SECTION: Reference
-            Callee::Reference(path) => ctx.reference(path),
+            Callee::Reference(path) => (no_preds(), ctx.reference(path)),
             // SECTION: Expressions
             // Handle expressions in callee
             Callee::Expr(expr) => expr.infer(ctx),
@@ -587,14 +588,14 @@ impl Infer for Callee {
 }
 
 impl Infer for Expr {
-    type Output = Type<state::Hoas>;
+    type Output = (Preds, Type<state::Hoas>);
 
     // Associate the type with the expression
     // This is used to access the type of the expression in
     // a elaboration step
     fn store_ty_var(self, target: Self::Output, ctx: &mut InferCtx) {
         // Associate the type with the expression
-        ctx.expressions.insert(self, target);
+        ctx.expressions.insert(self, target.1);
     }
 
     /// Infers the type of the expression. This is used
@@ -602,21 +603,29 @@ impl Infer for Expr {
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            Expr::Empty => Tau::Primary(Primary::Error),
-            Expr::Error(_) => Tau::Primary(Primary::Error),
+            Expr::Empty => (no_preds(), Tau::Primary(Primary::Error)),
+            Expr::Error(_) => (no_preds(), Tau::Primary(Primary::Error)),
 
             // SECTION: Expressions
             // Handles literals, references and expressions that are not handled by other cases
-            Expr::Path(reference) => ctx.reference(reference),
-            Expr::Literal(literal) => literal.infer(ctx),
+            Expr::Path(reference) => (no_preds(), ctx.reference(reference)),
+            Expr::Literal(literal) => (no_preds(), literal.infer(ctx)),
             Expr::Call(call) => {
+                let mut preds = vec![];
                 let callee = call.callee(ctx.db);
 
                 // Infers the type of each argument
                 let parameters = call
                     .arguments(ctx.db)
                     .into_iter()
-                    .map(|argument| argument.infer(ctx))
+                    .map(|argument| {
+                        let (local_preds, tau) = argument.infer(ctx);
+
+                        // Adds the local predicates to the global predicates
+                        preds.extend(local_preds);
+
+                        tau
+                    })
                     .collect::<Vec<_>>();
 
                 // Matches the callee, because all primary expressions are
@@ -630,7 +639,7 @@ impl Infer for Expr {
 
                         match arguments.len() {
                             // Unit type
-                            0 => Type::Primary(Primary::Unit),
+                            0 => (no_preds(), Type::Primary(Primary::Unit)),
                             // Group type
                             1 => arguments[0].clone().infer(ctx),
                             // Tuple type
@@ -642,7 +651,7 @@ impl Infer for Expr {
                             // TODO: return monad
                             let ty = ctx.new_meta();
                             do_notation.check(ty.clone(), ctx);
-                            ty
+                            (no_preds(), ty)
                         }
                         None => ctx.accumulate(ThirDiagnostic {
                             location: ThirLocation::CallSite,
@@ -659,7 +668,7 @@ impl Infer for Expr {
                                 message: message!["pure but without return type parameter"],
                             });
 
-                            return ctx.new_meta();
+                            return (no_preds(), ctx.new_meta());
                         };
 
                         // TODO: return monad
@@ -667,12 +676,16 @@ impl Infer for Expr {
                             // Unit type
                             0 => {
                                 return_type.unify(Type::Primary(Primary::Unit), ctx);
-                                return_type
+                                (no_preds(), return_type)
                             }
                             // Group type
                             1 => {
-                                return_type.unify(arguments[0].clone().infer(ctx), ctx);
-                                return_type
+                                // Creates a new type variable to represent the type of the result
+                                //
+                                // And returns predicates and return type.
+                                let (preds, tau) = arguments[0].clone().infer(ctx);
+                                return_type.unify(tau, ctx);
+                                (preds, return_type)
                             }
                             // Tuple type
                             _ => ctx.accumulate(ThirDiagnostic {
@@ -692,19 +705,25 @@ impl Infer for Expr {
                         //     and `pi : Int -> Int -> ?hole`,
                         //     we get `?hole = Int`, in the unification
                         //     process, and we get the result of value.
-                        pi.unify(callee.infer_with(&call, ctx), ctx);
+                        let (new_preds, callee) = callee.infer_with(&call, ctx);
+
+                        // Adds the new predicates to the global predicates
+                        preds.extend(new_preds);
+
+                        // Unify the callee with the pi type
+                        pi.unify(callee, ctx);
 
                         // Returns the type of the result
-                        hole
+                        (preds, hole)
                     }
                 }
             }
 
             Expr::Ann(ann) => {
-                let ty = ctx.translate(ann.type_rep(ctx.db));
+                let tau = ctx.translate(ann.type_rep(ctx.db));
                 let value = ann.value(ctx.db);
 
-                value.check(ty, ctx)
+                value.check(tau, ctx)
             }
 
             Expr::Abs(abs) => {
@@ -733,29 +752,31 @@ impl Infer for Expr {
             }
 
             Expr::Match(match_expr) => {
-                let scrutinee = match_expr.scrutinee(ctx.db).infer(ctx);
+                let (preds, scrutinee) = match_expr.scrutinee(ctx.db).infer(ctx);
 
                 // Creates a new type variable to represent the type of the value
-                let hole = ctx.new_meta();
+                let hole = (preds, ctx.new_meta());
 
                 // Infers the type of each arm, to find the common type
                 // between all of their arms' values
                 match_expr
                     .clauses(ctx.db)
                     .into_iter()
-                    .fold(hole, |acc, arm| {
+                    .fold(hole, |(mut preds, acc), arm| {
                         // Checks the pattern against the scrutinee
                         arm.pattern.check(scrutinee.clone(), ctx);
 
-                        // Checks agains't the old type, to check if both are compatible
-                        arm.value.check(acc, ctx)
+                        // Checks against the old type, to check if both are compatible
+                        let (new_preds, value) = arm.value.check(acc, ctx);
+                        preds.extend(new_preds);
+                        (preds, value)
                     })
             }
 
             // SECTION: Type Representations
             // Evaluates the type of the expression, and then checks if it is
             // compatible with the expected type
-            Expr::Upgrade(type_rep) => ctx.translate(*type_rep),
+            Expr::Upgrade(type_rep) => (no_preds(), ctx.translate(*type_rep)),
         }
     }
 }
@@ -1035,34 +1056,38 @@ impl Infer for TopLevel {
 }
 
 impl Check for Expr {
-    type Output = Type<state::Hoas>;
+    type Output = (Preds, Type<state::Hoas>);
 
     /// Checks the type of the expression. This is used
     /// to check the type of the expression.
     fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            Expr::Empty => Tau::Primary(Primary::Error),
-            Expr::Error(_) => Tau::Primary(Primary::Error),
+            Expr::Empty => (no_preds(), Tau::Primary(Primary::Error)),
+            Expr::Error(_) => (no_preds(), Tau::Primary(Primary::Error)),
 
             // SECTION: Expressions
             _ => {
-                let actual_ty = self.infer(ctx);
+                let (preds, new_tau) = self.infer(ctx);
 
                 // Checks that the actual type is a subtype of the expected type
-                actual_ty.unify(tau, ctx);
-                actual_ty
+                new_tau.unify(tau, ctx);
+                (preds, new_tau)
             }
         }
     }
 }
 
 impl Infer for Stmt {
-    type Output = Type<state::Hoas>;
+    type Output = (Preds, Type<state::Hoas>);
 
     /// Infers the type of the statement. This is used
     /// to infer the type of the statement.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
+        // Create empty predicates to fulfill
+        // when evaluating expressions.
+        let mut preds = no_preds();
+
         match self {
             // SECTION: Sentinel values
             Stmt::Empty => {}
@@ -1071,27 +1096,33 @@ impl Infer for Stmt {
             // SECTION: Statements
             Stmt::Ask(ask_stmt) => {
                 // Infers the type of the value, and then checks the pattern
-                let value_ty = ask_stmt.value(ctx.db).infer(ctx);
+                let (local_preds, value_tau) = ask_stmt.value(ctx.db).infer(ctx);
 
-                ask_stmt.pattern(ctx.db).check(value_ty, ctx);
+                // Adds the local predicates to the global predicates
+                preds.extend(local_preds);
+
+                ask_stmt.pattern(ctx.db).check(value_tau, ctx);
             }
             Stmt::Let(let_stmt) => {
                 // Infers the type of the value, and then checks the pattern
-                let value_ty = let_stmt.value(ctx.db).infer(ctx);
+                let (local_preds, value_tau) = let_stmt.value(ctx.db).infer(ctx);
 
-                let_stmt.pattern(ctx.db).check(value_ty, ctx);
+                // Adds the local predicates to the global predicates
+                preds.extend(local_preds);
+
+                let_stmt.pattern(ctx.db).check(value_tau, ctx);
             }
 
             // SECTION: Expressions
             Stmt::Downgrade(expr) => return expr.infer(ctx),
         };
 
-        ctx.void()
+        (preds, ctx.void())
     }
 }
 
 impl Check for Block {
-    type Output = Type<state::Hoas>;
+    type Output = (Preds, Type<state::Hoas>);
 
     /// Checks the type of the block. This is used
     /// to check the type of the block.
@@ -1104,14 +1135,14 @@ impl Check for Block {
         }
 
         // Checks the type of the last statement
-        let actual_ty = match self.statements(ctx.db).last() {
+        let (preds, new_tau) = match self.statements(ctx.db).last() {
             Some(value) => value.clone().infer(ctx),
-            None => Tau::UNIT,
+            None => (no_preds(), Tau::UNIT),
         };
 
-        actual_ty.unify(tau, ctx);
+        new_tau.unify(tau, ctx);
         ctx.return_type = return_type;
-        actual_ty
+        (preds, new_tau)
     }
 }
 
@@ -1564,7 +1595,8 @@ impl<'tctx> InferCtx<'tctx> {
                 message: message!("qualified types is not supported yet"),
             }),
             // SECTION: Expressions
-            TypeRep::Downgrade(expr) => expr.infer(self),
+            // Gets the type despites the predicates
+            TypeRep::Downgrade(expr) => expr.infer(self).1,
         }
     }
 

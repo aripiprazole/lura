@@ -70,6 +70,15 @@ impl<M: type_rep::state::TypeState, T: Display> Display for Qual<M, T> {
     }
 }
 
+/// No predicates are found in the type.
+pub fn no_preds() -> Preds {
+    Preds::default()
+}
+
+/// Represents a list of predicates. A list of constraints
+/// that should constrain a type.
+pub type Preds = Vec<Pred<Hoas>>;
+
 /// Represents a predicate, i.e. a constraint on a type.
 ///
 /// For example, `Eq a` is a predicate, where `Eq` is the class and `a` is the
