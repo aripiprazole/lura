@@ -217,7 +217,7 @@ pub mod forall {
                 .collect::<Vec<_>>();
 
             self.domain == other.domain
-                && self.codomain.call((domain.clone(),)) == other.codomain.call((domain,))
+                && self.instantiate(domain.clone()) == other.instantiate(domain)
         }
     }
 
@@ -234,7 +234,7 @@ pub mod forall {
                 .collect();
 
             self.domain.hash(state);
-            self.codomain.call((domain,)).hash(state);
+            self.instantiate(domain).hash(state);
         }
     }
 }
@@ -322,7 +322,7 @@ pub mod pi {
 
             self.name == other.name
                 && self.domain == other.domain
-                && self.codomain.call((variable.clone(),)) == other.codomain.call((variable,))
+                && self.codomain(variable.clone()) == other.codomain(variable)
         }
     }
 
@@ -339,7 +339,7 @@ pub mod pi {
 
             self.name.hash(state);
             self.domain.hash(state);
-            self.codomain.call((variable,)).hash(state);
+            self.codomain(variable).hash(state);
         }
     }
 }
@@ -591,7 +591,7 @@ pub mod seals {
                     .cloned()
                     .map(|(name, type_rep)| (name, type_rep.seal().into()))
                     .collect(),
-                codomain: self.codomain.call((domain,)).seal().into(),
+                codomain: self.instantiate(domain).seal().into(),
             }
         }
     }
@@ -610,9 +610,9 @@ pub mod seals {
             });
 
             QuotedPi {
-                name: self.name,
-                domain: self.domain.seal().into(),
-                codomain: self.codomain.call((variable,)).seal().into(),
+                name: self.name.clone(),
+                domain: self.domain.clone().seal().into(),
+                codomain: self.codomain(variable).seal().into(),
             }
         }
     }

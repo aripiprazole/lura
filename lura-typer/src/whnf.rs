@@ -1,4 +1,4 @@
-use crate::infer::{EvalEnv, InferCtx};
+use crate::infer::{EvalEnv, InferCtx, Snapshot};
 use crate::thir::{ThirDiagnostic, ThirLocation};
 use crate::type_rep::pi::HoasPi;
 use crate::type_rep::state;
@@ -12,11 +12,11 @@ pub(crate) trait Whnf {
     ///
     /// This is used to normalize types before
     /// comparing them for equality.
-    fn eval(&self, ctx: &mut InferCtx, env: EvalEnv) -> Self;
+    fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Self;
 }
 
 impl Whnf for Type<state::Hoas> {
-    fn eval(&self, ctx: &mut InferCtx, env: EvalEnv) -> Self {
+    fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Self {
         match self {
             Type::App(callee, value) => {
                 let callee = callee.eval(ctx, env);
@@ -40,18 +40,23 @@ impl Whnf for Type<state::Hoas> {
             Type::Pi(pi) => {
                 let domain = pi.domain.eval(ctx, env.clone());
 
+                let ctx = ctx.clone();
+                let name = pi.name.clone();
+                let codomain = pi.codomain.clone();
+
                 Type::Pi(HoasPi {
                     name: pi.name.clone(),
                     domain: domain.clone().into(),
-                    codomain: Rc::new(move |_parameter| {
-                        // let mut local = env.clone();
-                        // if let Some(ref name) = pi.name {
-                        //     local.env.insert(name.definition, parameter.clone());
-                        // }
+                    codomain: Rc::new(move |parameter| {
+                        let mut local = env.clone();
                         //
-                        // pi.codomain(parameter).eval(ctx, local)
+                        // Creates a new environment with the
+                        // parameter bound to the name.
+                        if let Some(ref name) = name.clone() {
+                            local.env.insert(name.definition, parameter.clone());
+                        }
 
-                        todo!()
+                        (codomain.clone())(parameter).eval(&ctx, local)
                     }),
                 })
             }
