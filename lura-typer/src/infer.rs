@@ -21,6 +21,7 @@ use lura_hir::{
     },
 };
 
+use crate::options::TyperFeatures;
 use crate::type_rep::forall::HoasForall;
 use crate::type_rep::pi::HoasPi;
 use crate::utils::LocalDashMap;
@@ -33,10 +34,11 @@ use crate::{
         *,
     },
 };
-use crate::options::TyperFeatures;
 
 /// Represents the type errors that can occur during type checking,
 /// specially on the unification step.
+///
+/// This reports many errors, that can be renamed to be more descriptive.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum TypeError {
     CannotUnify(Tau, Tau),
@@ -60,18 +62,17 @@ pub enum TypeError {
     },
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub struct TyName {
-    pub ty: Tau,
-    pub rigidness: Rigidness,
-}
-
+/// Internal variants to the type checker.
 #[derive(Default, Clone, Hash)]
 pub struct InternalVariant {
     pub name: Tau,
     pub parameters: im_rc::Vector<Tau>,
 }
 
+/// Represents the type environment used to type check the program.
+///
+/// The type environment is used to store the types of the variables
+/// and the constructors, and also the level of the variables.
 #[derive(Default, Clone)]
 pub struct TyEnv {
     pub level: Level,
@@ -207,9 +208,11 @@ impl Substitution<'_, '_> {
             // SECTION: Unification
             (Type::Hole(hole_a), b) => self.unify_hole(b, hole_a),
             (a, Type::Hole(hole_b)) => self.unify_hole(a, hole_b),
+
             // SECTION: Sentinel Values
             (_, Type::Primary(Primary::Error)) => {}
             (Type::Primary(Primary::Error), _) => {}
+
             // SECTION: Types
             (Type::Primary(primary_a), Type::Primary(primary_b)) => {
                 if primary_a != primary_b {
@@ -219,8 +222,10 @@ impl Substitution<'_, '_> {
                     });
                 }
             }
+
             (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
-                // unify the names
+                // Unify the constructor names, if they are the same definition
+                // it does unify correctly, otherwise it throws an error.
                 if constructor_a.definition != constructor_b.definition {
                     self.errors.push_back(TypeError::IncompatibleTypes {
                         expected: constructor_a.definition,
@@ -229,6 +234,12 @@ impl Substitution<'_, '_> {
                 }
             }
             (Type::Pi(pi_a), Type::Pi(pi_b)) => {
+                // Unifies two type-level functions. This is used to unify
+                // two type-level functions. It equates the two functions.
+                //
+                // Snapshots the context, and then evaluates the domain
+                // and codomain of the functions. Then it unifies the
+                // domains and codomains.
                 let ctx = self.ctx.snapshot();
                 let domain_a = pi_a.domain.eval(&ctx, self.ctx.eval_env.clone());
                 let domain_b = pi_b.domain.eval(&ctx, self.ctx.eval_env.clone());
@@ -236,15 +247,17 @@ impl Substitution<'_, '_> {
                 let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
                 let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
 
+                // Recurse on the domain and codomain
                 self.internal_unify(domain_a, domain_b);
                 self.internal_unify(codomain_a, codomain_b);
             }
             (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
+                // Basically recurse on the callee and the value
                 self.internal_unify(*callee_a, *callee_b);
                 self.internal_unify(*value_a, *value_b);
             }
             (Type::Forall(forall_a), Type::Forall(forall_b)) => {
-                // "alpha equivalence": forall a. a -> a = forall b. b -> b
+                // "Alpha equivalence": forall a. a -> a = forall b. b -> b
                 if forall_a.domain.len() != forall_b.domain.len() {
                     self.errors.push_back(TypeError::IncorrectArity {
                         expected: forall_a.domain.len(),
@@ -254,6 +267,9 @@ impl Substitution<'_, '_> {
                     return;
                 }
 
+                // SECTION: OLD HINDLEY MILNER CODE
+                //
+                // ```rs
                 // let mut acc_a = *forall_a.data.value.clone();
                 // let mut acc_b = *forall_b.data.value.clone();
                 // for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
@@ -263,7 +279,11 @@ impl Substitution<'_, '_> {
                 //     acc_a = acc_a.replace(param_a.name, debruijin.clone());
                 //     acc_b = acc_b.replace(param_b.name, debruijin);
                 // }
-
+                //
+                // // Unify the results to compare the results
+                // self.internal_unify(acc_a, acc_b);
+                // ```
+                //
                 // As the code doesn't implement subjumption, we need to
                 // throw an error whenever this unification is called.
                 //
@@ -277,9 +297,6 @@ impl Substitution<'_, '_> {
                     location: ThirLocation::CallSite,
                     message: message!["Polymorphic subtyping is not implemented yet"],
                 });
-
-                // Unify the results to compare the results
-                // self.internal_unify(acc_a, acc_b);
             }
             (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
                 if level_a != level_b {
@@ -299,6 +316,12 @@ impl Substitution<'_, '_> {
         };
     }
 
+    /// Accumulate all errors that were reported during the unification
+    /// into the context, reporting it as THIR diagnostics.
+    ///
+    /// This is used to report all errors at once, instead of reporting
+    /// them one by one, so we can change the error message if there's
+    /// another message for the context!
     fn publish_all_errors(&mut self) {
         for error in self.errors.iter() {
             self.ctx.accumulate::<()>(ThirDiagnostic {
@@ -368,11 +391,17 @@ impl Debug for Substitution<'_, '_> {
     }
 }
 
-type Sigma = Type<state::Hoas>;
-type Rho = Type<state::Hoas>;
+/// Represents a type in HOAS state.
 type Tau = Type<state::Hoas>;
+
+// Represents a hole in HOAS state.
 type HoleMut = HoleRef<state::Hoas>;
 
+/// Defines the inference crate, it does make
+/// the work to infer the type of the expression.
+///
+/// It also stores a key to the type, so we can index
+/// it later, and report errors, etc.
 pub(crate) trait Infer {
     type Output;
 
@@ -816,7 +845,8 @@ impl Infer for TopLevel {
             // Creates the type of the variant
             let type_rep = Type::from_pi(parameters.into_iter(), constructor);
 
-            // Quantifies the type of the variant
+            // Quantifies the type of the type representation
+            // to get it's type-level function
             let type_rep = ctx.quantify(type_rep);
 
             ctx.extend(name.definition, type_rep.clone());
@@ -857,9 +887,10 @@ impl Infer for TopLevel {
 
                             // Debruijin index
                             let level = ctx.add_to_env(def);
-                            let bound = Tau::Bound(Bound::Index(name, level));
-                            ctx.env.variables.insert(def, bound.clone());
-                            bound
+
+                            // Creates a new type variable to represent
+                            // the type of the declaration
+                            Tau::Bound(Bound::Index(name, level))
                         } else {
                             type_rep
                         }
@@ -1029,6 +1060,9 @@ impl Check for Block {
     }
 }
 
+/// Defines an environment that is used in a evaluation context.
+///
+/// This is used to evaluate a type-level expression.
 #[derive(Default, Clone)]
 pub(crate) struct EvalEnv {
     /// The environment that is used to evaluate the expression.
@@ -1108,7 +1142,6 @@ pub(crate) struct InferCtx<'tctx> {
     pub self_type: Option<Tau>,
     pub return_type: Option<Tau>,
     // END SECTION: Contextual information
-
     /// Statically typed expressions that are used in the program.
     ///
     /// This is used to check that the type of the expression is
@@ -1211,8 +1244,12 @@ impl Snapshot {
 }
 
 impl<'tctx> InferCtx<'tctx> {
-    fn instantiate(&mut self, sigma: Sigma) -> Rho {
-        let Sigma::Forall(forall) = sigma else {
+    // Instantiates a type with variables. It does replaces it's
+    // variables with unfilled holes.
+    //
+    // This only works with [`Type::Forall`] types.
+    fn instantiate(&mut self, sigma: Tau) -> Tau {
+        let Tau::Forall(forall) = sigma else {
             return sigma;
         };
 
@@ -1225,7 +1262,12 @@ impl<'tctx> InferCtx<'tctx> {
         forall.instantiate(parameters)
     }
 
-    fn quantify(&self, ty: Rho) -> Sigma {
+    /// Quantifies a type with a forall. This is used to
+    /// make let-generalisation possible.
+    ///
+    /// This is only enabled by language feature flag in the
+    /// CLI.
+    fn quantify(&self, ty: Tau) -> Tau {
         ty
     }
 
@@ -1241,18 +1283,20 @@ impl<'tctx> InferCtx<'tctx> {
         }))
     }
 
-    /// Creates a new semantic type from a syntatic type representation,
+    /// Creates a new semantic type from a syntactical type representation,
     /// it does report errors and means the type is not inferred.
+    ///
+    /// This is used to transform a type representation into a semantic type.
     fn eval(&mut self, type_rep: TypeRep) -> Tau {
-        fn forall_binding(
-            ctx: &mut InferCtx,
-            pattern: Pattern,
-            location: Location,
-        ) -> Option<Name> {
+        // Validates a forall binding to check if it is
+        // compatible with the a type variable.
+        fn forall_binding(ctx: &mut InferCtx, pattern: Pattern, loc: Location) -> Option<Name> {
             match pattern {
                 Pattern::Hole | Pattern::Wildcard(_) | Pattern::Error(_) => {
-                    let location = HirLocation::new(ctx.db, location);
+                    let location = HirLocation::new(ctx.db, loc);
 
+                    // The binding has no name, but it's a valid binding
+                    // so, we name with `_`, and goes on.
                     Some(Name {
                         definition: unresolved(ctx.db, location),
                         name: "_".into(),
@@ -1265,6 +1309,10 @@ impl<'tctx> InferCtx<'tctx> {
                 _ => None,
             }
         }
+
+        // Evaluates a forall resolved type into a semantic type.
+        //
+        // This is used to transform a type representation into a semantic type.
         fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Tau {
             // Transforms a type representation of forall arrow into
             // a semantic type arrow with a forall quantifier
@@ -1309,13 +1357,48 @@ impl<'tctx> InferCtx<'tctx> {
             Tau::Forall(Qual::new(HoasForall {
                 domain: parameters.clone(),
                 codomain: Rc::new(move |domain| {
+                    // This is the forall's codomain, it is a function
+                    // that takes a list of types and returns a type.
                     let mut value = value.clone();
+
+                    // This substitutes the forall's parameters names with
+                    // its equivalent values.
+                    //
+                    // TODO: add to the context and use the context to
+                    // evaluate the type.
                     for ((name, _kind), type_rep) in parameters.clone().into_iter().zip(domain) {
                         value = value.replace(name.definition, type_rep)
                     }
+
                     value
                 }),
             }))
+        }
+
+        /// Evaluates a function type into a semantic type.
+        ///
+        /// It does create a dependent function type from a simple
+        /// arrow type in the Lura language.
+        fn eval_fun(ctx: &mut InferCtx, fun: ArrowTypeRep) -> Tau {
+            // Transforms a type representation of pi arrow into
+            // a semantic type arrow with a pi arrow
+            let value = ctx.eval(fun.value(ctx.db));
+
+            fun.parameters(ctx.db)
+                .into_iter()
+                .map(|parameter| {
+                    // Checks the type of the parameter
+                    let ty = ctx.eval(parameter.parameter_type(ctx.db));
+
+                    parameter.binding(ctx.db).check(ty, ctx)
+                })
+                .fold(value, |acc, next| {
+                    Tau::Pi(HoasPi {
+                        name: None,
+                        domain: next.into(),
+                        codomain: Rc::new(move |_| acc.clone()),
+                    })
+                })
         }
 
         match type_rep {
@@ -1326,6 +1409,16 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Primary Types
             TypeRep::Unit => Tau::UNIT,
             TypeRep::Type => Tau::TYPE,
+
+            // SECTION: Function Types
+            TypeRep::Arrow(fun) if matches!(fun.kind(self.db), ArrowKind::Fun) => {
+                eval_fun(self, fun)
+            }
+            TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
+                eval_forall(self, forall)
+            }
+
+            // SECTION: Pathes
             // We should not resolve the type here, but rather
             // create a new type variable, and as it is resolved, we
             // can replace it with the actual type.
@@ -1342,6 +1435,15 @@ impl<'tctx> InferCtx<'tctx> {
 
                     Tau::Bound(Bound::Flexible(name))
                 }),
+            TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
+                self.accumulate(ThirDiagnostic {
+                    id: ErrorId("unbounded-self-type"),
+                    location: self.new_location(type_rep.location(self.db)),
+                    message: message!("self type outside of a self context"),
+                })
+            }),
+
+            // SECTION: Type application
             TypeRep::App(app) => {
                 let callee = self.eval(app.callee(self.db));
 
@@ -1351,37 +1453,7 @@ impl<'tctx> InferCtx<'tctx> {
                         Tau::App(acc.into(), self.eval(next).into())
                     })
             }
-            TypeRep::Arrow(fun) if matches!(fun.kind(self.db), ArrowKind::Fun) => {
-                // Transforms a type representation of pi arrow into
-                // a semantic type arrow with a pi arrow
-                let value = self.eval(fun.value(self.db));
 
-                fun.parameters(self.db)
-                    .into_iter()
-                    .map(|parameter| {
-                        // Checks the type of the parameter
-                        let ty = self.eval(parameter.parameter_type(self.db));
-
-                        parameter.binding(self.db).check(ty, self)
-                    })
-                    .fold(value, |acc, next| {
-                        Tau::Pi(HoasPi {
-                            name: None,
-                            domain: next.into(),
-                            codomain: Rc::new(move |_| acc.clone()),
-                        })
-                    })
-            }
-            TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
-                eval_forall(self, forall)
-            }
-            TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
-                self.accumulate(ThirDiagnostic {
-                    id: ErrorId("unbounded-self-type"),
-                    location: self.new_location(type_rep.location(self.db)),
-                    message: message!("self type outside of a self context"),
-                })
-            }),
             // SECTION: Unsupported
             TypeRep::Arrow(_) => self.accumulate(ThirDiagnostic {
                 id: ErrorId("unsupported-arrow-kind"),
@@ -1418,6 +1490,8 @@ impl<'tctx> InferCtx<'tctx> {
         }
     }
 
+    /// Finds a reference to a variable in the environment
+    /// and returns its type.
     fn reference(&mut self, reference: Reference) -> Tau {
         let let_ty = self
             .env
@@ -1464,6 +1538,10 @@ impl<'tctx> InferCtx<'tctx> {
         result
     }
 
+    // Creates a new name based on a definition, it does
+    // evaluates the definition to a string, and then
+    // creates a new name with the definition and the string
+    // representation of the definition.
     fn create_new_name(&self, definition: Definition) -> Name {
         let name = definition.to_string(self.db);
 
@@ -1473,7 +1551,11 @@ impl<'tctx> InferCtx<'tctx> {
         }
     }
 
-    fn add_to_env(&mut self, parameter: Definition) -> Level {
+    /// Adds to the environment a new type variable and returns
+    /// it debriujin index.
+    ///
+    /// It does creates a new unique name for the type variable
+    fn add_to_env(&mut self, parameter: Definition) -> Uniq {
         /// Generates a fresh name for a parameter
         fn fresh(ctx: &InferCtx, mut name: String) -> String {
             while ctx.env.names.contains(&name) {
@@ -1488,7 +1570,7 @@ impl<'tctx> InferCtx<'tctx> {
 
         self.debruijin_index.insert(level, refresh.clone());
         self.env.level += 1;
-        self.env.names.push_back(refresh);
+        self.env.names.push_front(refresh);
 
         level
     }
@@ -1500,6 +1582,10 @@ impl<'tctx> InferCtx<'tctx> {
 
     /// Creates a new snapshot, just like a photograph, of
     /// the current context.
+    ///
+    /// This saves all the current state of the context, and
+    /// returns a snapshot that can be used to restore the
+    /// context to the current state.
     pub fn snapshot(&self) -> Snapshot {
         // Computes the current location
         let location = self.new_location(self.location.clone());
@@ -1523,6 +1609,8 @@ impl<'tctx> InferCtx<'tctx> {
 
     /// Accumulates a diagnostic and returns a default value. This is used
     /// to accumulate diagnostics and return a default value.
+    ///
+    /// It has a similar method that is [`Snapshot::accumulate`].
     pub fn accumulate<T: Default>(&self, mut diagnostic: ThirDiagnostic) -> T {
         if let ThirLocation::CallSite = diagnostic.location {
             diagnostic.location = self.new_location(self.location.clone());

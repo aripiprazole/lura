@@ -63,6 +63,10 @@ pub enum Rigidness {
     Flexible,
 }
 
+/// Represents a type variable. This is used to represent a type variable.
+///
+/// It can contain a debug name string, and a definition, that
+/// is what is being defined by the type variable.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Name {
     pub definition: Definition,
