@@ -105,11 +105,12 @@ mod tests {
         "public data String {}",
         "public data Int {}",
         "public data List (^a) {}",
+        "println : [Show a] => ()",
         "f (args: List String)",
-        "f2 (args: List Int)",
+        "fb (args: List Int)",
         "main (args: List String) {",
         "  let a = f args",
-        "  let b = f2 args",
+        "  let b = fb args",
         "  let x = id 10",
         "  let y = id \"hello\"",
         "  id (id x)",
@@ -139,6 +140,7 @@ mod tests {
         // Using the aridane crate, we can print the diagnostics in a nice way,
         // with colors and all.
         AriadneReport::default()
+            .expand(lura_syntax::parse::accumulated::<Diagnostics>(&db, file))
             .expand(hir_lower::accumulated::<Diagnostics>(&db, local, src))
             .expand(infer_type_table::accumulated::<Diagnostics>(&db, hir))
             .eprint()

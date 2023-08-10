@@ -735,16 +735,14 @@ impl Infer for Expr {
                 ctx.with_env(env, |local| {
                     // Adds the parameters to the context
                     for parameter in parameters.into_iter() {
-                        if !parameter.is_implicit(local.db) {
-                            let type_rep = local.translate(parameter.parameter_type(local.db));
+                        let type_rep = local.translate(parameter.parameter_type(local.db));
 
-                            let ty = parameter.binding(local.db).check(type_rep, local);
+                        let ty = parameter.binding(local.db).check(type_rep, local);
 
-                            // Stores the parameter in the environment
-                            // as debug information for the type checker
-                            // build a table.
-                            local.parameters.insert(parameter, ty.clone());
-                        }
+                        // Stores the parameter in the environment
+                        // as debug information for the type checker
+                        // build a table.
+                        local.parameters.insert(parameter, ty.clone());
                     }
 
                     abs.value(local.db).infer(local)
@@ -939,7 +937,6 @@ impl Infer for TopLevel {
 
                     // Creates the type of the parameter
                     if_chain! {
-                        if parameter.is_implicit(ctx.db);
                         if let HirLevel::Type = parameter.level(ctx.db);
                         // TODO: handle error, type parameters can't be patterns, they
                         // should be simple bindings.
@@ -1016,7 +1013,6 @@ impl Infer for TopLevel {
                     let parameters = variant
                         .parameters(ctx.db)
                         .into_iter()
-                        .filter(|parameter| !parameter.is_implicit(ctx.db))
                         .map(|parameter| ctx.translate(parameter.parameter_type(ctx.db)))
                         .collect::<im_rc::Vector<_>>();
 

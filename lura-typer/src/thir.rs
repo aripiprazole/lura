@@ -86,7 +86,7 @@ impl ThirLocation {
 
 /// Represents the diagnostic for High-Level Intermediate Representation. It's intended to be used
 /// to report errors to the diagnostic database, by this crate, only.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ThirDiagnostic {
     pub id: lura_diagnostic::ErrorId,
     pub location: ThirLocation,

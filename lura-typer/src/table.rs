@@ -1,4 +1,5 @@
 use fxhash::FxBuildHasher;
+use im_rc::HashSet;
 use lura_diagnostic::{Diagnostics, Report};
 use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, HirSource};
 
@@ -39,6 +40,10 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         options: Default::default(),
     };
 
+    // Register the errors that already were reported, to avoid
+    // duplicated errors
+    let mut already_reported = HashSet::new();
+
     // Infer the types of all expressions.
     for top_level in source.contents(db).iter().cloned() {
         top_level.infer(&mut ctx);
@@ -46,6 +51,12 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
 
     // We push the diagnostic to the diagnostics
     for diagnostic in ctx.diagnostics.borrow().iter().cloned() {
+        // If the diagnostic was already reported, we skip it
+        if already_reported.contains(&diagnostic) {
+            continue;
+        }
+        already_reported.insert(diagnostic.clone());
+
         Diagnostics::push(db, Report::new(diagnostic));
     }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ariadne::Fmt;
 use eyre::Context;
-use fxhash::FxBuildHasher;
+use fxhash::{FxBuildHasher, FxHashSet};
 use lura_diagnostic::Report;
 
 type Span = (String, std::ops::Range<usize>);
@@ -48,6 +48,10 @@ impl AriadneReport {
     pub fn eprint(self) -> eyre::Result<()> {
         let errors = self.group_errors_by_file();
 
+        // NOTE: We use a `FxHashSet` to avoid printing the same file
+        // multiple times.
+        let mut already_reported = FxHashSet::default();
+
         for (file, diagnostics) in errors {
             use ariadne::ReportKind::*;
 
@@ -58,7 +62,16 @@ impl AriadneReport {
                         .with_char_set(ariadne::CharSet::Unicode)
                         .with_label_attach(ariadne::LabelAttach::Start),
                 )
-                .with_labels(diagnostics.into_iter().map(|d| {
+                .with_labels(diagnostics.into_iter().filter_map(|d| {
+                    // If we already reported this error, we don't need to
+                    // report it again.
+                    if already_reported.get(&d).is_some() {
+                        return None;
+                    }
+
+                    // Remember that we already reported this error.
+                    already_reported.insert(d.clone());
+
                     let kind = match d.error_kind() {
                         lura_diagnostic::ErrorKind::ParseError => "parse error",
                         lura_diagnostic::ErrorKind::TypeError => "type error",
@@ -67,9 +80,10 @@ impl AriadneReport {
                         lura_diagnostic::ErrorKind::InternalError(_) => "internal error",
                     };
                     let message = d.markdown_text();
-                    ariadne::Label::new((d.file_name(), d.range().unwrap()))
+
+                    Some(ariadne::Label::new((d.file_name(), d.range().unwrap()))
                         .with_color(ariadne::Color::Red)
-                        .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red))
+                        .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red)))
                 }))
                 .finish()
                 .eprint((file.path.clone(), ariadne::Source::from(&file.content)))
