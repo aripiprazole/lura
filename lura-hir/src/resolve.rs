@@ -1,6 +1,5 @@
 use im::OrdSet;
 use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
-use salsa_2022::Id;
 
 use crate::{
     lower::{hir_declare, hir_lower},
@@ -53,11 +52,6 @@ pub struct Definition {
     pub id: DefinitionId,
     pub kind: DefinitionKind,
     pub name: HirPath,
-}
-
-/// Stub value just to make the compiler happy.
-pub fn empty_definition() -> Definition {
-    Definition(Id::from_u32(Id::MAX_U32))
 }
 
 #[salsa::tracked]

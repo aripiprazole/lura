@@ -1,4 +1,4 @@
-use std::{fmt::Debug, marker::PhantomData, mem::replace, rc::Rc};
+use std::{fmt::Debug, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
@@ -71,10 +71,9 @@ pub struct InternalVariant {
 #[derive(Default, Clone)]
 pub struct TyEnv {
     pub level: Level,
-    pub variables: im_rc::HashMap<Definition, Sigma, FxBuildHasher>,
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
-    pub rigid_variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+    pub variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
     pub names: im_rc::Vector<String>,
 }
 
@@ -98,10 +97,11 @@ impl Substitution<'_, '_> {
 
         match ty {
             // SECTION: Types
+            Type::Type => {}
             Type::Primary(_) => {}
             Type::Constructor(_) => {}
             Type::Bound(Bound::Flexible(_)) => {}
-            Tau::Bound(Bound::Hole) => {}
+            Type::Bound(Bound::Hole) => {}
             Type::Forall(forall) => {
                 // Named holes, because this is a dependent
                 // function type, we need to create a new hole
@@ -752,7 +752,6 @@ impl Infer for TopLevel {
             let parameters = decl
                 .parameters(ctx.db)
                 .into_iter()
-                .filter(|parameter| !parameter.is_implicit(ctx.db))
                 .map(|parameter| {
                     let ty = ctx.eval(parameter.parameter_type(ctx.db));
 
@@ -783,9 +782,7 @@ impl Infer for TopLevel {
                         Tau::Pi(HoasPi {
                             name: None,
                             domain: parameter.clone().into(),
-                            codomain: Rc::new(move |_parameter| {
-                                acc.clone()
-                            }),
+                            codomain: Rc::new(move |_parameter| acc.clone()),
                         })
                     })
                 }
@@ -803,7 +800,7 @@ impl Infer for TopLevel {
                     let variant_ty = Type::from_pi(parameters.into_iter(), ctx.eval(type_rep));
 
                     // Early return if the type is already generalised
-                    ctx.env.extend(name.definition, variant_ty.clone());
+                    ctx.extend(name.definition, variant_ty.clone());
                     return variant_ty;
                 }
                 Some(type_rep) => ctx.eval(type_rep),
@@ -811,13 +808,13 @@ impl Infer for TopLevel {
             };
 
             // Creates the type of the variant
-            let variant_ty = Type::from_pi(parameters.into_iter(), constructor);
+            let type_rep = Type::from_pi(parameters.into_iter(), constructor);
 
             // Quantifies the type of the variant
-            let variant_ty = ctx.quantify(variant_ty);
+            let type_rep = ctx.quantify(type_rep);
 
-            ctx.env.extend(name.definition, variant_ty.clone());
-            variant_ty
+            ctx.extend(name.definition, type_rep.clone());
+            type_rep
         }
 
         #[inline]
@@ -826,6 +823,12 @@ impl Infer for TopLevel {
             // signature of the binding group
             let function_ty = create_declaration_ty(ctx, true, binding_group.signature(ctx.db));
 
+            // Adds the value to the environment
+            let name = binding_group.name(ctx.db);
+            ctx.env.variables.insert(name, function_ty.clone());
+
+            // Creates the type of the binding group using the
+            // signature of the binding group
             let return_ty = ctx.new_meta();
 
             // Gets the parameter types
@@ -849,7 +852,7 @@ impl Infer for TopLevel {
                             // Debruijin index
                             let level = ctx.add_to_env(def);
                             let bound = Tau::Bound(Bound::Index(name, level));
-                            ctx.env.rigid_variables.insert(def, bound.clone());
+                            ctx.env.variables.insert(def, bound.clone());
                             bound
                         } else {
                             type_rep
@@ -921,7 +924,7 @@ impl Infer for TopLevel {
                         name: ty.clone(),
                         parameters,
                     });
-                    ctx.env.extend(name, variant_ty.clone());
+                    ctx.extend(name, variant_ty.clone());
                     ctx.env.references.insert(ty.clone(), internal.clone());
                     ctx.env.constructors.insert(name, internal);
                 }
@@ -1031,6 +1034,7 @@ pub(crate) struct InferCtx<'tctx> {
     // SECTION: Type environment
     pub env: TyEnv,
     pub adhoc_env: ClassEnv,
+    pub type_env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
     // END SECTION: Type environment
 
     // SECTION: Contextual information
@@ -1071,13 +1075,11 @@ impl Qual<state::Hoas, HoasForall> {
                 .map(|pred| pred.replace(name, replacement.clone()))
                 .collect(),
             data: HoasForall {
-                domain: self.data.domain,
+                domain: self.data.domain.clone(),
                 codomain: Rc::new(move |parameters| {
-                    let codomain = self.data.codomain.clone();
-
-                    (codomain)(parameters)
+                    self.data
+                        .instantiate(parameters)
                         .replace(name, replacement.clone())
-                        .into()
                 }),
             },
         }
@@ -1108,9 +1110,7 @@ impl Type<state::Hoas> {
                 name: fun.name.clone(),
                 domain: fun.domain.clone().replace(name, replacement.clone()).into(),
                 codomain: Rc::new(move |domain| {
-                    fun.codomain(domain)
-                        .replace(name, replacement.clone())
-                        .into()
+                    fun.codomain(domain).replace(name, replacement.clone())
                 }),
             }),
             Type::Hole(hole) => match hole.data.borrow_mut().kind() {
@@ -1124,13 +1124,6 @@ impl Type<state::Hoas> {
             Type::Bound(bound) => Type::Bound(bound),
             _ => self,
         }
-    }
-}
-
-impl TyEnv {
-    // Creates a new definition in the environment
-    fn extend(&mut self, name: Definition, ty: Sigma) {
-        self.variables.insert(name, ty);
     }
 }
 
@@ -1185,8 +1178,7 @@ impl<'tctx> InferCtx<'tctx> {
             // create a new type variable, and as it is resolved, we
             // can replace it with the actual type.
             TypeRep::Path(reference) => self
-                .env
-                .variables
+                .type_env
                 .get(&reference.definition(self.db))
                 .cloned()
                 // Tries to get from the environment, if it fails, it means
@@ -1341,7 +1333,7 @@ impl<'tctx> InferCtx<'tctx> {
             .unwrap_or_else(|| {
                 let name = reference.definition(self.db).to_string(self.db);
 
-                panic!("variable not found {name}");
+                panic!("variable not found {}", name);
             });
 
         self.instantiate(let_ty)
@@ -1405,6 +1397,11 @@ impl<'tctx> InferCtx<'tctx> {
         self.env.names.push_back(refresh);
 
         level
+    }
+
+    // Creates a new definition in the environment
+    fn extend(&mut self, name: Definition, tau: Tau) {
+        self.type_env.insert(name, tau);
     }
 
     /// Accumulates a diagnostic and returns a default value. This is used
