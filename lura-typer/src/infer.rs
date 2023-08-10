@@ -23,7 +23,9 @@ use lura_hir::{
 
 use crate::options::TyperFeatures;
 use crate::type_rep::forall::HoasForall;
+use crate::type_rep::holes::HoleKind;
 use crate::type_rep::pi::HoasPi;
+use crate::type_rep::stuck::Stuck;
 use crate::utils::LocalDashMap;
 use crate::whnf::Whnf;
 use crate::{
@@ -34,7 +36,6 @@ use crate::{
         *,
     },
 };
-use crate::type_rep::stuck::Stuck;
 
 /// Represents the type errors that can occur during type checking,
 /// specially on the unification step.
@@ -900,7 +901,7 @@ impl Infer for TopLevel {
 
             // Adds the value to the environment
             let name = binding_group.name(ctx.db);
-            ctx.env.variables.insert(name, function_type.clone());
+            // ctx.env.variables.insert(name, function_type.clone());
 
             // Creates the type of the binding group using the
             // signature of the binding group
@@ -943,7 +944,9 @@ impl Infer for TopLevel {
             let pi = Tau::from_pi(parameters.clone().into_iter(), return_type.clone());
 
             // Gets the return type
-            pi.unify(function_type, ctx);
+            pi.unify(function_type.clone(), ctx);
+
+            ctx.env.variables.insert(name, pi.clone());
 
             // Checks the type of each clause
             for clause in binding_group.clauses(ctx.db) {
@@ -955,6 +958,16 @@ impl Infer for TopLevel {
 
                 // Checks the return type of the clause
                 clause.value(ctx.db).check(return_type.clone(), ctx);
+            }
+
+            // Fallback to unit type, if return_type isn't defined
+            //
+            // The unit type is the default return type of a function
+            // if it's not defined.
+            if return_type.is_unbound() {
+                if let Type::Hole(ref hole) = return_type {
+                    hole.borrow_mut().set_kind(HoleKind::Filled(Tau::UNIT));
+                }
             }
         }
 
@@ -1297,18 +1310,26 @@ impl<'tctx> InferCtx<'tctx> {
     fn instantiate(&mut self, sigma: Tau) -> Tau {
         // Gets a forall type to instantiate, can't instantiate
         // non-forall types.
-        let Tau::Forall(forall) = sigma else {
-            return sigma;
-        };
+        match sigma {
+            Tau::Forall(forall) => {
+                // Instantiate the forall type with new meta/hole types.
+                forall.instantiate(
+                    forall
+                        .domain
+                        .iter()
+                        .map(|_| self.new_meta())
+                        .collect::<Vec<_>>(),
+                )
+            }
 
-        // Instantiate the forall type with new meta/hole types.
-        forall.instantiate(
-            forall
-                .domain
-                .iter()
-                .map(|_| self.new_meta())
-                .collect::<Vec<_>>(),
-        )
+            // Tries to search holes in the type and instantiate them.
+            Tau::Hole(hole) => match hole.kind() {
+                HoleKind::Error => Tau::Hole(hole),
+                HoleKind::Empty { .. } => Tau::Hole(hole),
+                HoleKind::Filled(value) => self.instantiate(value.clone()),
+            },
+            _ => sigma,
+        }
     }
 
     /// Quantifies a type with a forall. This is used to
@@ -1456,6 +1477,7 @@ impl<'tctx> InferCtx<'tctx> {
             let mut spine = vec![];
             let callee = ctx.translate(app.callee(ctx.db));
 
+            // Applies the spine of arguments to the callee
             let app = app.arguments(ctx.db).into_iter().fold(callee, |acc, next| {
                 // Creates a spine of arguments to build
                 // a stuck type.

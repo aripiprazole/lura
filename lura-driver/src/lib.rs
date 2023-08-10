@@ -103,8 +103,13 @@ mod tests {
     const EXAMPLE: &[&str] = &[
         "public id : ^a. a -> a",
         "public data String {}",
+        "public data Int {}",
         "public data List (^a) {}",
+        "f (args: List String)",
+        "f2 (args: List Int)",
         "main (args: List String) {",
+        "  let a = f args",
+        "  let b = f2 args",
         "  let x = id 10",
         "  let y = id \"hello\"",
         "  id (id x)",

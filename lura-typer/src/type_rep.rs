@@ -23,7 +23,10 @@ pub trait Quote {
     type Sealed;
 
     /// Quote the type.
-    fn quote(&self) -> Self::Sealed where Self: Clone {
+    fn quote(&self) -> Self::Sealed
+    where
+        Self: Clone,
+    {
         self.clone().seal()
     }
 
@@ -130,6 +133,19 @@ pub enum Type<S: state::TypeState> {
     ///
     /// The variables can be either rigid or flexible.
     Bound(Bound),
+}
+
+impl Type<state::Hoas> {
+    /// Checks if the type is an empty hole
+    pub(crate) fn is_unbound(&self) -> bool {
+        let Type::Hole(hole) = self else { return false };
+
+        match hole.kind() {
+            HoleKind::Error => false,
+            HoleKind::Empty { .. } => true,
+            HoleKind::Filled(_) => false,
+        }
+    }
 }
 
 /// Add debug implementation for better data presentation when
@@ -248,13 +264,12 @@ pub mod forall {
     }
 
     impl Display for QuotedForall {
-        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let _domain = &self.domain;
-            let _codomain = &self.codomain;
-
-            todo!()
-
-            // write!(f, "({name} : {domain}) -> {codomain}")
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "∀")?;
+            for (name, type_rep) in &self.domain {
+                write!(f, " ({name} : {type_rep})")?;
+            }
+            write!(f, ". {}", self.codomain)
         }
     }
 
