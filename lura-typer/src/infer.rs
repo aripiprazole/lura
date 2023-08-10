@@ -4,7 +4,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
-use lura_hir::source::type_rep::ArrowTypeRep;
+use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -34,6 +34,7 @@ use crate::{
         *,
     },
 };
+use crate::type_rep::stuck::Stuck;
 
 /// Represents the type errors that can occur during type checking,
 /// specially on the unification step.
@@ -853,7 +854,7 @@ impl Infer for TopLevel {
                     });
 
                     ctx.extend(name.definition, return_type.clone());
-                    return return_type
+                    return return_type;
                 }
                 Some(TypeRep::Arrow(arrow)) if arrow.kind(ctx.db) == ArrowKind::Forall => {
                     // # Safety
@@ -1447,6 +1448,42 @@ impl<'tctx> InferCtx<'tctx> {
                 })
         }
 
+        /// Evaluates an application type into a semantic type.
+        ///
+        /// It does create stuck types from a simple application
+        /// type in the Lura language.
+        fn eval_app(ctx: &mut InferCtx, app: AppTypeRep) -> Tau {
+            let mut spine = vec![];
+            let callee = ctx.translate(app.callee(ctx.db));
+
+            let app = app.arguments(ctx.db).into_iter().fold(callee, |acc, next| {
+                // Creates a spine of arguments to build
+                // a stuck type.
+                let value = ctx.translate(next);
+                spine.push(value.clone());
+
+                Tau::App(acc.into(), value.into())
+            });
+
+            // The base type for a stuck
+            let base = app.eval(&ctx.snapshot(), ctx.eval_env.clone());
+
+            // If the spine is empty, we just return the base type.
+            //
+            // This is used to avoid creating stuck types when
+            // the application is not a stuck type.
+            if spine.is_empty() {
+                base
+            } else {
+                // If the spine is not empty, we create a stuck type
+                // with the base type and the spine.
+                Tau::Stuck(Stuck {
+                    base: base.into(),
+                    spine,
+                })
+            }
+        }
+
         match type_rep {
             // SECTION: Sentinel Values
             TypeRep::Hole => self.new_meta(), // Infer the type
@@ -1463,6 +1500,9 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
                 eval_forall(self, forall)
             }
+
+            // SECTION: Type application
+            TypeRep::App(app) => eval_app(self, app),
 
             // SECTION: Pathes
             // We should not resolve the type here, but rather
@@ -1481,6 +1521,7 @@ impl<'tctx> InferCtx<'tctx> {
 
                     Tau::Bound(Bound::Flexible(name))
                 }),
+
             TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
                 self.accumulate(ThirDiagnostic {
                     id: ErrorId("unbounded-self-type"),
@@ -1488,19 +1529,6 @@ impl<'tctx> InferCtx<'tctx> {
                     message: message!("self type outside of a self context"),
                 })
             }),
-
-            // SECTION: Type application
-            TypeRep::App(app) => {
-                let callee = self.translate(app.callee(self.db));
-
-                let app = app.arguments(self.db)
-                    .into_iter()
-                    .fold(callee, |acc, next| {
-                        Tau::App(acc.into(), self.translate(next).into())
-                    });
-
-                app.eval(&self.snapshot(), self.eval_env.clone())
-            }
 
             // SECTION: Unsupported
             TypeRep::Arrow(_) => self.accumulate(ThirDiagnostic {
@@ -1555,6 +1583,8 @@ impl<'tctx> InferCtx<'tctx> {
         self.instantiate(generalised)
     }
 
+    /// Finds a reference to a constructor in the environment
+    /// and returns its type.
     fn constructor(&mut self, reference: Reference) -> Tau {
         let let_ty = self
             .env
@@ -1572,10 +1602,17 @@ impl<'tctx> InferCtx<'tctx> {
         self.instantiate(let_ty.name.clone())
     }
 
+    /// Gets a default void value for the type
+    /// system.
     fn void(&mut self) -> Tau {
         Tau::Primary(Primary::Unit)
     }
 
+    /// Replaces temporally the environment with a new one.
+    ///
+    /// This is useful for example when we are inferring the type
+    /// of a function, we need to add the parameters to the environment
+    /// temporally, and then remove them.
     fn with_env<F, U>(&mut self, env: TypeEnv, f: F) -> U
     where
         F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
