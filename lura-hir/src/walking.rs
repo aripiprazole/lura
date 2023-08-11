@@ -6,6 +6,7 @@ use fxhash::FxBuildHasher;
 use crate::resolve::Reference;
 use crate::source::*;
 use std::collections::HashSet;
+use crate::source::type_rep::TypeReference;
 
 pub trait Walker {
     fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T);
@@ -60,7 +61,7 @@ pub trait HirListener {
     fn visit_tt_type_rep(&mut self) {}
     fn enter_arrow_type_rep(&mut self, arrow: type_rep::ArrowTypeRep) {}
     fn enter_error_type_rep(&mut self, error: HirError) {}
-    fn enter_path_type_rep(&mut self, definition: Reference) {}
+    fn enter_path_type_rep(&mut self, definition: TypeReference) {}
     fn enter_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}
     fn enter_app_type_rep(&mut self, app: type_rep::AppTypeRep) {}
     fn enter_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}
@@ -107,7 +108,7 @@ pub trait HirListener {
     // SECTION: type_rep
     fn exit_arrow_type_rep(&mut self, arrow: type_rep::ArrowTypeRep) {}
     fn exit_error_type_rep(&mut self, error: HirError) {}
-    fn exit_path_type_rep(&mut self, definition: Reference) {}
+    fn exit_path_type_rep(&mut self, definition: TypeReference) {}
     fn exit_qpath_type_rep(&mut self, qpath: type_rep::QPath) {}
     fn exit_app_type_rep(&mut self, app: type_rep::AppTypeRep) {}
     fn exit_downgrade_type_rep(&mut self, expr: Box<expr::Expr>) {}

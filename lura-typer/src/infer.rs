@@ -5,7 +5,7 @@ use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
 use lura_hir::source::top_level::InstanceDecl;
-use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep};
+use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
@@ -1740,15 +1740,25 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Type application
             TypeRep::App(app) => eval_app(self, app),
 
+            // SECTION: Primitive types
+            TypeRep::Path(TypeReference::Bool, _) => Tau::BOOL,
+            TypeRep::Path(TypeReference::Unit, _) => Tau::UNIT,
+            TypeRep::Path(TypeReference::Int8, _) => Tau::Primary(Primary::I8),
+            TypeRep::Path(TypeReference::UInt8, _) => Tau::Primary(Primary::U8),
+            TypeRep::Path(TypeReference::Int16, _) => Tau::Primary(Primary::I16),
+            TypeRep::Path(TypeReference::UInt16, _) => Tau::Primary(Primary::U16),
+            TypeRep::Path(TypeReference::Int32, _) => Tau::Primary(Primary::I32),
+            TypeRep::Path(TypeReference::UInt32, _) => Tau::Primary(Primary::U32),
+            TypeRep::Path(TypeReference::Int64, _) => Tau::Primary(Primary::I64),
+            TypeRep::Path(TypeReference::UInt64, _) => Tau::Primary(Primary::U64),
+            TypeRep::Path(TypeReference::String, _) => Tau::Primary(Primary::String),
+            TypeRep::Path(TypeReference::Nat, _) => Tau::Primary(Primary::I32),
+
             // SECTION: Paths
-            // JUST AN WORKAROUND TO MAKE STRING TYPES WORK
-            TypeRep::Path(reference) if reference.definition(self.db).to_string(self.db) == "String" => {
-                Tau::STRING
-            }
             // We should not resolve the type here, but rather
             // create a new type variable, and as it is resolved, we
             // can replace it with the actual type.
-            TypeRep::Path(reference) => self
+            TypeRep::Path(TypeReference::Reference(reference), _) => self
                 .type_env
                 .get(&reference.definition(self.db))
                 // Tries to get from the environment, if it fails, it means

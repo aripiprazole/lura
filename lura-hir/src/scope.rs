@@ -133,7 +133,7 @@ impl Scope {
         location: Location,
         kind: DefinitionKind,
     ) -> Definition {
-        let id = DefinitionId::new(db, location);
+        let id = DefinitionId::new(db, location, None);
         let definition = Definition::new(db, id, kind, name);
         let Some(name) = definition.name(db).to_string(db) else {
             // TODO: report error
