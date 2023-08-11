@@ -80,6 +80,7 @@ pub struct InternalVariant {
 #[derive(Default, Clone)]
 pub struct TypeEnv {
     pub level: Level,
+    pub predicates: im_rc::HashSet<Predicate<state::Hoas>, FxBuildHasher>,
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
     pub variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
@@ -1166,7 +1167,7 @@ pub(crate) struct EvalEnv {
 ///
 /// Have the same fields, but doesn't require lifetimes.
 ///
-/// NODE: #[allow(dead_code)] is used to suppress the warning
+/// NODE: `#[allow(dead_code)]` is used to suppress the warning
 /// that the field is not used, because we want to keep the
 /// same fields as the type environment.
 #[derive(Clone)]
@@ -1353,7 +1354,7 @@ impl<'tctx> InferCtx<'tctx> {
     fn instantiate(&mut self, sigma: Tau) -> Tau {
         // Gets a forall type to instantiate, can't instantiate
         // non-forall types.
-        match sigma {
+        match sigma.force() {
             Tau::Forall(forall) => {
                 // Instantiate the forall type with new meta/hole types.
                 forall.instantiate(
@@ -1364,14 +1365,7 @@ impl<'tctx> InferCtx<'tctx> {
                         .collect::<Vec<_>>(),
                 )
             }
-
-            // Tries to search holes in the type and instantiate them.
-            Tau::Hole(hole) => match hole.kind() {
-                HoleKind::Error => Tau::Hole(hole),
-                HoleKind::Empty { .. } => Tau::Hole(hole),
-                HoleKind::Filled(value) => self.instantiate(value.clone()),
-            },
-            _ => sigma,
+            sigma => sigma,
         }
     }
 
@@ -1565,15 +1559,33 @@ impl<'tctx> InferCtx<'tctx> {
                 .collect::<Vec<_>>();
 
             let value = ctx.translate(sigma.value(ctx.db));
+            let snapshot = ctx.snapshot();
 
             Tau::Forall(Qual {
-                predicates,
+                predicates: predicates.clone(),
                 data: HoasForall {
                     domain: domain.clone(),
                     codomain: Rc::new(move |parameters| {
                         // This is the forall's codomain, it is a function
                         // that takes a list of types and returns a type.
                         let mut value = value.clone();
+
+                        // Normalises the predicates to make sure that
+                        // the predicates are in the right form.
+                        //
+                        // And to check if they are present in the context!
+                        for mut predicate in predicates.clone() {
+                            let parameters = domain.clone().into_iter().zip(parameters.clone());
+
+                            // This substitutes the forall's parameters names with
+                            // its equivalent values.
+                            for ((name, _), tau) in parameters {
+                                predicate = predicate.replace(name.definition, tau);
+                            }
+
+                            // Normalises the predicate
+                            predicate.is_present(&snapshot);
+                        }
 
                         // This substitutes the forall's parameters names with
                         // its equivalent values.

@@ -1,10 +1,10 @@
 use fxhash::FxBuildHasher;
-use lura_diagnostic::{message, ErrorId};
+use lura_diagnostic::{code, message, ErrorId};
 use std::{fmt::Display, ops::Deref};
 
 use crate::ftv::{Ftv, Fv};
-use crate::infer::InferCtx;
-use crate::thir::ThirDiagnostic;
+use crate::infer::{InferCtx, Snapshot};
+use crate::thir::{ThirDiagnostic, ThirLocation};
 use lura_hir::source::expr::Expr;
 use lura_hir::source::pattern::{Constructor, Pattern};
 use lura_hir::source::HirElement;
@@ -230,6 +230,47 @@ impl Predicate<state::Hoas> {
         // Create a predicate
         Some((Predicate::IsIn(name, arguments), free_variables))
     }
+
+    pub fn is_hnf(&self) -> bool {
+        fn type_is_hnf(tau: Type<state::Hoas>) -> bool {
+            match tau.force() {
+                Type::App(callee, _) => type_is_hnf(*callee),
+                Type::Forall(_) => false,
+                Type::Pi(_) => false,
+                Type::Hole(_) => false,
+                Type::Bound(_) => false,
+                _ => true,
+            }
+        }
+
+        match self {
+            Predicate::IsIn(_, types) => types.iter().cloned().all(type_is_hnf),
+            Predicate::None => false,
+        }
+    }
+
+    /// Tries to evaluate the predicate, and if it is possible, it will
+    /// return the predicate.
+    ///
+    /// It does evaluates and tries to find if there is a predicate that
+    /// matches the given predicate.
+    pub(crate) fn is_present(&self, ctx: &Snapshot) {
+        // If the type isn't in normal form, it doesn't need to be searched
+        //
+        // TODO: search it!
+        if !self.is_hnf() {
+            return;
+        }
+
+        if !ctx.env.predicates.contains(self) {
+            // TODO: show predicate in the error message
+            ctx.accumulate::<()>(ThirDiagnostic {
+                location: ThirLocation::CallSite,
+                message: message!["predicate is not defined", code!(self.quote())],
+                id: ErrorId("undefined-pred"),
+            })
+        }
+    }
 }
 
 impl Quote for Predicate<state::Hoas> {
@@ -249,7 +290,13 @@ impl<S: state::TypeState> Display for Predicate<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Predicate::None => write!(f, ""),
-            Predicate::IsIn(name, _) => write!(f, "({name} ..)"),
+            Predicate::IsIn(name, types) => {
+                write!(f, "({name}")?;
+                for value in types {
+                    write!(f, " {}", value)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }

@@ -1150,7 +1150,7 @@ mod pattern_solver {
                 // because it needs to search for the trait constructor in the scope.
                 ConsPattern(pattern) => {
                     let name = pattern.name().solve(self, |this, node| this.path(node));
-                    let patterns = self.patterns(pattern.patterns(&mut pattern.walk()));
+                    let patterns = self.trait_patterns(pattern.patterns(&mut pattern.walk()));
                     let location = self.range(pattern.range());
 
                     // If the patterns are empty, it's a binding pattern, otherwise, it's a constructor
@@ -1175,7 +1175,12 @@ mod pattern_solver {
                         ))
                     }
                 }
-                GroupPattern(group_pattern) => self.group_pattern(group_pattern),
+                GroupPattern(group_pattern) => {
+                    // There's no AST for groups, so we need to solve it directly
+                    group_pattern
+                      .pattern()
+                      .solve(self, |this, node| this.trait_pattern(node))
+                }
                 Literal(literal) => self.literal(literal).upgrade_pattern(location, self.db),
                 RestPattern(_) => Pattern::Rest(location),
             }
@@ -1220,6 +1225,17 @@ mod pattern_solver {
 
                 Pattern::Constructor(ConstructorPattern::new(self.db, name, patterns, location))
             }
+        }
+
+        pub fn trait_patterns<'a, I>(&mut self, patterns: I) -> Vec<Pattern>
+            where
+              I: Iterator<Item = NodeResult<'a, ExtraOr<'a, SyntaxPattern<'a>>>>,
+        {
+            patterns
+              .flatten()
+              .filter_map(|pattern| pattern.regular())
+              .map(|pattern| self.trait_pattern(pattern))
+              .collect()
         }
 
         pub fn patterns<'a, I>(&mut self, patterns: I) -> Vec<Pattern>
@@ -1654,11 +1670,13 @@ mod term_solver {
                     match parameter {
                         Parameter(parameter) => self.parameter(true, true, parameter),
                         _ => {
+                            let parameter = parameter.into_node().try_into().unwrap();
+
                             // This handles the case where the parameter is unnamed, and only haves a
                             // pattern. The name should not be shown in the IDE in this case.
-                            let pattern =
-                                self.trait_pattern(parameter.into_node().try_into().unwrap());
+                            let pattern = self.trait_pattern(parameter);
 
+                            // The location of the parameter is the location of the pattern
                             let location = pattern.location(self.db);
 
                             // Creates a new parameter, with no type, but a pattern
