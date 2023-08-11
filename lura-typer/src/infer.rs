@@ -1015,6 +1015,7 @@ impl Infer for TopLevel {
             }
             TopLevel::BindingGroup(binding_group) => check_binding_group(ctx, binding_group),
             TopLevel::ClassDecl(_) => todo!(),
+            TopLevel::InstanceDecl(_) => todo!(),
             TopLevel::TraitDecl(trait_declaration) => {
                 let ty = create_declaration_type(ctx, false, trait_declaration);
                 let self_type = replace(&mut ctx.self_type, ty.clone().into());
@@ -1286,6 +1287,8 @@ impl HoasForall {
             domain: self.domain.clone(),
             codomain: Rc::new(move |parameters| {
                 let qual = self.instantiate(parameters);
+                
+                // Replaces the qualifier's data
                 Qual {
                     predicates: qual
                         .predicates

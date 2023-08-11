@@ -28,7 +28,7 @@ eyre = "0.6.8"
 paste = "1.0.14"
 
 tree-sitter = "~0.20.10"
-tree-sitter-lura = "0.1.16"
+tree-sitter-lura = "0.1.18"
 type-sitter-lib = {git = "https://github.com/Jakobeha/type-sitter.git"}
 
 [workspace.package]

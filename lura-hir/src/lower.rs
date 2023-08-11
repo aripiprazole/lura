@@ -39,14 +39,15 @@ use crate::{
     source::{
         pattern::{BindingPattern, Pattern},
         top_level::{
-            ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, TraitDecl,
+            ClassDecl, CommandTopLevel, Constructor, ConstructorKind, DataDecl, InstanceDecl,
+            TraitDecl,
         },
         type_rep::{ArrowKind, ArrowTypeRep},
     },
 };
 
 #[rustfmt::skip]
-type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using<'tree>;
+type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_InstanceDecl_Signature_TraitDecl_TypeDecl_Using<'tree>;
 
 #[rustfmt::skip]
 type SyntaxIdentifier<'tree> = lura_syntax::anon_unions::SimpleIdentifier_SymbolIdentifier<'tree>;
@@ -204,7 +205,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
     /// It will return `Some` if the declaration is "resolvable", and it will return a solver for
     /// the declaration.
     pub fn define<'a>(&mut self, decl: SyntaxDecl<'a>) -> Option<Solver<'a, TopLevel>> {
-        use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_Signature_TraitDecl_TypeDecl_Using::*;
+        use lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_InstanceDecl_Signature_TraitDecl_TypeDecl_Using::*;
 
         // Creates a new [`TopLevel`] instance.
         let decl = match decl {
@@ -212,6 +213,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             ClassDecl(class_decl) => return self.hir_class(class_decl).into(),
             Clause(clause) => return self.hir_clause(clause).into(),
             DataDecl(data_decl) => return self.hir_data(data_decl).into(),
+            InstanceDecl(instance_decl) => return self.hir_instance(instance_decl).into(),
             TraitDecl(trait_decl) => return self.hir_trait(trait_decl).into(),
             TypeDecl(type_decl) => return self.hir_type(type_decl).into(),
             Signature(signature) => return self.hir_signature(signature).into(),
@@ -394,6 +396,84 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             // The entire next step, is getting the clauses from the scope, and transforms into
             // declarations, so it is not needed to solve the clause here.
             TopLevel::ClassDecl(class_decl)
+        })
+    }
+
+    /// Creates a new high instance trait declaration [`InstanceDecl`] solver, for the given
+    /// concrete syntax tree [`lura_syntax::TraitDecl`].
+    ///
+    /// It will return a [`Solver`] for the [`Signature`], and it will solve the [`Signature`] in
+    /// the [`hir_lower`] query.
+    pub fn hir_instance<'a>(
+        &mut self,
+        tree: lura_syntax::InstanceDecl<'a>,
+    ) -> Solver<'a, TopLevel> {
+        let range = self.range(tree.range());
+        let path = tree.name().solve(self, |this, path| this.path(path));
+
+        let attrs = self.hir_attributes(tree.attributes(&mut tree.walk()));
+        let docs = self.hir_docs(tree.doc_strings(&mut tree.walk()));
+
+        // Converts the visibility to default visibility, if it is not specified.
+        let vis = tree
+            .visibility()
+            .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
+            .unwrap_or(Spanned::on_call_site(Vis::Public));
+
+        // Defines the node on the scope
+        let node = self.qualify(path.clone(), DefinitionKind::Trait);
+
+        let methods = tree
+            .fields(&mut tree.walk())
+            .flatten()
+            .filter_map(|method| method.regular())
+            .map(|method| self.hir_signature(method))
+            .collect::<Vec<_>>();
+
+        Solver::new(move |_, this| {
+            // Creates a new scope for the function, and it will be used to store the parameters,
+            // and the variables.
+            this.scope = this.scope.fork(ScopeKind::Class);
+
+            let parameters = this.parameters(tree.arguments(&mut tree.walk()));
+
+            let methods = methods
+                .into_iter()
+                .map(|method| method.run_solver(this))
+                .filter_map(|top_level| match top_level {
+                    TopLevel::BindingGroup(binding_group) => Some(binding_group),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            let types = tree
+                .items(&mut tree.walk())
+                .flatten()
+                .filter_map(|node| node.regular())
+                .map(|node| this.type_expr(node))
+                .collect();
+
+            // Publish all definitions to parent scope
+            this.scope.publish_all_definitions(this.db, node);
+
+            let instance_decl = InstanceDecl::new(
+                this.db,
+                /* attributes  = */ attrs,
+                /* docs        = */ docs,
+                /* visibility  = */ vis,
+                /* name        = */ node,
+                /* parameters  = */ parameters,
+                /* types       = */ types,
+                /* methods     = */ methods,
+                /* location    = */ range.clone(),
+                /* scope       = */ this.pop_scope(),
+            );
+
+            // It's not needed to solve the clause, because it is already solved in the next steps.
+            //
+            // The entire next step, is getting the clauses from the scope, and transforms into
+            // declarations, so it is not needed to solve the clause here.
+            TopLevel::InstanceDecl(instance_decl)
         })
     }
 
@@ -1178,8 +1258,8 @@ mod pattern_solver {
                 GroupPattern(group_pattern) => {
                     // There's no AST for groups, so we need to solve it directly
                     group_pattern
-                      .pattern()
-                      .solve(self, |this, node| this.trait_pattern(node))
+                        .pattern()
+                        .solve(self, |this, node| this.trait_pattern(node))
                 }
                 Literal(literal) => self.literal(literal).upgrade_pattern(location, self.db),
                 RestPattern(_) => Pattern::Rest(location),
@@ -1228,14 +1308,14 @@ mod pattern_solver {
         }
 
         pub fn trait_patterns<'a, I>(&mut self, patterns: I) -> Vec<Pattern>
-            where
-              I: Iterator<Item = NodeResult<'a, ExtraOr<'a, SyntaxPattern<'a>>>>,
+        where
+            I: Iterator<Item = NodeResult<'a, ExtraOr<'a, SyntaxPattern<'a>>>>,
         {
             patterns
-              .flatten()
-              .filter_map(|pattern| pattern.regular())
-              .map(|pattern| self.trait_pattern(pattern))
-              .collect()
+                .flatten()
+                .filter_map(|pattern| pattern.regular())
+                .map(|pattern| self.trait_pattern(pattern))
+                .collect()
         }
 
         pub fn patterns<'a, I>(&mut self, patterns: I) -> Vec<Pattern>
