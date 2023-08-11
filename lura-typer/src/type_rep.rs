@@ -611,8 +611,8 @@ pub mod holes {
     /// A reference to a [`Hole`]. This is used to represent a reference to a [`Hole`].
     #[derive(Debug, Clone)]
     #[repr(transparent)]
-    pub struct HoleRef<M: state::TypeState> {
-        pub data: Rc<RefCell<Hole<M>>>,
+    pub struct HoleRef<S: state::TypeState> {
+        pub data: Rc<RefCell<Hole<S>>>,
     }
 
     impl HoleRef<state::Hoas> {
