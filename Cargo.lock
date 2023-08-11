@@ -862,6 +862,7 @@ dependencies = [
  "im",
  "lura-diagnostic",
  "lura-syntax",
+ "once_cell",
  "petgraph",
  "salsa-2022",
  "tree-sitter",

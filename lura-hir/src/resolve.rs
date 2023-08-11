@@ -9,12 +9,19 @@ use crate::{
     source::{DefaultWithDb, HirLocation, HirPath, Location, VirtualPath},
 };
 
+use crate::primitives::{initialize_primitive_bag, primitive_type_definition};
+
 // Re-export the diagnostics. The diagnostics are used to report errors, warnings, and other kinds
 // of diagnostics.
 //
 // They were defined here, so we are rexporting it to avoid confusion!
 pub use crate::errors::HirDiagnostic;
 
+/// Represents the kind of a definition in the High-Level Intermediate Representation. It's
+/// intended to be used to store the kind of the definition, and to be used to create the HIR.
+///
+/// The `Unresolved` variant is a temporary state that should never be returned by the resolver.
+/// Only if there's an unresolved name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum DefinitionKind {
@@ -44,6 +51,10 @@ pub enum HirLevel {
 pub struct DefinitionId {
     #[return_ref]
     pub location: Location,
+
+    /// Optional synthetic identifier for the definition.
+    #[return_ref]
+    pub name: Option<String>,
 }
 
 /// Defines a definition in the High-Level Intermediate Representation. It's intended to be used
@@ -125,7 +136,7 @@ impl Definition {
             }),
         );
 
-        let id = DefinitionId::new(db, name.location(db));
+        let id = DefinitionId::new(db, name.location(db), None);
 
         // Creates a new `Definition` with the given `kind`, `name`, and `location`.
         Self::new(db, id, DefinitionKind::Unresolved, name)
@@ -149,7 +160,7 @@ pub fn unresolved(db: &dyn crate::HirDb, location: HirLocation) -> Definition {
     let input = VirtualPath::new(db, "_".into());
     let segments = reparse_hir_path(db, location, input.path(db));
     let path = HirPath::new(db, Location::call_site(db), segments);
-    let id = DefinitionId::new(db, path.location(db));
+    let id = DefinitionId::new(db, path.location(db), None);
 
     // Creates a new `Definition` with the given `kind`, `name`, and `location`.
     Definition::new(db, id, DefinitionKind::Unresolved, path)
@@ -272,7 +283,21 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
         }
     }
 
-    Definition::no(db, DefinitionKind::Type, name)
+    // Tries to initialize the default primitive types.
+    //
+    // NOTE: If they was already defined, it will just return
+    // the [`Definition`] of the primitive type.
+    initialize_primitive_bag(db);
+
+    // Tries to find a primitive type bound to the name of
+    // the [`HirPath`]. If it can't find a primitive type
+    // bound to the name of the [`HirPath`], it returns a
+    // [`Definition`] with the [`DefinitionKind::Type`] and
+    // [`DefinitionKind::Unresolved`] kind.
+    //
+    // And will report an error to the revision diagnostic database.
+    primitive_type_definition(db, name)
+        .unwrap_or_else(|| Definition::no(db, DefinitionKind::Type, name))
 }
 
 /// Defines the [`query_module`] query. It's defined as "query", because it's returning a scope
@@ -297,7 +322,7 @@ pub fn query_module(db: &dyn crate::HirDb, name: HirPath) -> (Scope, Definition)
             // module we're looking for.
             if &path == name {
                 let txt = file.source_text(db).to_string();
-                let id = DefinitionId::new(db, Location::new(db, file, txt.into(), 0, 0));
+                let id = DefinitionId::new(db, Location::new(db, file, txt.into(), 0, 0), None);
                 let kind = DefinitionKind::Module;
                 let path = HirPath::create(db, name);
 

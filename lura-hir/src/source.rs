@@ -2117,6 +2117,7 @@ pub mod literal {
 pub mod expr {
     use std::{fmt::Formatter, sync::Arc};
 
+    use crate::primitives::primitive_type_rep;
     use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
 
     use crate::resolve::{HirDiagnostic, Reference};
@@ -2544,11 +2545,28 @@ pub mod expr {
         ///
         /// This function also reports an error currently, because it's not allowed dependent types
         /// on the language, this is the reason because it's good to error recovery.
-        pub fn upgrade(self, _db: &dyn crate::HirDb) -> type_rep::TypeRep {
+        pub fn upgrade(self, db: &dyn crate::HirDb) -> type_rep::TypeRep {
             match self {
                 // Upgrades a path to a type representation. It does not require an
                 // error report, because it's not an error.
-                Self::Path(path) => type_rep::TypeRep::Path(path),
+                //
+                // It tries to find a primitive bound to the path, and if it does not find it,
+                // it will downgrade the type representation to a path.
+                Self::Path(path) => primitive_type_rep(db, path.definition(db).name(db))
+                    .map(|type_rep| match type_rep {
+                        // Transforms the location from call site
+                        // into a new location from the path.
+                        type_rep::TypeRep::Path(reference, _) => {
+                            type_rep::TypeRep::Path(reference, path.location(db))
+                        }
+                        _ => type_rep,
+                    })
+                    .unwrap_or_else(|| {
+                        let reference = type_rep::TypeReference::Reference(path);
+                        let location = path.location(db);
+
+                        type_rep::TypeRep::Path(reference, location)
+                    }),
 
                 // TODO: report error
                 _ => type_rep::TypeRep::Downgrade(Box::new(self)),
@@ -2654,6 +2672,42 @@ pub mod type_rep {
     use crate::resolve::{Definition, Reference};
 
     use super::*;
+
+    /// Defines a type representation. It's used to define a type that can
+    /// be used in the type level
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum TypeReference {
+        Unit,
+        String,
+        Bool,
+        Int8,
+        UInt8,
+        Int16,
+        UInt16,
+        Int32,
+        UInt32,
+        Int64,
+        UInt64,
+        Nat,
+        Reference(Reference),
+    }
+
+    impl walking::Walker for TypeReference {
+        fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            if let TypeReference::Reference(reference) = self {
+                reference.accept(db, listener);
+            }
+        }
+    }
+
+    impl salsa::DebugWithDb<<crate::Jar as salsa::jar::Jar<'_>>::DynDb> for TypeReference {
+        fn fmt(&self, f: &mut Formatter<'_>, db: &dyn crate::HirDb, _: bool) -> std::fmt::Result {
+            match self {
+                TypeReference::Reference(reference) => reference.debug_all(db).fmt(f),
+                _ => write!(f, "{:?}", self),
+            }
+        }
+    }
 
     /// Defines a qualified path. It's used to define a type that is qualified by a trait type, like
     /// `Foo.Bar.Baz`.
@@ -2879,7 +2933,7 @@ pub mod type_rep {
         Error(HirError),
 
         /// A path to a type, it can be either a type alias, a type parameter, or a type definition.
-        Path(Reference),
+        Path(TypeReference, Location),
 
         /// A qualified path, it's used to define a type that is qualified by a trait type, like
         /// `Foo.Bar.Baz`.
@@ -2921,7 +2975,7 @@ pub mod type_rep {
                 TypeRep::SelfType => write!(f, "Self"),
                 TypeRep::Type => write!(f, "Type"),
                 TypeRep::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
-                TypeRep::Path(path) => path.debug_all(db).fmt(f),
+                TypeRep::Path(path, _) => path.debug_all(db).fmt(f),
                 TypeRep::QPath(qpath) => qpath.debug_all(db).fmt(f),
                 TypeRep::App(app) => app.debug_all(db).fmt(f),
                 TypeRep::Arrow(arrow) => arrow.debug_all(db).fmt(f),
@@ -2945,9 +2999,10 @@ pub mod type_rep {
                     error.accept(db, listener);
                     listener.exit_error_type_rep(error);
                 }
-                TypeRep::Path(definition) => {
+                TypeRep::Path(definition, location) => {
                     listener.enter_path_type_rep(definition);
                     definition.accept(db, listener);
+                    location.accept(db, listener);
                     listener.exit_path_type_rep(definition);
                 }
                 TypeRep::Downgrade(expr) => {
@@ -2985,7 +3040,7 @@ pub mod type_rep {
                 Self::Type => Location::call_site(db),
                 Self::Arrow(downcast) => downcast.location(db),
                 Self::Error(downcast) => downcast.location(db),
-                Self::Path(reference) => reference.location(db),
+                Self::Path(_, location) => location.clone(),
                 Self::QPath(qpath) => qpath.location(db),
                 Self::App(app) => app.location(db),
                 Self::Downgrade(expr) => (*expr).location(db),

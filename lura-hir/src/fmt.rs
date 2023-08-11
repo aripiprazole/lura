@@ -132,6 +132,7 @@ mod impls {
         resolve::{Definition, Reference},
         source::{declaration::Declaration, *},
     };
+    use crate::source::type_rep::TypeReference;
 
     /// Formats a declaration using the given formatter. The declaration is
     /// followed by a semicolon.
@@ -540,6 +541,15 @@ mod impls {
         }
     }
 
+    impl HirFormatter for type_rep::TypeReference {
+        fn hir_fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            match self {
+                TypeReference::Reference(path) => path.hir_fmt(db, f, scope),
+                _ => write!(f, "{:?}", self),
+            }
+        }
+    }
+
     /// A formatter for [`type_rep::TypeRep`]. It does
     /// takes an attribute and format it as it would be written
     /// in a source file.
@@ -553,7 +563,7 @@ mod impls {
                 SelfType => write!(f, "Self"),
                 Type => write!(f, "*"),
                 Error(_) => write!(f, "!"),
-                Path(path) => path.hir_fmt(db, f, scope),
+                Path(path, _) => path.hir_fmt(db, f, scope),
                 QPath(qpath) => qpath.hir_fmt(db, f, scope),
                 App(app) => app.hir_fmt(db, f, scope),
                 Arrow(arrow) => arrow.hir_fmt(db, f, scope),

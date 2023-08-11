@@ -2,6 +2,7 @@
 #![feature(unboxed_closures)]
 #![feature(trait_upcasting)]
 
+use crate::primitives::PrimitiveProvider;
 use lura_diagnostic::DiagnosticDb;
 use lura_syntax::ParseDb;
 use package::HasManifest;
@@ -53,6 +54,9 @@ pub struct Jar(
     lower::hir_lower,
     completions::completions,
     reparse::reparse_hir_path,
+    primitives::new_type_rep,
+    primitives::primitive_type_rep,
+    primitives::primitive_type_definition,
 );
 
 /// The database that stores all the information about the source code. It is
@@ -61,19 +65,23 @@ pub struct Jar(
 /// The `salsa` crate is a crate that provides an incremental and parallel
 /// recomputation library. It is used to implement the incremental and parallel
 /// compilation of Lura.
-pub trait HirDb: HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
+pub trait HirDb: PrimitiveProvider + HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 
-impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + DiagnosticDb + salsa::DbWithJar<Jar> {}
+impl<DB: HasManifest> HirDb for DB where
+    DB: ?Sized + ParseDb + PrimitiveProvider + DiagnosticDb + salsa::DbWithJar<Jar>
+{
+}
 
 pub mod completions;
 pub mod debug;
+pub mod errors;
+pub mod fmt;
 pub mod lower;
 pub mod package;
+pub mod primitives;
 pub mod reference;
 pub mod reparse;
 pub mod resolve;
-pub mod errors;
 pub mod scope;
 pub mod source;
 pub mod walking;
-pub mod fmt;

@@ -5,6 +5,7 @@ use std::{
 
 use dashmap::{DashMap, DashSet};
 use lura_hir::package::{HasManifest, Package};
+use lura_hir::primitives::{PrimitiveBag, PrimitiveProvider};
 use salsa::DebugWithDb;
 
 /// Defines watcher strategies for [`RootDb`].
@@ -35,6 +36,7 @@ pub struct RootDb {
     storage: salsa::Storage<RootDb>,
     packages: Arc<DashSet<Package>>,
 
+    primitives: Arc<PrimitiveBag>,
     files: DashMap<PathBuf, lura_vfs::SourceFile>,
     logs: Option<Arc<Mutex<Vec<String>>>>,
 }
@@ -44,6 +46,13 @@ impl RootDb {
     pub fn register_package(&self, package: Package) -> Package {
         self.packages.insert(package);
         package
+    }
+}
+
+impl PrimitiveProvider for RootDb {
+    /// Gets primitives lazily
+    fn primitives(&self) -> Arc<PrimitiveBag> {
+        self.primitives.clone()
     }
 }
 
@@ -70,6 +79,7 @@ impl salsa::Database for RootDb {
 impl salsa::ParallelDatabase for RootDb {
     fn snapshot(&self) -> salsa::Snapshot<Self> {
         salsa::Snapshot::new(Self {
+            primitives: self.primitives.clone(),
             storage: self.storage.snapshot(),
             logs: self.logs.clone(),
             files: self.files.clone(),
@@ -103,39 +113,30 @@ mod tests {
     const EXAMPLE: &[&str] = &[
         // Generalised functions
         "public id : ^a. a -> a",
-
         // Data type tests
         "public data Unit {}",
-        "public data String {}",
-        "public data Int {}",
         "public data List (^a) {}",
-
         // Type class tests
         "public trait Show (^a) {}",
         "println : [Show a] => a -> Unit",
-
         // Instances
         "instance Show of String {}",
-
+        "instance Show of UInt32 {}",
         // Defines test functions to test
         // instantiation.
         "fa (args: List String)",
         "fb (args: List Int)",
-
         // Defines a main function
         "main (args: List String) {",
         // -- Concrete application tests
         "  let a = fa args",
         "  let b = fb args",
-
         // -- Id tests
         "  let x = id 10",
         "  let y = id \"hello\"",
-
         // -- Trait tests
         "  let z = println \"string\"",
         "  let g = println 10",
-
         // -- Return tests
         "  y",
         "}",
