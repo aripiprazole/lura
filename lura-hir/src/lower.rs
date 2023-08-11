@@ -420,9 +420,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .map(|vis| vis.solve(self, |this, node| this.hir_visibility(node)))
             .unwrap_or(Spanned::on_call_site(Vis::Public));
 
-        // Defines the node on the scope
-        let node = self.qualify(path.clone(), DefinitionKind::Trait);
-
         let methods = tree
             .fields(&mut tree.walk())
             .flatten()
@@ -434,6 +431,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             // Creates a new scope for the function, and it will be used to store the parameters,
             // and the variables.
             this.scope = this.scope.fork(ScopeKind::Class);
+
+            // Defines the node on the scope
+            let node = this.qualify(path, DefinitionKind::Trait);
 
             let parameters = this.parameters(tree.arguments(&mut tree.walk()));
 
