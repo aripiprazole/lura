@@ -4,6 +4,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
+use lura_hir::source::top_level::InstanceDecl;
 use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep};
 use lura_hir::{
     lower::hir_lower,
@@ -829,6 +830,56 @@ impl Infer for TopLevel {
     /// declaration. It does only add to the context and
     /// return unit type.
     fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
+        /// Creates a new predicate based on instance to add in the context
+        /// and returns the predicate.
+        #[inline]
+        fn create_predicate_instance(
+            ctx: &mut InferCtx,
+            instance: InstanceDecl,
+        ) -> Predicate<state::Hoas> {
+            let name = instance.name(ctx.db);
+            let _parameters = instance
+                .parameters(ctx.db)
+                .into_iter()
+                .map(|parameter| {
+                    // Creates a new type variable to represent
+                    // the type of the parameter
+                    let type_rep = ctx.translate(parameter.parameter_type(ctx.db));
+
+                    // // Evaluates the type of the parameter
+                    // let type_rep = type_rep.eval(&ctx.snapshot(), ctx.eval_env.clone());
+
+                    // Stores the parameter in the environment
+                    // as debug information for the type checker
+                    // build a table.
+                    ctx.parameters.insert(parameter, type_rep.clone());
+
+                    type_rep
+                })
+                .collect::<Vec<_>>();
+
+            let types = instance
+                .types(ctx.db)
+                .into_iter()
+                .map(|tau| {
+                    // Creates a new type variable to represent
+                    // the type of the implementation
+                    ctx.translate(tau)
+                })
+                .collect::<Vec<_>>();
+
+            // Creates the name of the type
+            let name = Name {
+                definition: name,
+                name: name.to_string(ctx.db),
+            };
+
+            // TODO: Add trait to the context, if it's polymorphic
+            // ctx.traits.insert(name.clone(), types.clone());
+
+            Predicate::IsIn(name, types)
+        }
+
         /// Creates a new type variable to represent the type of the declaration
         ///
         /// The ty is optional because it does fallback to the type of the
@@ -1015,7 +1066,15 @@ impl Infer for TopLevel {
             }
             TopLevel::BindingGroup(binding_group) => check_binding_group(ctx, binding_group),
             TopLevel::ClassDecl(_) => todo!(),
-            TopLevel::InstanceDecl(_) => todo!(),
+            TopLevel::InstanceDecl(instance_declaration) => {
+                // Creates a new predicate instance.
+                //
+                // NOTE: There's no Self for instances, as they're
+                // just a collection of predicates.
+                let predicate = create_predicate_instance(ctx, instance_declaration);
+
+                ctx.env.predicates.insert(predicate);
+            }
             TopLevel::TraitDecl(trait_declaration) => {
                 let ty = create_declaration_type(ctx, false, trait_declaration);
                 let self_type = replace(&mut ctx.self_type, ty.clone().into());
@@ -1287,7 +1346,7 @@ impl HoasForall {
             domain: self.domain.clone(),
             codomain: Rc::new(move |parameters| {
                 let qual = self.instantiate(parameters);
-                
+
                 // Replaces the qualifier's data
                 Qual {
                     predicates: qual

@@ -249,13 +249,26 @@ impl Predicate<state::Hoas> {
         }
     }
 
+    /// Erase the hole definitions from the predicate.
+    ///
+    /// This is used to make sure that we don't have any holes in the
+    /// predicate.
+    pub(crate) fn force(self) -> Self {
+        match self {
+            Predicate::IsIn(name, types) => {
+                Predicate::IsIn(name, types.into_iter().map(Type::force).collect())
+            }
+            Predicate::None => Predicate::None,
+        }
+    }
+
     /// Tries to evaluate the predicate, and if it is possible, it will
     /// return the predicate.
     ///
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
     pub(crate) fn is_present(&self, ctx: &Snapshot) {
-        if !ctx.env.predicates.contains(self) {
+        if !ctx.env.predicates.contains(&self.clone().force()) {
             // TODO: show predicate in the error message
             ctx.accumulate::<()>(ThirDiagnostic {
                 location: ThirLocation::CallSite,
