@@ -255,13 +255,6 @@ impl Predicate<state::Hoas> {
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
     pub(crate) fn is_present(&self, ctx: &Snapshot) {
-        // If the type isn't in normal form, it doesn't need to be searched
-        //
-        // TODO: search it!
-        if !self.is_hnf() {
-            return;
-        }
-
         if !ctx.env.predicates.contains(self) {
             // TODO: show predicate in the error message
             ctx.accumulate::<()>(ThirDiagnostic {

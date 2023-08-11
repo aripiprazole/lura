@@ -118,24 +118,24 @@ impl Substitution<'_, '_> {
                     self.hole_unify_prechecks(value, scope, hole.clone());
                 }
             }
-            Type::Forall(forall) => {
+            Type::Forall(_) => {
                 // Named holes, because this is a dependent
                 // function type, we need to create a new hole
                 // for each parameter
-                let domain = forall
-                    .domain
-                    .clone()
-                    .into_iter()
-                    .map(|(name, _)| Tau::Bound(Bound::Flexible(name)))
-                    .collect::<Vec<_>>();
+                // let domain = forall
+                //     .domain
+                //     .clone()
+                //     .into_iter()
+                //     .map(|(name, _)| Tau::Bound(Bound::Flexible(name)))
+                //     .collect::<Vec<_>>();
 
                 // Exeuctes the HOAS function to get the codomain
                 // and then evaluates it to WHNF
-                let codomain = forall.instantiate(domain);
+                // let _codomain = forall.instantiate(domain);
 
                 // TODO: check dependent kinds
                 // self.hole_unify_prechecks(domain, scope, hole.clone());
-                self.hole_unify_prechecks(codomain, scope, hole)
+                // self.hole_unify_prechecks(codomain, scope, hole)
             }
             Type::Pi(pi) => {
                 let ctx = self.ctx.snapshot();
@@ -581,7 +581,7 @@ impl Infer for Callee {
             Callee::Pure => panic!("pure builtin should be handled in a different way"),
             Callee::Do => todo!("do builtin"),
             // SECTION: Reference
-            Callee::Reference(path) => (no_preds(), ctx.reference(path)),
+            Callee::Reference(path) => ctx.reference(path),
             // SECTION: Expressions
             // Handle expressions in callee
             Callee::Expr(expr) => expr.infer(ctx),
@@ -610,7 +610,7 @@ impl Infer for Expr {
 
             // SECTION: Expressions
             // Handles literals, references and expressions that are not handled by other cases
-            Expr::Path(reference) => (no_preds(), ctx.reference(reference)),
+            Expr::Path(reference) => ctx.reference(reference),
             Expr::Literal(literal) => (no_preds(), literal.infer(ctx)),
             Expr::Call(call) => {
                 let mut preds = vec![];
@@ -709,11 +709,23 @@ impl Infer for Expr {
                         //     process, and we get the result of value.
                         let (new_preds, callee) = callee.infer_with(&call, ctx);
 
-                        // Adds the new predicates to the global predicates
-                        preds.extend(new_preds);
-
                         // Unify the callee with the pi type
                         pi.unify(callee, ctx);
+
+                        // Creates a snapshot of the context, to make sure that
+                        // the predicates are present in the context.
+                        let snapshot = ctx.snapshot();
+
+                        // Normalises the predicates to make sure that
+                        // the predicates are in the right form.
+                        //
+                        // And to check if they are present in the context!
+                        for predicate in new_preds.clone() {
+                            predicate.is_present(&snapshot);
+                        }
+
+                        // Adds the new predicates to the global predicates
+                        preds.extend(new_preds);
 
                         // Returns the type of the result
                         (preds, hole)
@@ -922,7 +934,6 @@ impl Infer for TopLevel {
 
             // Adds the value to the environment
             let name = binding_group.name(ctx.db);
-            // ctx.env.variables.insert(name, function_type.clone());
 
             // Creates the type of the binding group using the
             // signature of the binding group
@@ -1267,23 +1278,24 @@ impl Predicate<state::Hoas> {
     }
 }
 
-impl Qual<state::Hoas, HoasForall> {
+impl HoasForall {
     // Replaces a type variable with a type.
-    fn replace(self, name: Definition, replacement: Tau) -> Qual<state::Hoas, HoasForall> {
-        Self {
-            predicates: self
-                .predicates
-                .into_iter()
-                .map(|pred| pred.replace(name, replacement.clone()))
-                .collect(),
-            data: HoasForall {
-                domain: self.data.domain.clone(),
-                codomain: Rc::new(move |parameters| {
-                    self.data
-                        .instantiate(parameters)
-                        .replace(name, replacement.clone())
-                }),
-            },
+    fn replace(self, name: Definition, replacement: Tau) -> HoasForall {
+        HoasForall {
+            // TODO: iterate dependent kinds
+            domain: self.domain.clone(),
+            codomain: Rc::new(move |parameters| {
+                let qual = self.instantiate(parameters);
+                Qual {
+                    predicates: qual
+                        .predicates
+                        .clone()
+                        .into_iter()
+                        .map(|pred| pred.replace(name, replacement.clone()))
+                        .collect(),
+                    data: (*qual).clone().replace(name, replacement.clone()),
+                }
+            }),
         }
     }
 }
@@ -1351,7 +1363,7 @@ impl<'tctx> InferCtx<'tctx> {
     // variables with unfilled holes.
     //
     // This only works with [`Type::Forall`] types.
-    fn instantiate(&mut self, sigma: Tau) -> Tau {
+    fn instantiate(&mut self, sigma: Tau) -> Qual<state::Hoas, Tau> {
         // Gets a forall type to instantiate, can't instantiate
         // non-forall types.
         match sigma.force() {
@@ -1365,7 +1377,7 @@ impl<'tctx> InferCtx<'tctx> {
                         .collect::<Vec<_>>(),
                 )
             }
-            sigma => sigma,
+            sigma => Qual::new(sigma),
         }
     }
 
@@ -1459,7 +1471,7 @@ impl<'tctx> InferCtx<'tctx> {
                 })
                 .collect::<Vec<_>>();
 
-            Tau::Forall(Qual::new(HoasForall {
+            Tau::Forall(HoasForall {
                 domain: parameters.clone(),
                 codomain: Rc::new(move |domain| {
                     // This is the forall's codomain, it is a function
@@ -1475,9 +1487,9 @@ impl<'tctx> InferCtx<'tctx> {
                         value = value.replace(name.definition, type_rep)
                     }
 
-                    value
+                    Qual::new(value)
                 }),
-            }))
+            })
         }
 
         /// Evaluates a function type into a semantic type.
@@ -1559,48 +1571,50 @@ impl<'tctx> InferCtx<'tctx> {
                 .collect::<Vec<_>>();
 
             let value = ctx.translate(sigma.value(ctx.db));
-            let snapshot = ctx.snapshot();
 
-            Tau::Forall(Qual {
-                predicates: predicates.clone(),
-                data: HoasForall {
-                    domain: domain.clone(),
-                    codomain: Rc::new(move |parameters| {
-                        // This is the forall's codomain, it is a function
-                        // that takes a list of types and returns a type.
-                        let mut value = value.clone();
+            Tau::Forall(HoasForall {
+                domain: domain.clone(),
+                codomain: Rc::new(move |parameters| {
+                    // This is the forall's codomain, it is a function
+                    // that takes a list of types and returns a type.
+                    let mut value = value.clone();
 
-                        // Normalises the predicates to make sure that
-                        // the predicates are in the right form.
-                        //
-                        // And to check if they are present in the context!
-                        for mut predicate in predicates.clone() {
-                            let parameters = domain.clone().into_iter().zip(parameters.clone());
+                    // This substitutes the forall's parameters names with
+                    // its equivalent values.
+                    let mut new_predicates = vec![];
 
-                            // This substitutes the forall's parameters names with
-                            // its equivalent values.
-                            for ((name, _), tau) in parameters {
-                                predicate = predicate.replace(name.definition, tau);
-                            }
-
-                            // Normalises the predicate
-                            predicate.is_present(&snapshot);
-                        }
+                    // Normalises the predicates to make sure that
+                    // the predicates are in the right form.
+                    //
+                    // And to check if they are present in the context!
+                    for mut predicate in predicates.clone() {
+                        let parameters = domain.clone().into_iter().zip(parameters.clone());
 
                         // This substitutes the forall's parameters names with
                         // its equivalent values.
-                        //
-                        // TODO: check predicates here, and evaluate them
-                        //
-                        // TODO: add to the context and use the context to
-                        // evaluate the type.
-                        for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
-                            value = value.replace(name.definition, type_rep)
+                        for ((name, _), tau) in parameters {
+                            predicate = predicate.replace(name.definition, tau);
                         }
 
-                        value
-                    }),
-                },
+                        new_predicates.push(predicate);
+                    }
+
+                    // This substitutes the forall's parameters names with
+                    // its equivalent values.
+                    //
+                    // TODO: check predicates here, and evaluate them
+                    //
+                    // TODO: add to the context and use the context to
+                    // evaluate the type.
+                    for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
+                        value = value.replace(name.definition, type_rep)
+                    }
+
+                    Qual {
+                        predicates: new_predicates,
+                        data: value,
+                    }
+                }),
             })
         }
 
@@ -1729,7 +1743,7 @@ impl<'tctx> InferCtx<'tctx> {
 
     /// Finds a reference to a variable in the environment
     /// and returns its type.
-    fn reference(&mut self, reference: Reference) -> Tau {
+    fn reference(&mut self, reference: Reference) -> (Preds, Tau) {
         let generalised = self
             .env
             .variables
@@ -1741,7 +1755,10 @@ impl<'tctx> InferCtx<'tctx> {
                 panic!("variable not found {}", name);
             });
 
-        self.instantiate(generalised)
+        // Gets the predicates from the generalised type
+        let qual = self.instantiate(generalised);
+
+        (qual.predicates, qual.data)
     }
 
     /// Finds a reference to a constructor in the environment
@@ -1760,7 +1777,10 @@ impl<'tctx> InferCtx<'tctx> {
                 })
             });
 
-        self.instantiate(let_ty.name.clone())
+        // Constructors should not have predicates
+        //
+        // TODO: validate this
+        self.instantiate(let_ty.name.clone()).data
     }
 
     /// Gets a default void value for the type
