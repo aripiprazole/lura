@@ -114,11 +114,10 @@ mod tests {
         // Generalised functions
         "public id : ^a. a -> a",
         // Data type tests
-        "public data Unit {}",
         "public data List (^a) {}",
         // Type class tests
         "public trait Show (^a) {}",
-        "println : [Show a] => a -> Unit",
+        "println : [Show a] => a -> ()",
         // Instances
         "instance Show of String {}",
         "instance Show of UInt32 {}",

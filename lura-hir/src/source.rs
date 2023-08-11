@@ -2568,6 +2568,16 @@ pub mod expr {
                         type_rep::TypeRep::Path(reference, location)
                     }),
 
+                Self::Call(CallExpr {
+                    callee: Callee::Unit,
+                    do_notation: Option::None,
+                    arguments,
+                    location,
+                    kind: _,
+                }) if arguments.is_empty() => {
+                    type_rep::TypeRep::Path(type_rep::TypeReference::Unit, location)
+                }
+
                 // TODO: report error
                 _ => type_rep::TypeRep::Downgrade(Box::new(self)),
             }
