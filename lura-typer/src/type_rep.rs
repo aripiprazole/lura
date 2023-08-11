@@ -116,7 +116,7 @@ pub enum Type<S: state::TypeState> {
     Primary(Primary),
     Constructor(Name),
     App(Box<Type<S>>, Box<Type<S>>),
-    Forall(Qual<S, S::Forall>),
+    Forall(S::Forall),
     Pi(S::Pi),
 
     /// Represents a stuck type. This is used to represent a type that is stuck.
@@ -262,7 +262,7 @@ pub mod forall {
 
     /// Represents a type-level function. This is used
     /// to represent a type-level function.
-    pub type ForallHoas<S> = dyn Fn(Vec<Type<S>>) -> Type<S>;
+    pub type ForallHoas<S> = dyn Fn(Vec<Type<S>>) -> Qual<S, Type<S>>;
 
     /// Represents a type dependent function. This is used to
     /// represent a type dependent function.
@@ -275,7 +275,7 @@ pub mod forall {
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct QuotedForall {
         pub domain: Vec<(Name, Type<state::Quoted>)>,
-        pub codomain: Box<Type<state::Quoted>>,
+        pub codomain: Box<Qual<state::Quoted, Type<state::Quoted>>>,
     }
 
     impl Display for QuotedForall {
@@ -294,8 +294,15 @@ pub mod forall {
         pub codomain: Rc<ForallHoas<state::Hoas>>,
     }
 
+    /// Represents a type-level function. This is used
+    /// to represent a type-level function.
+    type Types = Vec<Type<state::Hoas>>;
+
     impl HoasForall {
-        pub fn instantiate(&self, types: Vec<Type<state::Hoas>>) -> Type<state::Hoas> {
+        // Instantiates a forall type with the given types.
+        //
+        // This is used to instantiate a forall type with the given types.
+        pub fn instantiate(&self, types: Types) -> Qual<state::Hoas, Type<state::Hoas>> {
             (self.codomain)(types)
         }
     }
