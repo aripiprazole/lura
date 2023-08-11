@@ -22,6 +22,7 @@ use lura_hir::{
 };
 
 use crate::adhoc::{no_preds, Preds};
+use crate::ftv::Fv;
 use crate::options::TyperFeatures;
 use crate::type_rep::forall::HoasForall;
 use crate::type_rep::holes::HoleKind;
@@ -1009,7 +1010,7 @@ impl Infer for TopLevel {
                 // Returns the old self type to the original position,
                 // as the self type is only valid in the data declaration
                 ctx.self_type = self_type;
-            },
+            }
             TopLevel::DataDecl(data_declaration) => {
                 let tau = create_declaration_type(ctx, false, data_declaration);
                 let self_type = replace(&mut ctx.self_type, tau.clone().into());
@@ -1511,6 +1512,86 @@ impl<'tctx> InferCtx<'tctx> {
                 })
         }
 
+        /// Evaluates a sigma type into a semantic type.
+        ///
+        /// Sigma types should be used to represent a product type
+        /// in the Lura language.
+        ///
+        /// But when we can infer the pattern to a constraint, the
+        /// sigma, should be a generalisation of the constraint.
+        ///
+        /// It's called sigma, because the semantics behaviours like
+        /// a sigma, but it's not a literal sigma in the language.
+        fn eval_sigma(ctx: &mut InferCtx, sigma: ArrowTypeRep) -> Tau {
+            // The variables that should be added to forall to make the language
+            // easier to use
+            let mut ftv: im_rc::HashSet<Fv, FxBuildHasher> = im_rc::HashSet::default();
+
+            let predicates = sigma
+                .parameters(ctx.db)
+                .into_iter()
+                .filter_map(|parameter| {
+                    // NOTE: The constraint type is the default
+                    // type for the parameter.
+                    let constraint = parameter.binding(ctx.db);
+
+                    let (pattern, pattern_ftv) = Predicate::new(ctx, constraint)?;
+
+                    // Accumulates the free type variables
+                    ftv.extend(pattern_ftv);
+
+                    Some(pattern)
+                })
+                .collect::<Vec<_>>();
+
+            let domain = ftv
+                .iter()
+                .filter_map(|fv| {
+                    let name = match fv {
+                        Fv::Flexible(name) | Fv::Index(name, _) => name,
+                        Fv::Hole => {
+                            return ctx.accumulate(ThirDiagnostic {
+                                id: ErrorId("unsupported-hole-implicits"),
+                                location: ctx.new_location(sigma.location(ctx.db)),
+                                message: message!["hole implicits are not supported"],
+                            })
+                        }
+                    };
+
+                    // NOTE: this is a hack to make the language easier to use
+                    // and to make the type checker easier to implement.
+                    Some((name.clone(), Tau::Type))
+                })
+                .collect::<Vec<_>>();
+
+            let value = ctx.translate(sigma.value(ctx.db));
+
+            Tau::Forall(Qual {
+                predicates,
+                data: HoasForall {
+                    domain: domain.clone(),
+                    codomain: Rc::new(move |parameters| {
+                        // This is the forall's codomain, it is a function
+                        // that takes a list of types and returns a type.
+                        let mut value = value.clone();
+
+                        // This substitutes the forall's parameters names with
+                        // its equivalent values.
+                        //
+                        // TODO: check predicates here, and evaluate them
+                        //
+                        // TODO: add to the context and use the context to
+                        // evaluate the type.
+                        for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
+                            value = value.replace(name.definition, type_rep)
+                        }
+
+                        value
+                    }),
+                },
+            })
+        }
+
         /// Evaluates an application type into a semantic type.
         ///
         /// It does create stuck types from a simple application
@@ -1564,6 +1645,9 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(forall) if matches!(forall.kind(self.db), ArrowKind::Forall) => {
                 eval_forall(self, forall)
             }
+            TypeRep::Arrow(sigma) if matches!(sigma.kind(self.db), ArrowKind::Sigma) => {
+                eval_sigma(self, sigma)
+            }
 
             // SECTION: Type application
             TypeRep::App(app) => eval_app(self, app),
@@ -1598,7 +1682,7 @@ impl<'tctx> InferCtx<'tctx> {
             TypeRep::Arrow(_) => self.accumulate(ThirDiagnostic {
                 id: ErrorId("unsupported-arrow-kind"),
                 location: self.new_location(type_rep.location(self.db)),
-                message: message!("sigma types is not supported yet"),
+                message: message!("internal type error, this type should be supported"),
             }),
             TypeRep::QPath(_) => self.accumulate(ThirDiagnostic {
                 id: ErrorId("unsupported-qpath-kind"),

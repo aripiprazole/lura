@@ -1,6 +1,8 @@
+use fxhash::FxBuildHasher;
 use lura_diagnostic::{message, ErrorId};
 use std::{fmt::Display, ops::Deref};
 
+use crate::ftv::{Ftv, Fv};
 use crate::infer::InferCtx;
 use crate::thir::ThirDiagnostic;
 use lura_hir::source::expr::Expr;
@@ -111,7 +113,10 @@ impl Predicate<state::Hoas> {
     /// Creates a new predicate, based on a type value.
     ///
     /// Destructs the pattern and creates a predicate based on the type value.
-    pub(crate) fn new(ctx: &mut InferCtx, pattern: Pattern) -> Option<Self> {
+    pub(crate) fn new(
+        ctx: &mut InferCtx,
+        pattern: Pattern,
+    ) -> Option<(Self, im_rc::HashSet<Fv, FxBuildHasher>)> {
         /// Defines a normalised predicate.
         #[allow(dead_code)]
         enum Normalised {
@@ -216,10 +221,14 @@ impl Predicate<state::Hoas> {
                 Some(name) => Type::Bound(Bound::Flexible(name)),
                 None => Type::Bound(Bound::Hole),
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        // Collects all free variables to be constructed a full featured
+        // predicate, and forall quantifier.
+        let free_variables = arguments.iter().flat_map(|tau| tau.ftv()).collect();
 
         // Create a predicate
-        Some(Predicate::IsIn(name, arguments))
+        Some((Predicate::IsIn(name, arguments), free_variables))
     }
 }
 
