@@ -1740,7 +1740,11 @@ impl<'tctx> InferCtx<'tctx> {
             // SECTION: Type application
             TypeRep::App(app) => eval_app(self, app),
 
-            // SECTION: Pathes
+            // SECTION: Paths
+            // JUST AN WORKAROUND TO MAKE STRING TYPES WORK
+            TypeRep::Path(reference) if reference.definition(self.db).to_string(self.db) == "String" => {
+                Tau::STRING
+            }
             // We should not resolve the type here, but rather
             // create a new type variable, and as it is resolved, we
             // can replace it with the actual type.
