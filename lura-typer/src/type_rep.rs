@@ -136,6 +136,21 @@ pub enum Type<S: state::TypeState> {
 }
 
 impl Type<state::Hoas> {
+    pub(crate) fn force(self) -> Type<state::Hoas> {
+        match self {
+            Type::Hole(ref hole) => match hole.kind() {
+                HoleKind::Error => Type::Hole(HoleRef::new(Hole {
+                    kind: HoleKind::Error,
+                })),
+                HoleKind::Empty { scope } => Type::Hole(HoleRef::new(Hole {
+                    kind: HoleKind::Empty { scope },
+                })),
+                HoleKind::Filled(value) => value.force(),
+            },
+            _ => self,
+        }
+    }
+
     /// Checks if the type is an empty hole
     pub(crate) fn is_unbound(&self) -> bool {
         let Type::Hole(hole) = self else { return false };
