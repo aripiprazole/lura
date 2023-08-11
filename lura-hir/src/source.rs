@@ -491,7 +491,7 @@ pub mod declaration {
 
         /// Upcasts the declaration to a [`DeclDescriptor`]. It's used to create a descriptor of
         /// the declaration, that can be used to create a [`Definition`].
-        /// 
+        ///
         /// TODO: remove this method, and use the [`Definition`] directly.
         #[deprecated]
         fn upcast(&self, db: &dyn crate::HirDb) -> top_level::DeclDescriptor;
@@ -1057,6 +1057,74 @@ pub mod top_level {
     }
 
     #[salsa::tracked]
+    pub struct InstanceDecl {
+        pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
+        pub docs: Vec<declaration::DocString>,
+        pub visibility: Spanned<declaration::Vis>,
+        /// The name of the trait being implemented.
+        pub name: Definition,
+        pub parameters: Vec<declaration::Parameter>,
+        pub types: Vec<type_rep::TypeRep>,
+        pub methods: Vec<BindingGroup>,
+        pub location: Location,
+        pub scope: Arc<Scope>,
+    }
+
+    impl walking::Walker for InstanceDecl {
+        fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
+            listener.enter_instance_top_level(self);
+            self.attributes(db).accept(db, listener);
+            self.docs(db).accept(db, listener);
+            self.visibility(db).accept(db, listener);
+            self.name(db).accept(db, listener);
+            self.parameters(db).accept(db, listener);
+            self.types(db).accept(db, listener);
+            self.methods(db).accept(db, listener);
+            self.location(db).accept(db, listener);
+            listener.exit_instance_top_level(self);
+        }
+    }
+
+    impl declaration::Declaration for InstanceDecl {
+        fn attributes(
+            &self,
+            db: &dyn crate::HirDb,
+        ) -> HashSet<declaration::Attribute, FxBuildHasher> {
+            Self::attributes(*self, db)
+        }
+
+        fn visibility(&self, db: &dyn crate::HirDb) -> Spanned<declaration::Vis> {
+            Self::visibility(*self, db)
+        }
+
+        fn docs(&self, db: &dyn crate::HirDb) -> Vec<declaration::DocString> {
+            Self::docs(*self, db)
+        }
+
+        fn name(&self, db: &dyn crate::HirDb) -> Definition {
+            Self::name(*self, db)
+        }
+
+        fn parameters(&self, db: &dyn crate::HirDb) -> Vec<declaration::Parameter> {
+            Self::parameters(*self, db)
+        }
+
+        fn type_rep(&self, _db: &dyn crate::HirDb) -> Option<type_rep::TypeRep> {
+            None
+        }
+
+        fn upcast(&self, _db: &dyn crate::HirDb) -> top_level::DeclDescriptor {
+            top_level::DeclDescriptor::InstanceDecl(*self)
+        }
+    }
+
+    impl HirElement for InstanceDecl {
+        fn location(&self, db: &dyn crate::HirDb) -> Location {
+            Self::location(*self, db)
+        }
+    }
+
+    #[salsa::tracked]
     pub struct TraitDecl {
         pub attributes: HashSet<declaration::Attribute, FxBuildHasher>,
         pub docs: Vec<declaration::DocString>,
@@ -1280,6 +1348,7 @@ pub mod top_level {
         Command(CommandTopLevel),
         BindingGroup(BindingGroup),
         ClassDecl(ClassDecl),
+        InstanceDecl(InstanceDecl),
         TraitDecl(TraitDecl),
         DataDecl(DataDecl),
         TypeDecl(TypeDecl),
@@ -1293,6 +1362,7 @@ pub mod top_level {
                 TopLevel::Command(command) => command.debug_all(db).fmt(f),
                 TopLevel::BindingGroup(binding) => binding.debug_all(db).fmt(f),
                 TopLevel::ClassDecl(class_decl) => class_decl.debug_all(db).fmt(f),
+                TopLevel::InstanceDecl(instance_decl) => instance_decl.debug_all(db).fmt(f),
                 TopLevel::TraitDecl(trait_decl) => trait_decl.debug_all(db).fmt(f),
                 TopLevel::DataDecl(data_decl) => data_decl.debug_all(db).fmt(f),
                 TopLevel::TypeDecl(type_decl) => type_decl.debug_all(db).fmt(f),
@@ -1312,6 +1382,7 @@ pub mod top_level {
                 TopLevel::Command(command) => command.accept(db, listener),
                 TopLevel::BindingGroup(binding) => binding.accept(db, listener),
                 TopLevel::ClassDecl(class_decl) => class_decl.accept(db, listener),
+                TopLevel::InstanceDecl(instance_decl) => instance_decl.accept(db, listener),
                 TopLevel::TraitDecl(trait_decl) => trait_decl.accept(db, listener),
                 TopLevel::DataDecl(data_decl) => data_decl.accept(db, listener),
                 TopLevel::TypeDecl(type_decl) => type_decl.accept(db, listener),
@@ -1327,6 +1398,7 @@ pub mod top_level {
                 Self::Command(downcast) => downcast.location(db),
                 Self::BindingGroup(downcast) => downcast.location(db),
                 Self::ClassDecl(downcast) => downcast.location(db),
+                Self::InstanceDecl(downcast) => downcast.location(db),
                 Self::TraitDecl(downcast) => downcast.location(db),
                 Self::DataDecl(downcast) => downcast.location(db),
                 Self::TypeDecl(downcast) => downcast.location(db),
@@ -1342,6 +1414,7 @@ pub mod top_level {
         BindingGroup(BindingGroup),
         ClassDecl(ClassDecl),
         TraitDecl(TraitDecl),
+        InstanceDecl(InstanceDecl),
         DataDecl(DataDecl),
         TypeDecl(TypeDecl),
     }
@@ -1352,6 +1425,7 @@ pub mod top_level {
                 Self::Error(downcast) => downcast.location(db),
                 Self::BindingGroup(downcast) => downcast.location(db),
                 Self::ClassDecl(downcast) => downcast.location(db),
+                Self::InstanceDecl(downcast) => downcast.location(db),
                 Self::TraitDecl(downcast) => downcast.location(db),
                 Self::DataDecl(downcast) => downcast.location(db),
                 Self::TypeDecl(downcast) => downcast.location(db),
@@ -1369,6 +1443,7 @@ pub mod top_level {
                 DeclDescriptor::Error(downcast) => Self::Error(downcast),
                 DeclDescriptor::BindingGroup(downcast) => Self::BindingGroup(downcast),
                 DeclDescriptor::ClassDecl(downcast) => Self::ClassDecl(downcast),
+                DeclDescriptor::InstanceDecl(downcast) => Self::InstanceDecl(downcast),
                 DeclDescriptor::TraitDecl(downcast) => Self::TraitDecl(downcast),
                 DeclDescriptor::DataDecl(downcast) => Self::DataDecl(downcast),
                 DeclDescriptor::TypeDecl(downcast) => Self::TypeDecl(downcast),
@@ -1388,6 +1463,7 @@ pub mod top_level {
                 TopLevel::Command(_) => return Err(()),
                 TopLevel::BindingGroup(downcast) => Self::BindingGroup(downcast),
                 TopLevel::ClassDecl(downcast) => Self::ClassDecl(downcast),
+                TopLevel::InstanceDecl(downcast) => Self::InstanceDecl(downcast),
                 TopLevel::TraitDecl(downcast) => Self::TraitDecl(downcast),
                 TopLevel::DataDecl(downcast) => Self::DataDecl(downcast),
                 TopLevel::TypeDecl(downcast) => Self::TypeDecl(downcast),
@@ -1409,6 +1485,7 @@ pub mod top_level {
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.attributes(db),
                 Self::ClassDecl(downcast) => downcast.attributes(db),
+                Self::InstanceDecl(downcast) => downcast.attributes(db),
                 Self::TraitDecl(downcast) => downcast.attributes(db),
                 Self::DataDecl(downcast) => downcast.attributes(db),
                 Self::TypeDecl(downcast) => downcast.attributes(db),
@@ -1420,6 +1497,7 @@ pub mod top_level {
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.visibility(db),
                 Self::ClassDecl(downcast) => downcast.visibility(db),
+                Self::InstanceDecl(downcast) => downcast.visibility(db),
                 Self::TraitDecl(downcast) => downcast.visibility(db),
                 Self::DataDecl(downcast) => downcast.visibility(db),
                 Self::TypeDecl(downcast) => downcast.visibility(db),
@@ -1431,6 +1509,7 @@ pub mod top_level {
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.docs(db),
                 Self::ClassDecl(downcast) => downcast.docs(db),
+                Self::InstanceDecl(downcast) => downcast.docs(db),
                 Self::TraitDecl(downcast) => downcast.docs(db),
                 Self::DataDecl(downcast) => downcast.docs(db),
                 Self::TypeDecl(downcast) => downcast.docs(db),
@@ -1442,6 +1521,7 @@ pub mod top_level {
                 Self::Error(_) => default_with_db(db),
                 Self::BindingGroup(downcast) => downcast.name(db),
                 Self::ClassDecl(downcast) => downcast.name(db),
+                Self::InstanceDecl(downcast) => downcast.name(db),
                 Self::TraitDecl(downcast) => downcast.name(db),
                 Self::DataDecl(downcast) => downcast.name(db),
                 Self::TypeDecl(downcast) => downcast.name(db),
@@ -1453,6 +1533,7 @@ pub mod top_level {
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.parameters(db),
                 Self::ClassDecl(downcast) => downcast.parameters(db),
+                Self::InstanceDecl(downcast) => downcast.parameters(db),
                 Self::TraitDecl(downcast) => downcast.parameters(db),
                 Self::DataDecl(downcast) => downcast.parameters(db),
                 Self::TypeDecl(downcast) => downcast.parameters(db),
@@ -1464,6 +1545,7 @@ pub mod top_level {
                 Self::Error(_) => Default::default(),
                 Self::BindingGroup(downcast) => downcast.type_rep(db),
                 Self::ClassDecl(downcast) => downcast.type_rep(db),
+                Self::InstanceDecl(downcast) => downcast.type_rep(db),
                 Self::TraitDecl(downcast) => downcast.type_rep(db),
                 Self::DataDecl(downcast) => downcast.type_rep(db),
                 Self::TypeDecl(downcast) => downcast.type_rep(db),

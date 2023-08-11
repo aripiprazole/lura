@@ -328,6 +328,18 @@ mod impls {
         }
     }
 
+    impl HirFormatter for top_level::InstanceDecl {
+        fn hir_fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
+            // TODO: Print implementation's type
+            format_decl(self, "instance", db, scope, f, |db, f, scope| {
+                // Write the classes' methods wi
+                code_block(db, scope, f, |db, f, scope| {
+                    scope.unlined(db, f, self.methods(db), ";")
+                })
+            })
+        }
+    }
+
     impl HirFormatter for top_level::TraitDecl {
         fn hir_fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
             format_decl(self, "trait", db, scope, f, |db, f, scope| {
@@ -383,6 +395,7 @@ mod impls {
                 Command(command_top_level) => command_top_level.hir_fmt(db, f, scope),
                 BindingGroup(binding_group) => binding_group.hir_fmt(db, f, scope),
                 ClassDecl(class_decl) => class_decl.hir_fmt(db, f, scope),
+                InstanceDecl(instance_decl) => instance_decl.hir_fmt(db, f, scope),
                 TraitDecl(trait_decl) => trait_decl.hir_fmt(db, f, scope),
                 DataDecl(decl_decl) => decl_decl.hir_fmt(db, f, scope),
                 TypeDecl(type_decl) => type_decl.hir_fmt(db, f, scope),

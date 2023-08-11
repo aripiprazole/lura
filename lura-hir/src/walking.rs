@@ -100,6 +100,7 @@ pub trait HirListener {
     fn enter_command_top_level(&mut self, command: top_level::CommandTopLevel) {}
     fn enter_class_top_level(&mut self, class: top_level::ClassDecl) {}
     fn enter_type_top_level(&mut self, type_: top_level::TypeDecl) {}
+    fn enter_instance_top_level(&mut self, trait_: top_level::InstanceDecl) {}
     fn enter_trait_top_level(&mut self, trait_: top_level::TraitDecl) {}
     fn enter_data_top_level(&mut self, data: top_level::DataDecl) {}
 
@@ -143,6 +144,7 @@ pub trait HirListener {
     fn exit_command_top_level(&mut self, command: top_level::CommandTopLevel) {}
     fn exit_class_top_level(&mut self, class: top_level::ClassDecl) {}
     fn exit_type_top_level(&mut self, class: top_level::TypeDecl) {}
+    fn exit_instance_top_level(&mut self, trait_: top_level::InstanceDecl) {}
     fn exit_trait_top_level(&mut self, trait_: top_level::TraitDecl) {}
     fn exit_data_top_level(&mut self, data: top_level::DataDecl) {}
 }

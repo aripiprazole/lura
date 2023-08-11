@@ -39,6 +39,7 @@ pub struct Jar(
     source::top_level::Signature,
     source::top_level::UsingTopLevel,
     source::top_level::ClassDecl,
+    source::top_level::InstanceDecl,
     source::top_level::TraitDecl,
     source::top_level::DataDecl,
     source::top_level::TypeDecl,

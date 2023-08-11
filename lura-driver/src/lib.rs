@@ -110,6 +110,9 @@ mod tests {
         "public data Int {}",
         "public data List (^a) {}",
 
+        // Instances
+        "instance Show of String {}",
+
         // Type class tests
         "public trait Show (^a) {}",
         "println : [Show a] => a -> Unit",
