@@ -287,6 +287,10 @@ impl Predicate<state::Hoas> {
         }
     }
 
+    /// Tests a predicate with another predicate.
+    ///
+    /// This is used to make sure that the predicates are equal semantically,
+    /// like `Eq a` is matching to `Eq String`.
     pub(crate) fn unify(self, pred: Self, ctx: &mut InferCtx) -> bool {
         match (self.force(), pred.force()) {
             // SECTION: Unify predicates
@@ -326,18 +330,49 @@ impl Predicate<state::Hoas> {
         };
 
         let preds = ctx.env.predicates.get(name)?.clone();
+
+        // If the predicate is in head normal form, then we can
+        // compare directly the predicates.
+        //
+        // For example, `Show String` can match directly with `Show String`,
+        // just to optimize the process.
+        if pred.is_hnf() && preds.contains(&pred) {
+            return Some(());
+        }
+
         for constraint in preds {
             // If the predicate is in head normal form, then we can
             // compare the predicates.
+            //
+            // RULE: If it is in normal form like `Show String`, it isn't a
+            // constraint that should be added to the context, but it is
+            // a constraint that should be checked. So we compare the
+            // predicates with "equality".
             if constraint.is_hnf() {
                 if pred == constraint {
                     return Some(());
                 }
-            } else {
+            }
+            // If the predicate is not in head normal form, then we
+            // need to compare if it does exist in the context, like
+            // if it's `Show a`, it's needed to be compared to `Show a`
+            // in the context, and if it's present, it will return!
+            //
+            // TODO: return a list of possible additions to the context,
+            //       like, if it's `Show a`, and `Show a` isn't provided in the
+            //       current context, it will return an error, but it should
+            //       recommend as a suggestion to the user to add `Show a` to
+            //       the constraints.
+            else {
                 // If the predicate is not in head normal form, then we
                 // need to normalise the predicate.
+                //
+                // Instantiates the predicate, and then unify it with the
+                // constraint.
                 let new_constraint = constraint.clone().instantiate(ctx).force();
 
+                // If it's correct, then we assume that constraints are satisfied
+                // by now.
                 if new_constraint.unify(pred.clone(), ctx) {
                     return Some(());
                 }
