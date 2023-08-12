@@ -136,7 +136,7 @@ struct LowerHir<'db, 'tree> {
     pkg: Package,
     scope: Scope,
     root_node: Node<'tree>,
-    clauses: HashMap<HirPath, BindingGroup, FxBuildHasher>,
+    clauses: HashMap<Definition, BindingGroup, FxBuildHasher>,
 }
 
 impl<'db, 'tree> LowerHir<'db, 'tree> {
@@ -753,6 +753,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .scope
             .search(self.db, path, DefinitionKind::Function)
             .unwrap_or_else(|| {
+                println!("ta definindo");
                 // Defines the node on the scope
                 self.scope
                     .define(self.db, path, location.clone(), DefinitionKind::Function)
@@ -774,7 +775,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             let clause = Clause::new(db, name, patterns, value, location.clone());
 
-            let binding_group = this.clauses.entry(path).or_insert_with(|| {
+            let binding_group = this.clauses.entry(name).or_insert_with(|| {
                 // Creates a dummy signature implementation, to be used in the clause.
                 let signature = Signature::new(
                     db,
@@ -799,7 +800,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             let group = BindingGroup::new(db, signature, clauses);
 
             // Adds the clause to the scope, and solve it
-            this.clauses.insert(path, group);
+            this.clauses.insert(name, group);
             this.pop_scope();
 
             TopLevel::BindingGroup(group)
@@ -861,7 +862,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             let clause = this
                 .clauses
-                .entry(path)
+                .entry(node)
                 .or_insert_with(|| BindingGroup::new(db, signature, HashSet::default()));
 
             // Adds the current body to the clause, and solve it
@@ -887,7 +888,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 
             // Adds the clause to the scope, and solve it
             this.clauses
-                .insert(path, BindingGroup::new(db, signature, clauses));
+                .insert(node, BindingGroup::new(db, signature, clauses));
 
             this.pop_scope();
 
@@ -895,7 +896,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             //
             // The entire next step, is getting the clauses from the scope, and transforms into
             // declarations, so it is not needed to solve the clause here.
-            TopLevel::BindingGroup(*this.clauses.get(&path).unwrap())
+            TopLevel::BindingGroup(*this.clauses.get(&node).unwrap())
         })
     }
 
