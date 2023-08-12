@@ -323,7 +323,7 @@ impl Predicate<state::Hoas> {
     ///
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
-    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Option<()> {
+    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Option<Self> {
         let pred = self.clone().force();
         let Predicate::IsIn(ref name, _) = pred else {
             return None;
@@ -337,7 +337,7 @@ impl Predicate<state::Hoas> {
         // For example, `Show String` can match directly with `Show String`,
         // just to optimize the process.
         if pred.is_hnf() && preds.contains(&pred) {
-            return Some(());
+            return Some(pred.clone());
         }
 
         for constraint in preds {
@@ -350,7 +350,7 @@ impl Predicate<state::Hoas> {
             // predicates with "equality".
             if constraint.is_hnf() {
                 if pred == constraint {
-                    return Some(());
+                    return Some(pred.clone());
                 }
             }
             // If the predicate is not in head normal form, then we
@@ -373,19 +373,21 @@ impl Predicate<state::Hoas> {
 
                 // If it's correct, then we assume that constraints are satisfied
                 // by now.
-                if new_constraint.unify(pred.clone(), ctx) {
-                    return Some(());
+                if new_constraint.clone().unify(pred.clone(), ctx) {
+                    return Some(new_constraint);
                 }
             }
         }
 
+        // If the predicate is not defined, then we need to add an error
+        // to the context.
         ctx.accumulate::<()>(ThirDiagnostic {
             location: ThirLocation::CallSite,
             message: message!["predicate is not defined", code!(self.quote())],
             id: ErrorId("undefined-pred"),
         });
 
-        Some(())
+        None
     }
 }
 
