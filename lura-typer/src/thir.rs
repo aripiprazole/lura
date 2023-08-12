@@ -159,8 +159,44 @@ pub struct Reference {
 pub mod expr {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-    pub enum Expr {
+    /// An extension trait for [`lura_hir::expr::Expr`].
+    pub trait ThirExprExt {
+        fn location(&self) -> ThirLocation;
+        fn type_rep(&self) -> crate::type_rep::TypeRep;
+    }
+
+    /// Represents the value a call expression is calling. It can be either a definition, or an
+    /// expression. Or it can be a special value, like a tuple, an array, or a unit.
+    ///
+    /// It's used to improve the type checking of the call expressions.
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum Callee {
+        Array,
+        Tuple,
+        Unit,
+        Pure,
+        Do,
         Reference(Reference),
+        Expr(Box<ThirExpr>),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub struct ThirCallExpr {
+        pub kind: lura_hir::source::expr::CallKind,
+        pub callee: Callee,
+        pub arguments: Vec<ThirExpr>,
+
+        // /// The do-notation is a syntax sugar for a block, so it's possible to have a block as the
+        // /// last parameter of a function, and it will be used as the do-notation. It's inspired on
+        // /// Kotlin's syntax sugar for lambdas.
+        // pub do_notation: Option<stmt::Block>,
+        pub type_rep: crate::type_rep::TypeRep,
+        pub location: ThirLocation,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub enum ThirExpr {
+        Reference(Reference),
+        Call(ThirCallExpr),
     }
 }
