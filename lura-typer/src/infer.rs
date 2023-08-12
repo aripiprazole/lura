@@ -4,6 +4,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
+use lura_hir::fmt::HirFormatter;
 use lura_hir::source::top_level::InstanceDecl;
 use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
 use lura_hir::{
@@ -21,7 +22,6 @@ use lura_hir::{
         HirElement, HirLocation, Location, Spanned,
     },
 };
-use lura_hir::fmt::HirFormatter;
 
 use crate::adhoc::{no_preds, Preds};
 use crate::ftv::Fv;
@@ -1063,10 +1063,10 @@ impl Infer for TopLevel {
 
                 // Chain all parameters
                 let parameters = parameters
-                  .clone()
-                  .into_iter()
-                  .chain(type_parameters.clone())
-                  .collect::<Vec<_>>();
+                    .clone()
+                    .into_iter()
+                    .chain(type_parameters.clone())
+                    .collect::<Vec<_>>();
 
                 // Checks the type of each clause
                 for clause in binding_group.clauses(local.db) {
@@ -1165,12 +1165,7 @@ impl Infer for TopLevel {
                 create_predicate_instance(ctx, instance_declaration);
             }
             TopLevel::TraitDecl(trait_declaration) => {
-                let ty = create_declaration_type(ctx, false, trait_declaration);
-                let self_type = replace(&mut ctx.self_type, ty.clone().into());
-
-                // Returns the old self type to the original position,
-                // as the self type is only valid in the data declaration
-                ctx.self_type = self_type;
+                create_declaration_type(ctx, false, trait_declaration);
             }
             TopLevel::DataDecl(data_declaration) => {
                 let tau = create_declaration_type(ctx, false, data_declaration);
@@ -1755,11 +1750,6 @@ impl<'tctx> InferCtx<'tctx> {
 
                     // This substitutes the forall's parameters names with
                     // its equivalent values.
-                    //
-                    // TODO: check predicates here, and evaluate them
-                    //
-                    // TODO: add to the context and use the context to
-                    // evaluate the type.
                     for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
                         value = value.replace(name.definition, type_rep)
                     }
