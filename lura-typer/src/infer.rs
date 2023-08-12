@@ -3,7 +3,6 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
-use salsa::DebugWithDb;
 use lura_diagnostic::{code, message, ErrorId};
 use lura_hir::source::top_level::InstanceDecl;
 use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
