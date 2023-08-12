@@ -1111,7 +1111,13 @@ impl Infer for TopLevel {
                             let Some(type_rep) = parameters.get(i).cloned() else {
                                 local.accumulate::<()>(ThirDiagnostic {
                                     location: local.new_location(pattern.location(local.db)),
-                                    message: message!["too many arguments in function definition"],
+                                    message: message![
+                                        "too many arguments in function definition",
+                                        code!(name.to_string(local.db)),
+                                        "with",
+                                        code!(arity),
+                                        "arguments"
+                                    ],
                                     id: ErrorId("too-many-arguments"),
                                 });
 

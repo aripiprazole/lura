@@ -122,7 +122,7 @@ mod tests {
         "putStrLn = println",
         // Instances
         "instance Show of String {}",
-        "instance Show (^a) of a {}",
+        "instance Show (^a) of (List a) {}",
         // Defines test functions to test
         // instantiation.
         "fa (args: List String)",

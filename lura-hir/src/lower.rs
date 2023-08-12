@@ -753,7 +753,6 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .scope
             .search(self.db, path, DefinitionKind::Function)
             .unwrap_or_else(|| {
-                println!("ta definindo");
                 // Defines the node on the scope
                 self.scope
                     .define(self.db, path, location.clone(), DefinitionKind::Function)
