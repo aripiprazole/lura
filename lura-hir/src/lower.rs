@@ -1537,12 +1537,18 @@ mod term_solver {
     type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
 
     impl LowerHir<'_, '_> {
+        /// Resolves a clause type for GADTs, and other things that are not expressions but are
+        /// type level expressions.
         pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {
             clause
                 .clause_type()
                 .solve(self, |this, node| this.type_expr(node))
         }
 
+        /// Resolves a type level expression.
+        ///
+        /// It does use the type level of expressions to resolve syntax
+        /// expressions into high-level type representations.
         pub fn type_expr(&mut self, tree: SyntaxTypeRep) -> TypeRep {
             use lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr::*;
 
@@ -1569,6 +1575,10 @@ mod term_solver {
             }
         }
 
+        /// Resolves an expression.
+        ///
+        /// It does use the expression level of expressions to resolve syntax
+        /// expressions into high-level expressions.
         pub fn expr(&mut self, tree: SyntaxExpr, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
@@ -1588,6 +1598,10 @@ mod term_solver {
             }
         }
 
+        /// Resolves an annotation expression.
+        ///
+        /// It does translate the syntax annotation expression
+        /// into a high-level annotation.
         pub fn ann_expr(&mut self, tree: lura_syntax::AnnExpr, level: HirLevel) -> Expr {
             let value = tree
                 .value()
@@ -1600,6 +1614,10 @@ mod term_solver {
             Expr::Ann(AnnExpr::new(self.db, value, type_rep, location))
         }
 
+        /// Resolves a binary expression.
+        ///
+        /// It does translate the syntax binary expression
+        /// into a high-level binary expression.
         pub fn binary_expr(&mut self, tree: lura_syntax::BinaryExpr, level: HirLevel) -> Expr {
             let lhs = tree.lhs().solve(self, |this, node| this.expr(node, level));
             let rhs = tree.rhs().solve(self, |this, node| this.expr(node, level));
@@ -1629,6 +1647,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a lambda expression.
+        ///
+        /// It does translate the syntax lambda expression
+        /// into a high-level lambda expression.
         pub fn lam_expr(&mut self, tree: lura_syntax::LamExpr, level: HirLevel) -> Expr {
             self.scope = self.scope.fork(ScopeKind::Lambda);
 
@@ -1650,6 +1672,10 @@ mod term_solver {
             Expr::Abs(AbsExpr::new(self.db, parameters, value, location, scope))
         }
 
+        /// Resolves a call expression.
+        ///
+        /// It does translate the syntax call expression
+        /// into a high-level call expression.
         pub fn app_expr(&mut self, tree: lura_syntax::AppExpr, level: HirLevel) -> Expr {
             let callee = tree
                 .callee()
@@ -1682,6 +1708,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a type level application expression.
+        ///
+        /// It does translate the syntax type level application expression
+        /// into a high-level type level application expression.
         pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
             let callee = tree.callee().solve(self, |this, node| {
                 this.primary(node, HirLevel::Type).upgrade(this.db)
@@ -1699,6 +1729,10 @@ mod term_solver {
             TypeRep::App(AppTypeRep::new(self.db, callee, arguments, location))
         }
 
+        /// Resolves a pi type expression.
+        ///
+        /// It does translate the syntax pi type expression
+        /// into a high-level pi type expression.
         pub fn pi_expr(&mut self, tree: lura_syntax::PiExpr) -> TypeRep {
             use lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_PiNamedParameterSet_Primary_SigmaExpr_TypeAppExpr::*;
 
@@ -1737,6 +1771,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a sigma type expression.
+        ///
+        /// It does translate the syntax sigma type expression
+        /// into a high-level sigma type expression.
         pub fn sigma_expr(&mut self, tree: lura_syntax::SigmaExpr) -> TypeRep {
             self.scope = self.scope.fork(ScopeKind::Sigma);
 
@@ -1788,6 +1826,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a forall expression.
+        ///
+        /// It does translate the syntax forall expression
+        /// into a high-level forall expression.
         pub fn forall_expr(&mut self, tree: lura_syntax::ForallExpr) -> TypeRep {
             self.scope = self.scope.fork(ScopeKind::Sigma);
 
@@ -1812,6 +1854,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a match expression.
+        ///
+        /// It does translate the syntax match expression
+        /// into a high-level match expression.
         pub fn match_expr(&mut self, tree: lura_syntax::MatchExpr, level: HirLevel) -> Expr {
             let scrutinee = tree
                 .scrutinee()
@@ -1850,6 +1896,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a if expression.
+        ///
+        /// It does translate the syntax if expression
+        /// into a high-level if expression.
         pub fn if_expr(&mut self, tree: lura_syntax::IfExpr, level: HirLevel) -> Expr {
             let scrutinee = tree
                 .condition()
@@ -1897,6 +1947,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves an array expression.
+        ///
+        /// It does translate the syntax array expression
+        /// into a high-level array expression.
         pub fn array_expr(&mut self, tree: lura_syntax::ArrayExpr, level: HirLevel) -> Expr {
             let location = self.range(tree.range());
 
@@ -1915,6 +1969,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a tuple expression.
+        ///
+        /// It does translate the syntax tuple expression
+        /// into a high-level tuple expression.
         pub fn tuple_expr(&mut self, tree: lura_syntax::TupleExpr, level: HirLevel) -> Expr {
             let location = self.range(tree.range());
 
@@ -1933,6 +1991,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a return expression.
+        ///
+        /// It does translate the syntax return expression
+        /// into a high-level return expression.
         pub fn return_expr(&mut self, tree: lura_syntax::ReturnExpr, level: HirLevel) -> Expr {
             // Reports errors, because "return expression" is equivalent
             // to pure expression, and it's only allowed inside do notation.
@@ -1968,6 +2030,10 @@ mod term_solver {
             ))
         }
 
+        /// Resolves a primary expression.
+        ///
+        /// It does translate the syntax primary expression
+        /// using the level supplied.
         pub fn primary(&mut self, tree: lura_syntax::Primary, level: HirLevel) -> Expr {
             use lura_syntax::anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr::*;
 
