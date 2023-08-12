@@ -1392,6 +1392,10 @@ mod stmt_solver {
     type SyntaxStmt<'tree> = lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt<'tree>;
 
     impl LowerHir<'_, '_> {
+        /// Resolves an statement.
+        ///
+        /// It does resolves a syntax statement,
+        /// into a high-level statement.
         pub fn stmt(&mut self, stmt: SyntaxStmt, level: HirLevel) -> Stmt {
             use lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt::*;
 
@@ -1403,6 +1407,10 @@ mod stmt_solver {
             }
         }
 
+        /// Resolves an ask statement.
+        ///
+        /// It does resolves a syntax ask statement,
+        /// into a high-level statement.
         pub fn ask_stmt(&mut self, stmt: lura_syntax::AskStmt, level: HirLevel) -> Stmt {
             let pattern = stmt.pattern().solve(self, |this, node| this.pattern(node));
             let expr = stmt
@@ -1414,6 +1422,10 @@ mod stmt_solver {
             Stmt::Ask(AskStmt::new(self.db, pattern, expr, location))
         }
 
+        /// Resolves an expression statement.
+        ///
+        /// It does resolves a syntax expression statement,
+        /// into a high-level statement.
         pub fn expr_stmt(&mut self, stmt: lura_syntax::ExprStmt, level: HirLevel) -> Stmt {
             let expr = stmt
                 .child()
@@ -1422,6 +1434,10 @@ mod stmt_solver {
             Stmt::Downgrade(expr)
         }
 
+        /// Resolves an if statement.
+        ///
+        /// It does resolves a syntax if statement,
+        /// into a high-level statement.
         pub fn if_stmt(&mut self, stmt: lura_syntax::IfStmt, level: HirLevel) -> Stmt {
             let scrutinee = stmt
                 .condition()
@@ -1472,6 +1488,9 @@ mod stmt_solver {
             )))
         }
 
+        /// Resolves a let statement.
+        ///
+        /// It's a statement that binds a pattern to a value.
         pub fn let_stmt(&mut self, stmt: lura_syntax::LetStmt, level: HirLevel) -> Stmt {
             let pattern = stmt.pattern().solve(self, |this, node| this.pattern(node));
             let expr = stmt
@@ -1483,6 +1502,10 @@ mod stmt_solver {
             Stmt::Let(LetStmt::new(self.db, pattern, expr, location))
         }
 
+        /// Creates a new block using the current supplied scope.
+        ///
+        /// It's useful when you already have a well founded scope,
+        /// and you want to create a block.
         pub fn scoped(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
             let stmts = block
                 .statements(&mut block.walk())
@@ -1499,6 +1522,10 @@ mod stmt_solver {
             )
         }
 
+        /// Creates a new scope, and returns the value of the block.
+        ///
+        /// It does fork a new scope, and then pop it,
+        /// so it's not necessary to call [`pop_scope`].
         pub fn block(&mut self, block: lura_syntax::Block, level: HirLevel) -> Block {
             self.scope = self.scope.fork(ScopeKind::Block);
             let value = self.scoped(block, level);
