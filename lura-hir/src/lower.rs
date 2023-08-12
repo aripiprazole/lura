@@ -2133,6 +2133,7 @@ trait NodeResultExt<'tree, N, T: Default> {
         F: FnOnce(N) -> Option<T>;
 }
 
+/// Defines a trait that will extend the [`DbNodeResult`] with the [`LowerHir`] struct.
 trait DbNodeResultExt<'tree, N> {
     #[inline]
     fn solve<F, T>(self, db: &mut LowerHir, f: F) -> T
@@ -2162,72 +2163,80 @@ trait DbNodeResultExt<'tree, N> {
         F: FnOnce(&mut LowerHir, N) -> Option<T>;
 }
 
-impl<'tree, N, T: Default> NodeResultExt<'tree, N, T> for Result<N, IncorrectKind<'tree>> {
-    #[inline]
-    fn or_error<F>(self, f: F) -> T
-    where
-        F: FnOnce(N) -> Option<T>,
-    {
-        match self {
-            Ok(node) => f(node).unwrap_or_default(),
-            Err(..) => T::default(),
-        }
-    }
-}
-impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
-    for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>>
-{
-    #[inline]
-    fn or_error<F>(self, f: F) -> T
-    where
-        F: FnOnce(N) -> Option<T>,
-    {
-        match self {
-            Ok(ExtraOr::Extra(..)) => T::default(),
-            Ok(ExtraOr::Regular(node)) => f(node).unwrap_or_default(),
-            Err(..) => T::default(),
-        }
-    }
-}
+/// Defines implementations of util traits to the lower.
+///
+/// This module defines implementations of util traits to the lower, that are used to simplify the
+/// code.
+mod util {
+    use super::*;
 
-impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
-    #[inline]
-    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
-    where
-        T: DefaultWithDb,
-        F: FnOnce(&mut LowerHir, N) -> Option<T>,
-    {
-        match self {
-            Ok(node) => f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db)),
-            Err(err) => {
-                let location = lower.range(err.node.range());
-
-                T::incorrect_kind(lower.db, err.node, err.kind, location)
+    impl<'tree, N, T: Default> NodeResultExt<'tree, N, T> for Result<N, IncorrectKind<'tree>> {
+        #[inline]
+        fn or_error<F>(self, f: F) -> T
+        where
+            F: FnOnce(N) -> Option<T>,
+        {
+            match self {
+                Ok(node) => f(node).unwrap_or_default(),
+                Err(..) => T::default(),
             }
         }
     }
-}
-
-impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
-    #[inline]
-    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
-    where
-        T: DefaultWithDb,
-        F: FnOnce(&mut LowerHir, N) -> Option<T>,
+    impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
+        for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>>
     {
-        match self {
-            Ok(ExtraOr::Regular(node)) => {
-                f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db))
+        #[inline]
+        fn or_error<F>(self, f: F) -> T
+        where
+            F: FnOnce(N) -> Option<T>,
+        {
+            match self {
+                Ok(ExtraOr::Extra(..)) => T::default(),
+                Ok(ExtraOr::Regular(node)) => f(node).unwrap_or_default(),
+                Err(..) => T::default(),
             }
-            Ok(ExtraOr::Extra(extra)) => {
-                let location = lower.range(extra.range());
+        }
+    }
 
-                T::extra_data(lower.db, extra, location)
+    impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
+        #[inline]
+        fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
+        where
+            T: DefaultWithDb,
+            F: FnOnce(&mut LowerHir, N) -> Option<T>,
+        {
+            match self {
+                Ok(node) => f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db)),
+                Err(err) => {
+                    let location = lower.range(err.node.range());
+
+                    T::incorrect_kind(lower.db, err.node, err.kind, location)
+                }
             }
-            Err(err) => {
-                let location = lower.range(err.node.range());
+        }
+    }
 
-                T::incorrect_kind(lower.db, err.node, err.kind, location)
+    impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
+        #[inline]
+        fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
+        where
+            T: DefaultWithDb,
+            F: FnOnce(&mut LowerHir, N) -> Option<T>,
+        {
+            match self {
+                Ok(ExtraOr::Regular(node)) => {
+                    f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db))
+                }
+                Ok(ExtraOr::Extra(extra)) => {
+                    let location = lower.range(extra.range());
+
+                    T::extra_data(lower.db, extra, location)
+                }
+                Err(err) => {
+                    let location = lower.range(err.node.range());
+
+                    T::incorrect_kind(lower.db, err.node, err.kind, location)
+                }
             }
         }
     }
