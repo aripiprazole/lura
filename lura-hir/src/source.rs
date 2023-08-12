@@ -452,7 +452,7 @@ where
 pub mod declaration {
     use fxhash::FxBuildHasher;
 
-    use crate::resolve::{Definition, HirLevel};
+    use crate::solver::{Definition, HirLevel};
 
     use super::*;
 
@@ -687,7 +687,7 @@ pub mod top_level {
 
     use fxhash::FxBuildHasher;
 
-    use crate::resolve::{Definition, Reference};
+    use crate::solver::{Definition, Reference};
     use crate::walking::HirListener;
 
     use super::*;
@@ -1565,7 +1565,7 @@ pub mod top_level {
 pub mod pattern {
     use std::fmt::Formatter;
 
-    use crate::resolve::{Definition, Reference};
+    use crate::solver::{Definition, Reference};
     use crate::walking::HirListener;
 
     use super::*;
@@ -2120,7 +2120,7 @@ pub mod expr {
     use crate::primitives::primitive_type_rep;
     use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
 
-    use crate::resolve::{HirDiagnostic, Reference};
+    use crate::solver::{HirDiagnostic, Reference};
     use crate::source::type_rep::AppTypeRep;
 
     use super::*;
@@ -2728,7 +2728,7 @@ pub mod expr {
 pub mod type_rep {
     use std::fmt::Formatter;
 
-    use crate::resolve::{Definition, Reference};
+    use crate::solver::{Definition, Reference};
 
     use super::*;
 

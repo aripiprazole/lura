@@ -1,4 +1,4 @@
-use crate::resolve::{Definition, DefinitionId, DefinitionKind};
+use crate::solver::{Definition, DefinitionId, DefinitionKind};
 use crate::source::type_rep::{TypeReference, TypeRep};
 use crate::source::{HirPath, Location};
 use dashmap::DashMap;

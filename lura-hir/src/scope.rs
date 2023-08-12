@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use fxhash::FxBuildHasher;
 
 use crate::{
-    resolve::{Definition, DefinitionId, DefinitionKind, Reference},
+    solver::{Definition, DefinitionId, DefinitionKind, Reference},
     source::{HirPath, HirSource, Location},
 };
 

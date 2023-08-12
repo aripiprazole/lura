@@ -21,10 +21,10 @@ use lura_syntax::{
     anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source,
 };
 
-use crate::resolve::find_trait;
+use crate::solver::find_trait;
 use crate::{
     package::Package,
-    resolve::{find_function, find_type, query_module, Definition, DefinitionKind, HirLevel},
+    solver::{find_function, find_type, query_module, Definition, DefinitionKind, HirLevel},
     scope::{Scope, ScopeKind},
     source::{
         declaration::{Attribute, DocString, Parameter, Vis},
@@ -35,7 +35,7 @@ use crate::{
     },
 };
 use crate::{
-    resolve::find_constructor,
+    solver::find_constructor,
     source::{
         pattern::{BindingPattern, Pattern},
         top_level::{
@@ -1377,7 +1377,7 @@ mod literal_solver {
 /// It's only a module, to organization purposes.
 mod stmt_solver {
     use crate::{
-        resolve::HirLevel,
+        solver::HirLevel,
         source::{
             expr::{MatchArm, MatchExpr, MatchKind},
             literal::Literal,
@@ -1545,7 +1545,7 @@ mod term_solver {
     use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern;
 
     use crate::{
-        resolve::{HirDiagnostic, HirLevel},
+        solver::{HirDiagnostic, HirLevel},
         source::{
             expr::{MatchArm, MatchExpr, MatchKind},
             literal::Literal,

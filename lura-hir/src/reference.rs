@@ -10,7 +10,7 @@ use std::sync::Arc;
 use fxhash::FxBuildHasher;
 
 use crate::{
-    resolve::Reference,
+    solver::Reference,
     scope::{Scope, ScopeKind},
     source::*,
     walking::{HirListener, Walker},

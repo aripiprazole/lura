@@ -144,3 +144,23 @@ impl lura_diagnostic::TextRange for ThirLocation {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Reference {
+    pub base: lura_hir::solver::Reference,
+    pub type_rep: crate::type_rep::TypeRep,
+    pub location: ThirLocation,
+}
+
+/// Defines typed high-level intermediate representation with expressions
+///
+/// This is the typed version of the high-level intermediate representation. It's intended to be
+/// used by the type checker, and the code generator.
+pub mod expr {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub enum Expr {
+        Reference(Reference),
+    }
+}

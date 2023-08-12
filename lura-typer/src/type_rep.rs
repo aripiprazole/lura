@@ -1,5 +1,5 @@
 use holes::*;
-use lura_hir::resolve::Definition;
+use lura_hir::solver::Definition;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::{

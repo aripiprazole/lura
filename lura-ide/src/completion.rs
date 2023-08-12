@@ -1,6 +1,6 @@
 use lura_diagnostic::Offset;
 use lura_driver::RootDb;
-use lura_hir::{completions::{HirCompletion, Position, completions}, resolve::DefinitionKind, source::HirSource};
+use lura_hir::{completions::{HirCompletion, Position, completions}, solver::DefinitionKind, source::HirSource};
 use tower_lsp::lsp_types::{CompletionItemKind, Documentation, TextDocumentPositionParams, CompletionResponse, MessageType, CompletionItem};
 
 use crate::backend::Backend;

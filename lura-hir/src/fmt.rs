@@ -129,7 +129,7 @@ mod impls {
     use super::*;
 
     use crate::{
-        resolve::{Definition, Reference},
+        solver::{Definition, Reference},
         source::{declaration::Declaration, *},
     };
     use crate::source::type_rep::TypeReference;

@@ -5,7 +5,7 @@ use lura_diagnostic::{Offset, TextRange};
 
 use crate::{
     reference::ReferenceWalker,
-    resolve::{Definition, DefinitionKind},
+    solver::{Definition, DefinitionKind},
     source::{
         declaration::{DocString, Vis},
         HirSource, Location,

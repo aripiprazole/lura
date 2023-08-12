@@ -4,7 +4,7 @@ use fxhash::FxBuildHasher;
 use lura_diagnostic::{Offset, TextRange};
 use lura_hir::{
     reparse::reparse_hir_path,
-    resolve::{references, Definition},
+    solver::{references, Definition},
     source::{HirLocation, Location},
 };
 use salsa_2022::Durability;

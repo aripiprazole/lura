@@ -9,7 +9,7 @@ use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
 use lura_hir::{
     lower::hir_lower,
     package::Package,
-    resolve::{unresolved, Definition, HirLevel, Reference},
+    solver::{unresolved, Definition, HirLevel, Reference},
     source::{
         declaration::{Declaration, Parameter},
         expr::{Callee, Expr},

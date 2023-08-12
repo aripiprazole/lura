@@ -14,20 +14,20 @@ extern crate salsa_2022 as salsa;
 pub struct Jar(
     package::Package,
     package::Package_all_files,
-    resolve::Definition,
-    resolve::DefinitionId,
-    resolve::Definition_location,
-    resolve::Definition_to_string,
-    resolve::Reference,
-    resolve::Reference_is_type_level,
-    resolve::Reference_name,
-    resolve::unresolved,
-    resolve::find_constructor,
-    resolve::find_function,
-    resolve::find_type,
-    resolve::find_trait,
-    resolve::query_module,
-    resolve::references,
+    solver::Definition,
+    solver::DefinitionId,
+    solver::Definition_location,
+    solver::Definition_to_string,
+    solver::Reference,
+    solver::Reference_is_type_level,
+    solver::Reference_name,
+    solver::unresolved,
+    solver::find_constructor,
+    solver::find_function,
+    solver::find_type,
+    solver::find_trait,
+    solver::query_module,
+    solver::references,
     source::HirSource,
     source::HirError,
     source::HirPath,
@@ -81,7 +81,7 @@ pub mod package;
 pub mod primitives;
 pub mod reference;
 pub mod reparse;
-pub mod resolve;
+pub mod solver;
 pub mod scope;
 pub mod source;
 pub mod walking;

@@ -3,7 +3,7 @@
 
 use fxhash::FxBuildHasher;
 
-use crate::resolve::Reference;
+use crate::solver::Reference;
 use crate::source::*;
 use std::collections::HashSet;
 use crate::source::type_rep::TypeReference;
