@@ -118,6 +118,8 @@ mod tests {
         // Type class tests
         "public trait Show (^a) {}",
         "println : [Show a] => a -> ()",
+        "putStrLn : [Show a] => a -> ()",
+        "putStrLn = println",
         // Instances
         "instance Show of String {}",
         "instance Show (^a) of a {}",

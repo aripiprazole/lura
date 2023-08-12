@@ -365,6 +365,10 @@ impl Predicate<state::Hoas> {
             //       current context, it will return an error, but it should
             //       recommend as a suggestion to the user to add `Show a` to
             //       the constraints.
+            //
+            // TODO: Transitivity of predicates, like if it's `Show a`, and
+            //       somehow `Show a` depends on `Eq a`, so `Eq a` should be
+            //       satisfied with `Show a`.
             else {
                 // If the predicate is not in head normal form, then we
                 // need to normalise the predicate.

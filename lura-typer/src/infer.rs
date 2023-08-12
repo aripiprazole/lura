@@ -3,6 +3,7 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
+use salsa::DebugWithDb;
 use lura_diagnostic::{code, message, ErrorId};
 use lura_hir::source::top_level::InstanceDecl;
 use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
@@ -21,6 +22,7 @@ use lura_hir::{
         HirElement, HirLocation, Location, Spanned,
     },
 };
+use lura_hir::fmt::HirFormatter;
 
 use crate::adhoc::{no_preds, Preds};
 use crate::ftv::Fv;
@@ -506,44 +508,39 @@ impl Check for Pattern {
     ///
     /// It does generate definition for the bindings in
     /// the context.
-    fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output {
+    fn check(self, repr: Tau, ctx: &mut InferCtx) -> Self::Output {
         match self {
             // SECTION: Sentinel Values
-            Pattern::Hole => ty, // It's a hole pattern
+            Pattern::Hole => repr, // It's a hole pattern
             Pattern::Error(_) => Tau::Primary(Primary::Error),
 
             // SECTION: Patterns
             Pattern::Literal(literal) => {
                 // Unifies the actual type with the expected type
-                let actual_ty = literal.infer(ctx);
-                actual_ty.unify(ty, ctx);
-                actual_ty
+                let tau = literal.infer(ctx);
+                tau.unify(repr, ctx);
+                tau
             }
             Pattern::Constructor(constructor) => {
                 // TODO: handle other builtins
                 //
                 // Unifies the actual type with the expected type
-                let actual_ty = constructor.name(ctx.db).infer_with(&constructor, ctx);
-                actual_ty.unify(ty, ctx);
+                let tau = constructor.name(ctx.db).infer_with(&constructor, ctx);
+                tau.unify(repr, ctx);
 
                 // Checks the parameters of the constructor agains't
                 // the arguments of the constructor
-                let variant = ctx
-                    .env
-                    .references
-                    .get(&actual_ty)
-                    .cloned()
-                    .unwrap_or_default();
+                let variant = ctx.env.references.get(&tau).cloned().unwrap_or_default();
 
                 // Gets the parameters of the constructor
                 let parameters = variant.parameters.clone();
 
-                for (argument, ty) in constructor.arguments(ctx.db).into_iter().zip(parameters) {
+                for (argument, repr) in constructor.arguments(ctx.db).into_iter().zip(parameters) {
                     // Checks the argument against the type
-                    argument.check(ty, ctx);
+                    argument.check(repr, ctx);
                 }
 
-                actual_ty
+                tau
             }
             // Returns the default type for the pattern
             //   - Wildcard
@@ -551,10 +548,10 @@ impl Check for Pattern {
             Pattern::Binding(binding) => {
                 // Adds the binding to the context
                 let name = binding.name(ctx.db);
-                ctx.env.variables.insert(name, ty.clone());
-                ty
+                ctx.env.variables.insert(name, repr.clone());
+                repr
             }
-            Pattern::Wildcard(_) => ty,
+            Pattern::Wildcard(_) => repr,
             Pattern::Rest(_) => todo!("rest pattern"),
         }
     }
@@ -1034,23 +1031,108 @@ impl Infer for TopLevel {
                 .collect::<im_rc::Vector<_>>();
 
             let pi = Tau::from_pi(parameters.clone().into_iter(), return_type.clone());
+            let mut preds = no_preds();
+
+            if let Type::Forall(ref forall) = function_type {
+                // Transforms into a normal `Vec`
+                let qual = forall.instantiate(parameters.clone().into_iter().collect());
+                preds = qual.predicates;
+            }
 
             // Gets the return type
             pi.unify(function_type.clone(), ctx);
 
-            ctx.env.variables.insert(name, pi.clone());
+            ctx.env.variables.insert(name, function_type.clone());
 
-            // Checks the type of each clause
-            for clause in binding_group.clauses(ctx.db) {
-                // Checks the pattern against the scrutinee
-                let arguments = clause.arguments(ctx.db);
-                for (pattern, type_rep) in arguments.into_iter().zip(parameters.clone()) {
-                    pattern.check(type_rep, ctx);
+            // Creates a new environment for the clauses
+            let mut env = ctx.env.clone();
+
+            // Populate the environment with new predicates
+            for pred in preds {
+                if let Predicate::IsIn(ref name, _) = pred {
+                    // Inserts the predicate into the environment
+                    env.predicates
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(pred.clone());
                 }
-
-                // Checks the return type of the clause
-                clause.value(ctx.db).check(return_type.clone(), ctx);
             }
+
+            ctx.with_env(env, |local| {
+                // Gets the type parameters and return type of the function
+                let (type_parameters, return_type) = return_type.clone().spine();
+
+                // Chain all parameters
+                let parameters = parameters
+                  .clone()
+                  .into_iter()
+                  .chain(type_parameters.clone())
+                  .collect::<Vec<_>>();
+
+                // Checks the type of each clause
+                for clause in binding_group.clauses(local.db) {
+                    let env = local.env.clone();
+
+                    // NOTE: Borrow checker stuff, so it doesn't move
+                    let return_type = return_type.clone();
+                    let parameters = parameters.clone();
+
+                    // Creates a local env for the parameters
+                    local.with_env(env, move |local| {
+                        // Checks the pattern against the scrutinee
+                        let arguments = clause.arguments(local.db);
+
+                        // Get the total arity of the function
+                        let arity = arguments.len();
+
+                        for (i, pattern) in arguments.into_iter().enumerate() {
+                            // Gets the type of the parameter
+                            let Some(type_rep) = parameters.get(i).cloned() else {
+                                local.accumulate::<()>(ThirDiagnostic {
+                                    location: local.new_location(pattern.location(local.db)),
+                                    message: message!["too many arguments in function definition"],
+                                    id: ErrorId("too-many-arguments"),
+                                });
+
+                                break;
+                            };
+
+                            pattern.check(type_rep.clone(), local);
+                        }
+
+                        // Curry the function type to match correctly
+                        //
+                        // For example, if the function type is `a -> b -> c -> d`,
+                        // and a clause is well defined as:
+                        // ```
+                        // f x y z = ...
+                        // ```
+                        // We need to curry and check the type of the clause as:
+                        // ```
+                        // d
+                        // ```
+                        // Because it's the final type, but if the clause is:
+                        // ```
+                        // f x y = ...
+                        // ```
+                        // We need to curry and check the type of the clause as:
+                        // ```
+                        // c -> d
+                        // ```
+                        // Because it's the curried type of the function.
+                        let return_type = parameters
+                            .clone()
+                            .into_iter()
+                            .skip(arity)
+                            .fold(return_type.clone(), |acc, param| {
+                                Tau::from_pi(vec![param].into_iter(), acc)
+                            });
+
+                        // Checks the return type of the clause
+                        clause.value(local.db).check(return_type.clone(), local);
+                    })
+                }
+            });
 
             // Fallback to unit type, if return_type isn't defined
             //
@@ -1831,16 +1913,13 @@ impl<'tctx> InferCtx<'tctx> {
     /// Finds a reference to a variable in the environment
     /// and returns its type.
     fn reference(&mut self, reference: Reference) -> (Preds, Tau) {
-        let generalised = self
-            .env
-            .variables
-            .get(&reference.definition(self.db))
-            .cloned()
-            .unwrap_or_else(|| {
-                let name = reference.definition(self.db).to_string(self.db);
+        let def = reference.definition(self.db);
 
-                panic!("variable not found {}", name);
-            });
+        let generalised = self.env.variables.get(&def).cloned().unwrap_or_else(|| {
+            let name = reference.definition(self.db).to_string(self.db);
+
+            panic!("variable not found {}", name);
+        });
 
         // Gets the predicates from the generalised type
         let qual = self.instantiate(generalised);

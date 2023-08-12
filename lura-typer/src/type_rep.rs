@@ -136,6 +136,33 @@ pub enum Type<S: state::TypeState> {
 }
 
 impl Type<state::Hoas> {
+    pub(crate) fn spine(self) -> (Vec<Self>, Self) {
+        let mut spine = Vec::new();
+        let mut current = self.force();
+
+        // Unwraps the forall types
+        if let Type::Forall(forall) = current {
+            let domain = forall
+                .domain
+                .iter()
+                .map(|_| Type::Bound(Bound::Hole))
+                .collect();
+
+            current = forall.instantiate(domain).data.force();
+        }
+
+        while let Type::Pi(ref pi) = current {
+            let parameter = (*pi.domain).clone();
+            current = pi.codomain(Type::Bound(Bound::Hole));
+            spine.push(parameter);
+        }
+
+        (spine, current)
+    }
+
+    /// Force the type to be evaluated.
+    ///
+    /// This is used to force the type to be evaluated.
     pub(crate) fn force(self) -> Type<state::Hoas> {
         match self {
             Type::Hole(ref hole) => match hole.kind() {
@@ -539,7 +566,7 @@ mod display {
     impl<M: state::TypeState> Display for Type<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Type::Type => write!(f, "Type"),
+                Type::Type => write!(f, "*"),
                 Type::Primary(primary) => write!(f, "{primary}"),
                 Type::Constructor(constructor) => write!(f, "{constructor}"),
                 Type::App(app, argument) => write!(f, "({} {})", app, argument),
