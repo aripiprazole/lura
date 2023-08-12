@@ -19,7 +19,7 @@ The objective of this project is:
 - Interpreter for basic things like macro-expanding.
 - Query-based architecture.
 
-It's all based on the articles:
+It's all based on the works:
 
 - [Resilient parsing](https://matklad.github.io/2023/05/21/resilient-ll-parsing-tutorial.html)
 - [Typing Haskell in Haskell](http://web.cecs.pdx.edu/~mpj/thih/thih.pdf)
@@ -30,6 +30,11 @@ It's all based on the articles:
 - [Semantic](https://github.com/github/semantic)
 - [Data types à la carte](https://www.cambridge.org/core/journals/journal-of-functional-programming/article/data-types-a-la-carte/14416CB20C4637164EA9F77097909409)
 - [Salsa](https://salsa-rs.github.io/salsa)
+- [OutsideIn(X)](https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=6c214019a649c52341d92bd73140de7ad0c292f0)
+- [How to implement dependent types in 80 lines of code](https://gist.github.com/Hirrolot/27e6b02a051df333811a23b97c375196)
+- [Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism](https://www.cl.cam.ac.uk/~nk480/bidir.pdf)
+- [Bidirectional typechecking for higher-rank polymorphism](https://gist.github.com/mb64/87ac275c327ea923a8d587df7863d8c7#file-tychk_v2-ml)
+- [Practical type inference for arbitrary-rank types](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/putting.pdf)
 
 And have some great inspirations in [rust-analyzer](https://github.com/rust-lang/rust-analyzer) code-base..
 
