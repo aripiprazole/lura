@@ -115,14 +115,14 @@ pub struct ConstraintSolverError {
     pub message: String,
 }
 
+/// The free variables we would generalise over.
+type PredFvs = im_rc::HashSet<Fv, FxBuildHasher>;
+
 impl Predicate<state::Hoas> {
     /// Creates a new predicate, based on a type value.
     ///
     /// Destructs the pattern and creates a predicate based on the type value.
-    pub(crate) fn new(
-        ctx: &mut InferCtx,
-        pattern: Pattern,
-    ) -> Option<(Self, im_rc::HashSet<Fv, FxBuildHasher>)> {
+    pub(crate) fn new(ctx: &mut InferCtx, pattern: Pattern) -> Option<(Self, PredFvs)> {
         /// Defines a normalised predicate.
         #[allow(dead_code)]
         enum Normalised {
