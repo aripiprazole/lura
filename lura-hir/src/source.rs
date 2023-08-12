@@ -2121,6 +2121,7 @@ pub mod expr {
     use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
 
     use crate::resolve::{HirDiagnostic, Reference};
+    use crate::source::type_rep::AppTypeRep;
 
     use super::*;
 
@@ -2546,13 +2547,8 @@ pub mod expr {
         /// This function also reports an error currently, because it's not allowed dependent types
         /// on the language, this is the reason because it's good to error recovery.
         pub fn upgrade(self, db: &dyn crate::HirDb) -> type_rep::TypeRep {
-            match self {
-                // Upgrades a path to a type representation. It does not require an
-                // error report, because it's not an error.
-                //
-                // It tries to find a primitive bound to the path, and if it does not find it,
-                // it will downgrade the type representation to a path.
-                Self::Path(path) => primitive_type_rep(db, path.definition(db).name(db))
+            fn find_or_primitive_path(db: &dyn crate::HirDb, path: Reference) -> type_rep::TypeRep {
+                primitive_type_rep(db, path.definition(db).name(db))
                     .map(|type_rep| match type_rep {
                         // Transforms the location from call site
                         // into a new location from the path.
@@ -2566,8 +2562,19 @@ pub mod expr {
                         let location = path.location(db);
 
                         type_rep::TypeRep::Path(reference, location)
-                    }),
+                    })
+            }
 
+            match self {
+                // Upgrades a path to a type representation. It does not require an
+                // error report, because it's not an error.
+                //
+                // It tries to find a primitive bound to the path, and if it does not find it,
+                // it will downgrade the type representation to a path.
+                Self::Path(path) => find_or_primitive_path(db, path),
+
+                // Upgrades a call expression to a type
+                // representation.
                 Self::Call(CallExpr {
                     callee: Callee::Unit,
                     do_notation: Option::None,
@@ -2577,6 +2584,48 @@ pub mod expr {
                 }) if arguments.is_empty() => {
                     type_rep::TypeRep::Path(type_rep::TypeReference::Unit, location)
                 }
+
+                // Upgrades a group expression to a type
+                Self::Call(CallExpr {
+                    callee: Callee::Tuple,
+                    do_notation: Option::None,
+                    arguments,
+                    location: _,
+                    kind: _,
+                }) if arguments.len() == 1 => arguments.first().cloned().unwrap().upgrade(db),
+
+                // Upgrades application into type application
+                Self::Call(CallExpr {
+                    callee: Callee::Reference(reference),
+                    do_notation: Option::None,
+                    arguments,
+                    location,
+                    kind: _,
+                }) => type_rep::TypeRep::App(AppTypeRep {
+                    // Create dummy path type reference
+                    callee: find_or_primitive_path(db, reference).into(),
+                    arguments: arguments
+                        .into_iter()
+                        .map(|argument| argument.upgrade(db))
+                        .collect(),
+                    location,
+                }),
+
+                // Upgrades application into type application
+                Self::Call(CallExpr {
+                    callee: Callee::Expr(expr),
+                    do_notation: Option::None,
+                    arguments,
+                    location,
+                    kind: _,
+                }) => type_rep::TypeRep::App(AppTypeRep {
+                    callee: expr.upgrade(db).into(),
+                    arguments: arguments
+                        .into_iter()
+                        .map(|argument| argument.upgrade(db))
+                        .collect(),
+                    location,
+                }),
 
                 // TODO: report error
                 _ => type_rep::TypeRep::Downgrade(Box::new(self)),

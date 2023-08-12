@@ -2081,7 +2081,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for InfixOp<'tree> {
         Self(node)
     }
 }
-#[doc = "Typed node `instance_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `item`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}+` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n- `name`: `path` ([Path])\n- `trait_body`: `{signature | { | }}*` ([anon_unions::Signature_LBrace_RBrace])\n- `visibility`: `visibility?` ([Visibility])\n"]
+#[doc = "Typed node `instance_decl`\n\nThis node has these fields:\n- `argument`: `{explicit_arguments | implicit_arguments}*` ([anon_unions::ExplicitArguments_ImplicitArguments])\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `field`: `signature*` ([Signature])\n- `item`: `primary+` ([Primary])\n- `name`: `path` ([Path])\n- `trait_body`: `{signature | { | }}*` ([anon_unions::Signature_LBrace_RBrace])\n- `visibility`: `visibility?` ([Visibility])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct InstanceDecl<'tree>(tree_sitter::Node<'tree>);
@@ -2152,11 +2152,19 @@ impl<'tree> InstanceDecl<'tree> {
             .children_by_field_name("field", c)
             .map(|n| <type_sitter_lib::ExtraOr<'tree, Signature<'tree>> as TryFrom<_>>::try_from(n))
     }
-    #[doc = "Get the field `item` which has kind `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}+` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])"]
+    #[doc = "Get the field `item` which has kind `primary+` ([Primary])"]
     #[doc = "This is guaranteed to return at least one child"]
     #[allow(dead_code)]
-    #[inline]    pub fn items < 'a > (& self , c : & 'a mut tree_sitter :: TreeCursor < 'tree >) -> impl Iterator < Item = type_sitter_lib :: NodeResult < 'tree , type_sitter_lib :: ExtraOr < 'tree , anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > >> + 'a{
-        self . 0 . children_by_field_name ("item" , c) . map (| n | < type_sitter_lib :: ExtraOr < 'tree , anon_unions :: AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr < 'tree > > as TryFrom < _ >> :: try_from (n))
+    #[inline]
+    pub fn items<'a>(
+        &self,
+        c: &'a mut tree_sitter::TreeCursor<'tree>,
+    ) -> impl Iterator<
+        Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Primary<'tree>>>,
+    > + 'a {
+        self.0
+            .children_by_field_name("item", c)
+            .map(|n| <type_sitter_lib::ExtraOr<'tree, Primary<'tree>> as TryFrom<_>>::try_from(n))
     }
     #[doc = "Get the field `name` which has kind `path` ([Path])"]
     #[allow(dead_code)]

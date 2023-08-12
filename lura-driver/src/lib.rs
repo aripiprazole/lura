@@ -138,6 +138,7 @@ mod tests {
         // -- Trait tests
         "  let z = println \"string\"",
         "  let g = println 10",
+        "  let f = println args",
         // -- Return tests
         "  y",
         "}",

@@ -427,7 +427,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
             .map(|method| self.hir_signature(method))
             .collect::<Vec<_>>();
 
-        Solver::new(move |_, this| {
+        Solver::new(move |db, this| {
             // Creates a new scope for the function, and it will be used to store the parameters,
             // and the variables.
             this.scope = this.scope.fork(ScopeKind::Class);
@@ -450,7 +450,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
                 .items(&mut tree.walk())
                 .flatten()
                 .filter_map(|node| node.regular())
-                .map(|node| this.type_expr(node))
+                .map(|node| this.primary(node, HirLevel::Type).upgrade(db))
                 .collect();
 
             // Publish all definitions to parent scope

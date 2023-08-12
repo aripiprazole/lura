@@ -32,6 +32,7 @@ extern crate salsa_2022 as salsa;
 pub struct Jar(
     Source,
     parse,
+    imp_parse,
     error_handling::Source_errors,
     error_handling::Source_validated,
     error_handling::SyntaxError,
@@ -71,6 +72,15 @@ pub struct Source {
 /// once for each program.
 #[salsa::tracked]
 pub fn parse(db: &dyn ParseDb, program: lura_vfs::SourceFile) -> Source {
+    imp_parse(db, program).validated(db)
+}
+
+/// Defines the [`parse`] query.
+///
+/// Parses a Lura program into a syntax tree. This query is memoized, so it will only be executed
+/// once for each program.
+#[salsa::tracked]
+pub fn imp_parse(db: &dyn ParseDb, program: lura_vfs::SourceFile) -> Source {
     let mut parser = Parser::new();
     parser
         .set_language(tree_sitter_lura::language())

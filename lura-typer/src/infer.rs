@@ -1939,7 +1939,11 @@ impl<'tctx> InferCtx<'tctx> {
         let generalised = self.env.variables.get(&def).cloned().unwrap_or_else(|| {
             let name = reference.definition(self.db).to_string(self.db);
 
-            panic!("variable not found {}", name);
+            self.accumulate(ThirDiagnostic {
+                location: self.new_location(reference.location(self.db)),
+                id: ErrorId("unbound-variable"),
+                message: message!["unbound variable", code!(name)],
+            })
         });
 
         // Gets the predicates from the generalised type

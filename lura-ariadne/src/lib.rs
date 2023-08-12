@@ -55,6 +55,13 @@ impl AriadneReport {
         for (file, diagnostics) in errors {
             use ariadne::ReportKind::*;
 
+            let mut content = file.content.clone();
+            if content.is_empty() {
+                // NOTE: Just to avoid errors with ariadne, that tries to index
+                // the content of the file.
+                content = "  ".into();
+            }
+
             ariadne::Report::<Span>::build(Error, file.path.clone(), 0)
                 .with_message(format!("found {} errors", diagnostics.len()))
                 .with_config(
@@ -86,7 +93,7 @@ impl AriadneReport {
                         .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red)))
                 }))
                 .finish()
-                .eprint((file.path.clone(), ariadne::Source::from(&file.content)))
+                .eprint((file.path.clone(), ariadne::Source::from(&content)))
                 .wrap_err_with(|| format!("failed to print the report for file {}", file.path))?;
         }
         Ok(())
