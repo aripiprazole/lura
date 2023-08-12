@@ -19,7 +19,7 @@ pub trait Ftv {
 impl Ftv for Type<state::Hoas> {
     fn ftv(&self) -> Fvs {
         match self {
-            Type::Type => Default::default(),
+            Type::Universe => Default::default(),
             Type::Primary(_) => Default::default(),
             Type::Constructor(_) => Default::default(),
             Type::Forall(forall) => forall.ftv(),

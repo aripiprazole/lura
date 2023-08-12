@@ -108,7 +108,7 @@ impl Substitution<'_, '_> {
 
         match tau {
             // SECTION: Types
-            Type::Type => {}
+            Type::Universe => {}
             Type::Primary(_) => {}
             Type::Constructor(_) => {}
             Type::Bound(Bound::Flexible(_)) => {}
@@ -229,7 +229,7 @@ impl Substitution<'_, '_> {
             (_, Type::Bound(Bound::Hole)) => {}
 
             // SECTION: Types
-            (Type::Type, Type::Type) => {}
+            (Type::Universe, Type::Universe) => {}
 
             // SECTION: Stuck Data
             (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
@@ -1648,7 +1648,7 @@ impl<'tctx> InferCtx<'tctx> {
                     //
                     // NOTE: currently the type can't be specified
                     // so, whatever.
-                    Some((name, Type::TYPE))
+                    Some((name, Type::Universe))
                 })
                 .collect::<Vec<_>>();
 
@@ -1747,7 +1747,7 @@ impl<'tctx> InferCtx<'tctx> {
 
                     // NOTE: this is a hack to make the language easier to use
                     // and to make the type checker easier to implement.
-                    Some((name.clone(), Tau::Type))
+                    Some((name.clone(), Tau::Universe))
                 })
                 .collect::<Vec<_>>();
 

@@ -112,7 +112,7 @@ pub type TypeRep = Type<state::Quoted>;
 /// either a primary type, a constructor, a forall, a pi, or a hole.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Type<S: state::TypeState> {
-    Type,
+    Universe,
     Primary(Primary),
     Constructor(Name),
     App(Box<Type<S>>, Box<Type<S>>),
@@ -198,7 +198,7 @@ mod debug {
     impl<S: state::TypeState> Debug for Type<S> {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             match self {
-                Type::Type => write!(f, "Type"),
+                Type::Universe => write!(f, "Type"),
                 Type::Primary(primary) => write!(f, "{primary:?}"),
                 Type::Constructor(constructor) => write!(f, "Constructor({constructor:?})"),
                 Type::App(callee, value) => write!(f, "App({callee:?}, {value:?})"),
@@ -213,7 +213,7 @@ mod debug {
 }
 
 impl<S: state::TypeState> Type<S> {
-    pub const TYPE: Self = Self::Type;
+    pub const TYPE: Self = Self::Universe;
     pub const ERROR: Self = Self::Primary(Primary::Error);
     pub const UNIT: Self = Self::Primary(Primary::Unit);
     pub const BOOL: Self = Self::Primary(Primary::Bool);
@@ -566,7 +566,7 @@ mod display {
     impl<M: state::TypeState> Display for Type<M> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Type::Type => write!(f, "*"),
+                Type::Universe => write!(f, "*"),
                 Type::Primary(primary) => write!(f, "{primary}"),
                 Type::Constructor(constructor) => write!(f, "{constructor}"),
                 Type::App(app, argument) => write!(f, "({} {})", app, argument),
@@ -782,7 +782,7 @@ pub mod seals {
         /// ready to be used as [`Send`] and [`Sync`].
         fn seal(self) -> Self::Sealed {
             match self {
-                Type::Type => Type::Type,
+                Type::Universe => Type::Universe,
                 Type::Primary(primary) => Type::Primary(primary),
                 Type::Constructor(constructor) => Type::Constructor(constructor),
                 Type::Forall(forall) => Type::Forall(forall.seal()),
