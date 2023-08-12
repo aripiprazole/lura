@@ -109,6 +109,12 @@ impl<S: state::TypeState> Default for Predicate<S> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConstraintSolverError {
+    pub missing_predicates: Vec<Predicate<Hoas>>,
+    pub message: String,
+}
+
 impl Predicate<state::Hoas> {
     /// Creates a new predicate, based on a type value.
     ///
@@ -323,13 +329,26 @@ impl Predicate<state::Hoas> {
     ///
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
-    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Option<Self> {
+    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Result<Self, ConstraintSolverError> {
+        let mut missing_predicates = vec![];
         let pred = self.clone().force();
+
         let Predicate::IsIn(ref name, _) = pred else {
-            return None;
+            return Err(ConstraintSolverError {
+                message: "invalid constraint".into(),
+                missing_predicates: vec![],
+            });
         };
 
-        let preds = ctx.env.predicates.get(name)?.clone();
+        let preds = ctx
+            .env
+            .predicates
+            .get(name)
+            .ok_or(ConstraintSolverError {
+                message: format!("missing predicate `{}`", name),
+                missing_predicates: vec![],
+            })?
+            .clone();
 
         // If the predicate is in head normal form, then we can
         // compare directly the predicates.
@@ -337,7 +356,7 @@ impl Predicate<state::Hoas> {
         // For example, `Show String` can match directly with `Show String`,
         // just to optimize the process.
         if pred.is_hnf() && preds.contains(&pred) {
-            return Some(pred.clone());
+            return Ok(pred.clone());
         }
 
         // Iterates all predicates in the context
@@ -352,7 +371,7 @@ impl Predicate<state::Hoas> {
             // predicates with "equality".
             if constraint.is_hnf() {
                 if pred == constraint {
-                    return Some(pred.clone());
+                    return Ok(pred.clone());
                 }
             }
             // If the predicate is not in head normal form, then we
@@ -380,7 +399,9 @@ impl Predicate<state::Hoas> {
                 // If it's correct, then we assume that constraints are satisfied
                 // by now.
                 if new_constraint.clone().unify(pred.clone(), ctx) {
-                    return Some(new_constraint);
+                    return Ok(new_constraint);
+                } else {
+                    missing_predicates.push(new_constraint);
                 }
             }
         }
@@ -393,7 +414,10 @@ impl Predicate<state::Hoas> {
             id: ErrorId("undefined-pred"),
         });
 
-        None
+        Err(ConstraintSolverError {
+            message: "missing predicates in the context".into(),
+            missing_predicates,
+        })
     }
 }
 

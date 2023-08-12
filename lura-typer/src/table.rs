@@ -38,6 +38,7 @@ pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable
         type_env: Default::default(),
         eval_env: Default::default(),
         options: Default::default(),
+        type_rep: Default::default(),
     };
 
     // Register the errors that already were reported, to avoid

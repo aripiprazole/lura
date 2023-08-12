@@ -4,7 +4,6 @@ use std::{fmt::Debug, mem::replace, rc::Rc};
 use fxhash::FxBuildHasher;
 use if_chain::if_chain;
 use lura_diagnostic::{code, message, ErrorId};
-use lura_hir::fmt::HirFormatter;
 use lura_hir::source::top_level::InstanceDecl;
 use lura_hir::source::type_rep::{AppTypeRep, ArrowTypeRep, TypeReference};
 use lura_hir::{
@@ -729,7 +728,20 @@ impl Infer for Expr {
                         //
                         // And to check if they are present in the context!
                         for predicate in new_preds.clone() {
-                            predicate.entail(ctx);
+                            let entailment = predicate.entail(ctx);
+
+                            // Report error and add the missing predicates
+                            //
+                            // TODO: show missing predicates
+                            if let (Err(_), Some(location)) = (entailment, &ctx.type_rep) {
+                                ctx.accumulate::<()>(ThirDiagnostic {
+                                    location: ctx.new_location(location.clone()),
+                                    id: ErrorId("missing-predicates in the context"),
+                                    message: message![
+                                        "missing predicates in the context, you should add it here"
+                                    ],
+                                });
+                            }
                         }
 
                         // Adds the new predicates to the global predicates
@@ -988,6 +1000,16 @@ impl Infer for TopLevel {
             // Creates the type of the binding group using the
             // signature of the binding group
             let function_type = create_declaration_type(ctx, true, binding_group.signature(ctx.db));
+            let old_location = replace(
+                &mut ctx.location,
+                // Tries to get the location of the type, but if
+                // it's should be inferred, we should get the
+                // location of the function directly.
+                binding_group
+                    .type_rep(ctx.db)
+                    .map(|type_rep| type_rep.location(ctx.db))
+                    .unwrap_or(binding_group.location(ctx.db)),
+            );
 
             // Adds the value to the environment
             let name = binding_group.name(ctx.db);
@@ -1132,6 +1154,9 @@ impl Infer for TopLevel {
                     })
                 }
             });
+
+            // Returns the location
+            ctx.type_rep = Some(old_location.clone());
 
             // Fallback to unit type, if return_type isn't defined
             //
@@ -1388,6 +1413,7 @@ pub(crate) struct InferCtx<'tctx> {
     // SECTION: Contextual information
     pub self_type: Option<Tau>,
     pub return_type: Option<Tau>,
+    pub type_rep: Option<Location>,
     // END SECTION: Contextual information
     /// Statically typed expressions that are used in the program.
     ///
