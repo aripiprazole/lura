@@ -81,7 +81,7 @@ pub struct InternalVariant {
 #[derive(Default, Clone)]
 pub struct TypeEnv {
     pub level: Level,
-    pub predicates: im_rc::HashSet<Predicate<state::Hoas>, FxBuildHasher>,
+    pub predicates: im_rc::HashMap<Name, im_rc::HashSet<Predicate<state::Hoas>>, FxBuildHasher>,
     pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
     pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
     pub variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
@@ -186,40 +186,39 @@ impl Substitution<'_, '_> {
 
     /// Unifies a hole with a type. This is used to
     /// unify a hole with a type.
-    fn unify_hole(&mut self, ty: Tau, hole: HoleMut) {
+    fn unify_hole(&mut self, ty: Tau, hole: HoleMut) -> Option<()> {
         use holes::HoleKind::*;
 
         // I don't know but this is needed to avoid reborrow
         match hole.kind() {
             // SECTION: Sentinel Values
-            Error => {}
+            Error => None,
 
             // SECTION: Holes
             Empty { scope } => {
                 // Checks that the hole doesn't occur in the type
                 if ty == Tau::Hole(hole.clone()) {
-                    return;
+                    return None;
                 }
 
                 // Unify the hole with the type, and then set the kind
                 // of the hole to filled
                 self.hole_unify_prechecks(ty.clone(), scope, hole.clone());
                 hole.borrow_mut().set_kind(Filled(ty));
+                Some(())
             }
-            Filled(a) => {
-                self.internal_unify(a, ty);
-            }
+            Filled(a) => self.internal_unify(a, ty),
         }
     }
 
     /// Unifies two types. This is used to unify two types. It
     /// equates the two types.
-    fn internal_unify(&mut self, a: Tau, b: Tau) {
+    fn internal_unify(&mut self, a: Tau, b: Tau) -> Option<()> {
         // Matches the types to equate them.
         match (a, b) {
             // SECTION: Unification
-            (Type::Hole(hole_a), b) => self.unify_hole(b, hole_a),
-            (a, Type::Hole(hole_b)) => self.unify_hole(a, hole_b),
+            (Type::Hole(hole_a), b) => self.unify_hole(b, hole_a)?,
+            (a, Type::Hole(hole_b)) => self.unify_hole(a, hole_b)?,
 
             // SECTION: Sentinel Values
             (_, Type::Primary(Primary::Error)) => {}
@@ -235,11 +234,11 @@ impl Substitution<'_, '_> {
             // SECTION: Stuck Data
             (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
                 // Unifies the base of the stuck values
-                self.internal_unify(*stuck_a.base, *stuck_b.base);
+                self.internal_unify(*stuck_a.base, *stuck_b.base)?;
 
                 // Unifies the spines of the stuck values
                 for (a, b) in stuck_a.spine.iter().zip(stuck_b.spine.iter()) {
-                    self.internal_unify(a.clone(), b.clone());
+                    self.internal_unify(a.clone(), b.clone())?;
                 }
             }
 
@@ -250,6 +249,8 @@ impl Substitution<'_, '_> {
                         expected: primary_a,
                         actual: primary_b,
                     });
+
+                    return None;
                 }
             }
 
@@ -261,6 +262,8 @@ impl Substitution<'_, '_> {
                         expected: constructor_a.definition,
                         actual: constructor_b.definition,
                     });
+
+                    return None;
                 }
             }
             (Type::Pi(pi_a), Type::Pi(pi_b)) => {
@@ -278,13 +281,13 @@ impl Substitution<'_, '_> {
                 let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
 
                 // Recurse on the domain and codomain
-                self.internal_unify(domain_a, domain_b);
-                self.internal_unify(codomain_a, codomain_b);
+                self.internal_unify(domain_a, domain_b)?;
+                self.internal_unify(codomain_a, codomain_b)?;
             }
             (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
                 // Basically recurse on the callee and the value
-                self.internal_unify(*callee_a, *callee_b);
-                self.internal_unify(*value_a, *value_b);
+                self.internal_unify(*callee_a, *callee_b)?;
+                self.internal_unify(*value_a, *value_b)?;
             }
             (Type::Forall(forall_a), Type::Forall(forall_b)) => {
                 // "Alpha equivalence": forall a. a -> a = forall b. b -> b
@@ -294,7 +297,7 @@ impl Substitution<'_, '_> {
                         actual: forall_b.domain.len(),
                     });
 
-                    return;
+                    return None;
                 }
 
                 // SECTION: OLD HINDLEY MILNER CODE
@@ -327,6 +330,8 @@ impl Substitution<'_, '_> {
                     location: ThirLocation::CallSite,
                     message: message!["Polymorphic subtyping is not implemented yet"],
                 });
+
+                return None;
             }
             (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
                 if level_a != level_b {
@@ -334,6 +339,8 @@ impl Substitution<'_, '_> {
                         expected: level_a,
                         actual: level_b,
                     });
+
+                    return None;
                 }
             }
 
@@ -342,8 +349,12 @@ impl Substitution<'_, '_> {
             // cannot be unified.
             (a, b) => {
                 self.errors.push_back(TypeError::CannotUnify(a, b));
+
+                return None;
             }
         };
+
+        Some(())
     }
 
     /// Accumulate all errors that were reported during the unification
@@ -713,16 +724,16 @@ impl Infer for Expr {
                         // Unify the callee with the pi type
                         pi.unify(callee, ctx);
 
-                        // Creates a snapshot of the context, to make sure that
-                        // the predicates are present in the context.
-                        let snapshot = ctx.snapshot();
+                        // // Creates a snapshot of the context, to make sure that
+                        // // the predicates are present in the context.
+                        // let snapshot = ctx.snapshot();
 
                         // Normalises the predicates to make sure that
                         // the predicates are in the right form.
                         //
                         // And to check if they are present in the context!
                         for predicate in new_preds.clone() {
-                            predicate.is_present(&snapshot);
+                            predicate.entail(ctx);
                         }
 
                         // Adds the new predicates to the global predicates
@@ -833,10 +844,7 @@ impl Infer for TopLevel {
         /// Creates a new predicate based on instance to add in the context
         /// and returns the predicate.
         #[inline]
-        fn create_predicate_instance(
-            ctx: &mut InferCtx,
-            instance: InstanceDecl,
-        ) -> Predicate<state::Hoas> {
+        fn create_predicate_instance(ctx: &mut InferCtx, instance: InstanceDecl) {
             let name = instance.name(ctx.db);
             let _parameters = instance
                 .parameters(ctx.db)
@@ -875,9 +883,11 @@ impl Infer for TopLevel {
             };
 
             // TODO: Add trait to the context, if it's polymorphic
-            // ctx.traits.insert(name.clone(), types.clone());
-
-            Predicate::IsIn(name, types)
+            ctx.env
+                .predicates
+                .entry(name.clone())
+                .or_insert_with(Default::default)
+                .insert(Predicate::IsIn(name, types));
         }
 
         /// Creates a new type variable to represent the type of the declaration
@@ -1071,9 +1081,7 @@ impl Infer for TopLevel {
                 //
                 // NOTE: There's no Self for instances, as they're
                 // just a collection of predicates.
-                let predicate = create_predicate_instance(ctx, instance_declaration);
-
-                ctx.env.predicates.insert(predicate);
+                create_predicate_instance(ctx, instance_declaration);
             }
             TopLevel::TraitDecl(trait_declaration) => {
                 let ty = create_declaration_type(ctx, false, trait_declaration);
@@ -1323,7 +1331,7 @@ pub(crate) struct InferCtx<'tctx> {
 
 impl Predicate<state::Hoas> {
     // Replaces a type variable with a type.
-    fn replace(self, name: Definition, replacement: Tau) -> Predicate<state::Hoas> {
+    pub fn replace(self, name: Definition, replacement: Tau) -> Predicate<state::Hoas> {
         match self {
             Predicate::None => Predicate::None,
             Predicate::IsIn(class_name, arguments) => Predicate::IsIn(
@@ -1340,7 +1348,7 @@ impl Predicate<state::Hoas> {
 
 impl HoasForall {
     // Replaces a type variable with a type.
-    fn replace(self, name: Definition, replacement: Tau) -> HoasForall {
+    pub fn replace(self, name: Definition, replacement: Tau) -> HoasForall {
         HoasForall {
             // TODO: iterate dependent kinds
             domain: self.domain.clone(),
@@ -1365,18 +1373,21 @@ impl HoasForall {
 impl Type<state::Hoas> {
     /// Unifies the type with another type. This is used
     /// to equate two types.
-    fn unify(&self, tau: Tau, ctx: &mut InferCtx) {
+    pub(crate) fn unify(&self, tau: Tau, ctx: &mut InferCtx) -> bool {
         let mut substitution = Substitution {
             ctx,
             errors: im_rc::vector![],
         };
-        substitution.internal_unify(self.clone(), tau);
+        let unify_result = substitution.internal_unify(self.clone(), tau);
         substitution.publish_all_errors();
+
+        // Returns if the unification was successful
+        unify_result.is_some()
     }
 
     /// Substitutes a type variable with a type. This is used
     /// to make substitutions in the type.
-    fn replace(self, name: Definition, replacement: Tau) -> Tau {
+    pub fn replace(self, name: Definition, replacement: Tau) -> Tau {
         use holes::HoleKind::*;
         match self {
             Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
@@ -1425,7 +1436,7 @@ impl<'tctx> InferCtx<'tctx> {
     // variables with unfilled holes.
     //
     // This only works with [`Type::Forall`] types.
-    fn instantiate(&mut self, sigma: Tau) -> Qual<state::Hoas, Tau> {
+    pub(crate) fn instantiate(&mut self, sigma: Tau) -> Qual<state::Hoas, Tau> {
         // Gets a forall type to instantiate, can't instantiate
         // non-forall types.
         match sigma.force() {
@@ -1454,7 +1465,7 @@ impl<'tctx> InferCtx<'tctx> {
 
     /// Creates a new meta type. This is used to
     /// create a new empty hole.
-    fn new_meta(&mut self) -> Tau {
+    pub(crate) fn new_meta(&mut self) -> Tau {
         Tau::Hole(HoleRef::new(Hole {
             kind: holes::HoleKind::Empty {
                 scope: self.env.level,

@@ -3,7 +3,7 @@ use lura_diagnostic::{code, message, ErrorId};
 use std::{fmt::Display, ops::Deref};
 
 use crate::ftv::{Ftv, Fv};
-use crate::infer::{InferCtx, Snapshot};
+use crate::infer::InferCtx;
 use crate::thir::{ThirDiagnostic, ThirLocation};
 use lura_hir::source::expr::Expr;
 use lura_hir::source::pattern::{Constructor, Pattern};
@@ -231,10 +231,35 @@ impl Predicate<state::Hoas> {
         Some((Predicate::IsIn(name, arguments), free_variables))
     }
 
+    pub(crate) fn instantiate(self, ctx: &mut InferCtx) -> Self {
+        let Predicate::IsIn(ref name, ref types) = self.clone().force() else {
+            return self;
+        };
+
+        // Collects all free variables to be constructed a full featured
+        // predicate, and forall quantifier.
+        let free_variables = types.iter().flat_map(|tau| tau.ftv()).collect::<Vec<_>>();
+
+        // Instantiate the types
+        let mut new_types = vec![];
+        for mut tau in types.iter().cloned() {
+            for variable in free_variables.clone() {
+                if let Bound::Flexible(name) = variable {
+                    tau = tau.replace(name.definition, ctx.new_meta());
+                }
+            }
+            new_types.push(tau);
+        }
+
+        // Create a predicate
+        Predicate::IsIn(name.clone(), new_types)
+    }
+
+    /// Returns `true` if the predicate is in head normal form.
     pub fn is_hnf(&self) -> bool {
         fn type_is_hnf(tau: Type<state::Hoas>) -> bool {
             match tau.force() {
-                Type::App(callee, _) => type_is_hnf(*callee),
+                Type::App(callee, argument) => type_is_hnf(*callee) && type_is_hnf(*argument),
                 Type::Forall(_) => false,
                 Type::Pi(_) => false,
                 Type::Hole(_) => false,
@@ -262,20 +287,70 @@ impl Predicate<state::Hoas> {
         }
     }
 
+    pub(crate) fn unify(self, pred: Self, ctx: &mut InferCtx) -> bool {
+        match (self.force(), pred.force()) {
+            // SECTION: Unify predicates
+            (Predicate::IsIn(name_a, types_a), Predicate::IsIn(name_b, types_b))
+                if name_a == name_b =>
+            {
+                for (tau_a, tau_b) in types_a.into_iter().zip(types_b.into_iter()) {
+                    if !tau_a.unify(tau_b, ctx) {
+                        return false;
+                    }
+                }
+            }
+
+            (_, _) => {
+                ctx.accumulate::<()>(ThirDiagnostic {
+                    location: ThirLocation::CallSite,
+                    message: message!["cannot unify the predicates"],
+                    id: ErrorId("cannot-unify-predicates"),
+                });
+
+                return false;
+            }
+        };
+
+        true
+    }
+
     /// Tries to evaluate the predicate, and if it is possible, it will
     /// return the predicate.
     ///
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
-    pub(crate) fn is_present(&self, ctx: &Snapshot) {
-        if !ctx.env.predicates.contains(&self.clone().force()) {
-            // TODO: show predicate in the error message
-            ctx.accumulate::<()>(ThirDiagnostic {
-                location: ThirLocation::CallSite,
-                message: message!["predicate is not defined", code!(self.quote())],
-                id: ErrorId("undefined-pred"),
-            })
+    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Option<()> {
+        let pred = self.clone().force();
+        let Predicate::IsIn(ref name, _) = pred else {
+            return None;
+        };
+
+        let preds = ctx.env.predicates.get(name)?.clone();
+        for constraint in preds {
+            // If the predicate is in head normal form, then we can
+            // compare the predicates.
+            if constraint.is_hnf() {
+                if pred == constraint {
+                    return Some(());
+                }
+            } else {
+                // If the predicate is not in head normal form, then we
+                // need to normalise the predicate.
+                let new_constraint = constraint.clone().instantiate(ctx).force();
+
+                if new_constraint.unify(pred.clone(), ctx) {
+                    return Some(());
+                }
+            }
         }
+
+        ctx.accumulate::<()>(ThirDiagnostic {
+            location: ThirLocation::CallSite,
+            message: message!["predicate is not defined", code!(self.quote())],
+            id: ErrorId("undefined-pred"),
+        });
+
+        Some(())
     }
 }
 

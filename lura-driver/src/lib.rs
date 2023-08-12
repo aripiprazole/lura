@@ -120,7 +120,7 @@ mod tests {
         "println : [Show a] => a -> ()",
         // Instances
         "instance Show of String {}",
-        "instance Show of UInt32 {}",
+        "instance Show (^a) of a {}",
         // Defines test functions to test
         // instantiation.
         "fa (args: List String)",
