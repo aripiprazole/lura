@@ -340,6 +340,8 @@ impl Predicate<state::Hoas> {
             return Some(pred.clone());
         }
 
+        // Iterates all predicates in the context
+        // and tries to find a predicate that matches the given predicate.
         for constraint in preds {
             // If the predicate is in head normal form, then we can
             // compare the predicates.
