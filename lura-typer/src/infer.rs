@@ -730,17 +730,23 @@ impl Infer for Expr {
                         for predicate in new_preds.clone() {
                             let entailment = predicate.entail(ctx);
 
-                            // Report error and add the missing predicates
-                            //
-                            // TODO: show missing predicates
-                            if let (Err(_), Some(location)) = (entailment, &ctx.type_rep) {
-                                ctx.accumulate::<()>(ThirDiagnostic {
-                                    location: ctx.new_location(location.clone()),
-                                    id: ErrorId("missing-predicates in the context"),
-                                    message: message![
-                                        "missing predicates in the context, you should add it here"
-                                    ],
-                                });
+                            match (entailment, &ctx.type_rep) {
+                                (Ok(local), _) => {
+                                    // Adds the local predicates to the global predicates
+                                    let constraints = local.values().flat_map(|p| p.clone());
+
+                                    preds.extend(constraints);
+                                }
+                                (Err(_), Some(location)) => {
+                                    ctx.accumulate::<()>(ThirDiagnostic {
+                                        location: ctx.new_location(location.clone()),
+                                        id: ErrorId("missing-predicates in the context"),
+                                        message: message![
+                                            "missing predicates in the context, you should add it here"
+                                        ],
+                                    });
+                                }
+                                _ => {}
                             }
                         }
 
@@ -1549,14 +1555,14 @@ impl<'tctx> InferCtx<'tctx> {
         // non-forall types.
         match sigma.force() {
             Tau::Forall(forall) => {
+                let parameters = forall
+                    .domain
+                    .iter()
+                    .map(|_| self.new_meta())
+                    .collect::<Vec<_>>();
+
                 // Instantiate the forall type with new meta/hole types.
-                forall.instantiate(
-                    forall
-                        .domain
-                        .iter()
-                        .map(|_| self.new_meta())
-                        .collect::<Vec<_>>(),
-                )
+                forall.instantiate(parameters)
             }
             sigma => Qual::new(sigma),
         }
@@ -1664,7 +1670,7 @@ impl<'tctx> InferCtx<'tctx> {
                     //
                     // TODO: add to the context and use the context to
                     // evaluate the type.
-                    for ((name, _kind), type_rep) in parameters.clone().into_iter().zip(domain) {
+                    for ((name, _), type_rep) in parameters.clone().into_iter().zip(domain) {
                         value = value.replace(name.definition, type_rep)
                     }
 

@@ -118,6 +118,8 @@ pub struct ConstraintSolverError {
 /// The free variables we would generalise over.
 type PredFvs = im_rc::HashSet<Fv, FxBuildHasher>;
 
+type Constraints = im_rc::HashMap<Name, im_rc::HashSet<Predicate<state::Hoas>>>;
+
 impl Predicate<state::Hoas> {
     /// Creates a new predicate, based on a type value.
     ///
@@ -329,7 +331,11 @@ impl Predicate<state::Hoas> {
     ///
     /// It does evaluates and tries to find if there is a predicate that
     /// matches the given predicate.
-    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Result<Self, ConstraintSolverError> {
+    pub(crate) fn entail(&self, ctx: &mut InferCtx) -> Result<Constraints, ConstraintSolverError> {
+        // The entailed predicates, that are the predicates that are
+        // entailed by the given predicate. For example, `Show String` entails
+        // `Eq a`, if `Show a <: Eq a`.
+        let mut implicit_predicates = im_rc::HashMap::default();
         let mut missing_predicates = vec![];
         let pred = self.clone().force();
 
@@ -356,7 +362,9 @@ impl Predicate<state::Hoas> {
         // For example, `Show String` can match directly with `Show String`,
         // just to optimize the process.
         if pred.is_hnf() && preds.contains(&pred) {
-            return Ok(pred.clone());
+            implicit_predicates.insert(name.clone(), std::iter::once(pred.clone()).collect());
+
+            return Ok(implicit_predicates);
         }
 
         // Iterates all predicates in the context
@@ -371,7 +379,9 @@ impl Predicate<state::Hoas> {
             // predicates with "equality".
             if constraint.is_hnf() {
                 if pred == constraint {
-                    return Ok(pred.clone());
+                    implicit_predicates.insert(name.clone(), std::iter::once(pred.clone()).collect());
+                    
+                    return Ok(implicit_predicates);
                 }
             }
             // If the predicate is not in head normal form, then we
@@ -399,7 +409,9 @@ impl Predicate<state::Hoas> {
                 // If it's correct, then we assume that constraints are satisfied
                 // by now.
                 if new_constraint.clone().unify(pred.clone(), ctx) {
-                    return Ok(new_constraint);
+                    implicit_predicates.insert(name.clone(), std::iter::once(pred.clone()).collect());
+                    
+                    return Ok(implicit_predicates);
                 } else {
                     missing_predicates.push(new_constraint);
                 }
