@@ -55,6 +55,7 @@ pub fn hir_completion_kind(completion: &HirCompletion) -> CompletionItemKind {
         DefinitionKind::Module => CompletionItemKind::MODULE,
         DefinitionKind::Command => CompletionItemKind::REFERENCE,
         DefinitionKind::Unresolved => CompletionItemKind::TEXT,
+        DefinitionKind::Trait => CompletionItemKind::CLASS,
     }
 }
 
@@ -67,6 +68,7 @@ pub fn hir_detail(completion: &HirCompletion) -> String {
         DefinitionKind::Module => format!("Module `{}`", completion.name),
         DefinitionKind::Command => format!("Command `{}`", completion.name),
         DefinitionKind::Unresolved => format!("Unresolved `{}`", completion.name),
+        DefinitionKind::Trait => format!("Trait `{}`", completion.name),
     }
 }
 
