@@ -33,7 +33,7 @@ pub struct Manifest<'db> {
 }
 
 impl<'db> Manifest<'db> {
-  pub const FILE_NAME: &str = "lura.toml";
+  pub const FILE_NAME: &'static str = "lura.toml";
 
   pub fn load_in_folder(db: &'db RootDb, folder: PathBuf) -> eyre::Result<Self> {
     let manifest_path = folder.join(Self::FILE_NAME);
