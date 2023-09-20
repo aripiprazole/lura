@@ -3,34 +3,27 @@
 //!
 //! - [`Cons`]: a head of the list
 //! - [`Nil`]: the end of the list
-@stdlib
-public data List (^a) {
+@stdlib data List (^a) {
   Cons : a -> List a -> List a,
   Nil  : List a
 }
 
-@stdlib
-public data Maybe (^a) {
+@stdlib data Maybe (^a) {
   Just(a),
   Nothing
 }
 
-@stdlib
-@internal
-public data String
+@stdlib @internal data String
 
 type StringList = List String
 
-public
-head : ^a. a -> Maybe a
+head : ^a -> Maybe ^a
 head (Cons x _) = Just x
 head Nil        = Nothing
 
-public
-`$ : ^a ^b. a -> (a -> b) -> b
-`$ x f = f x
+`$     : ^a -> (^a -> ^b) -> ^b
+`$ a f = f a
 
-public
 println : String -> ()
 
 Pao { Pao }

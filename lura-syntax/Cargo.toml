@@ -14,3 +14,7 @@ salsa-2022.workspace = true
 tree-sitter.workspace = true
 tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
+
+[build-dependencies]
+type-sitter-gen.workspace = true
+rust-format = "0.3.4"

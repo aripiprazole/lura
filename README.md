@@ -38,6 +38,10 @@ It's all based on the works:
 
 And have some great inspirations in [rust-analyzer](https://github.com/rust-lang/rust-analyzer) code-base..
 
+### Running
+
+Clone the repository with `git submodule update --recursive --remote`
+
 ### Garbage-Collection
 
 The goal of this compiler isn't optimizing things, it's more like an IDE, so the garbage collector is based on Reference
