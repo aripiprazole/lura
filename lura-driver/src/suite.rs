@@ -7,7 +7,7 @@ use lura_diagnostic::{Report, TextRange};
 use lura_hir::{fmt::HirFormatter, source::HirElement};
 use lura_typer::table::TypeTable;
 use salsa_2022::DebugWithDb;
-use similar::{TextDiff, ChangeTag};
+use similar::{ChangeTag, TextDiff};
 
 use crate::RootDb;
 
@@ -27,9 +27,7 @@ type SourceCode = String;
 type Expect<'a> = &'a mut dyn Write;
 
 /// Runs a test suite, with the given `name` and `f`.
-pub(crate) fn run_test_suite(
-  source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
-) {
+pub fn run_test_suite(source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>) {
   let db = RootDb::default();
   let mut output = Vec::new();
   if let Err(err) = f(db, source_code.into(), &mut output) {
@@ -52,7 +50,7 @@ pub(crate) fn run_test_suite(
 }
 
 /// Groups the errors by file.
-pub(crate) fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> eyre::Result<()> {
+pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> eyre::Result<()> {
   let mut ariadne = AriadneReport::default();
   for output in outputs {
     ariadne = ariadne.expand(output.clone());
@@ -62,7 +60,7 @@ pub(crate) fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> ey
 }
 
 /// Prints a debug report of the given `type_table`.
-pub(crate) fn debug_type_table(expect: Expect, db: &RootDb, type_table: TypeTable) -> eyre::Result<()> {
+pub fn debug_type_table(expect: Expect, db: &RootDb, type_table: TypeTable) -> eyre::Result<()> {
   let mut output = Vec::new();
   let expressions = type_table.expressions(db);
 
