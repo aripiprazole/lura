@@ -6,27 +6,27 @@ use crate::source::Location;
 /// to report errors to the diagnostic database, by this crate, only.
 #[derive(Debug)]
 pub struct HirDiagnostic {
-    pub location: Location,
-    pub message: Vec<ErrorText>,
+  pub location: Location,
+  pub message: Vec<ErrorText>,
 
-    /// The error id, used to identify the error in the diagnostic database.
-    pub id: ErrorId,
+  /// The error id, used to identify the error in the diagnostic database.
+  pub id: ErrorId,
 }
 
 impl Diagnostic for HirDiagnostic {
-    type TextRange = Location;
+  type TextRange = Location;
 
-    const KIND: ErrorKind = ErrorKind::ResolutionError;
+  const KIND: ErrorKind = ErrorKind::ResolutionError;
 
-    fn text(&self) -> Vec<lura_diagnostic::ErrorText> {
-        self.message.clone()
-    }
+  fn text(&self) -> Vec<lura_diagnostic::ErrorText> {
+    self.message.clone()
+  }
 
-    fn location(&self) -> Option<Self::TextRange> {
-        Some(self.location.clone())
-    }
+  fn location(&self) -> Option<Self::TextRange> {
+    Some(self.location.clone())
+  }
 
-    fn error_id(&self) -> ErrorId {
-        self.id
-    }
+  fn error_id(&self) -> ErrorId {
+    self.id
+  }
 }

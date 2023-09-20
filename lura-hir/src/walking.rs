@@ -1,45 +1,47 @@
 //! Defines a module for walking throughout the AST, searching all fields for
 //! a given pattern.
 
+use std::collections::HashSet;
+
 use fxhash::FxBuildHasher;
 
-use crate::solver::Reference;
-use crate::source::*;
-use std::collections::HashSet;
-use crate::source::type_rep::TypeReference;
+use crate::{
+  solver::Reference,
+  source::{type_rep::TypeReference, *},
+};
 
 pub trait Walker {
-    fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T);
+  fn accept<T: HirListener>(self, db: &dyn crate::HirDb, listener: &mut T);
 }
 
 impl<T: Walker> Walker for Vec<T> {
-    fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
-        for item in self {
-            item.accept(db, listener);
-        }
+  fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
+    for item in self {
+      item.accept(db, listener);
     }
+  }
 }
 
 impl<T: Walker> Walker for Option<T> {
-    fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
-        if let Some(item) = self {
-            item.accept(db, listener);
-        }
+  fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
+    if let Some(item) = self {
+      item.accept(db, listener);
     }
+  }
 }
 
 impl<T: Walker> Walker for HashSet<T, FxBuildHasher> {
-    fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
-        for item in self {
-            item.accept(db, listener);
-        }
+  fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
+    for item in self {
+      item.accept(db, listener);
     }
+  }
 }
 
 impl<T: Walker> Walker for Box<T> {
-    fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
-        (*self).accept(db, listener)
-    }
+  fn accept<U: HirListener>(self, db: &dyn crate::HirDb, listener: &mut U) {
+    (*self).accept(db, listener)
+  }
 }
 
 /// A listener that is called when a node is visited. It does have two methods:

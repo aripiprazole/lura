@@ -13,5 +13,5 @@ use lura_hir::source::HirSource;
 /// [`thir_elab`]: typer::elaboration::thir_elab
 #[salsa::tracked]
 pub fn thir_elab(_db: &dyn crate::TyperDb, _source: HirSource) -> crate::thir::ThirSource {
-    todo!()
+  todo!()
 }
