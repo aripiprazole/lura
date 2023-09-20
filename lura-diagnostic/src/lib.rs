@@ -135,7 +135,7 @@ impl PartialEq for dyn TextRange {
   }
 }
 
-//// Represents a piece of text that is being reported.
+/// Represents a piece of text that is being reported.
 pub trait Diagnostic: Any + Debug + Send + Sync {
   /// The type of the text range that is being reported. This
   /// is useful to group errors of the same kind together.

@@ -75,14 +75,13 @@ pub fn new_type_rep(db: &dyn crate::HirDb, path: HirPath, repr: TypeRep) {
 
   // Create a definition
   let text = path.to_string(db);
-  let definition = primitives
+  let definition = *primitives
     .type_representations
     .entry(text.clone().unwrap())
     .or_insert_with(move || {
       let id = DefinitionId::new(db, Location::CallSite, text.clone());
       Definition::new(db, id, DefinitionKind::Type, path)
-    })
-    .clone();
+    });
 
   // Define the type if it is not defined
   if !primitives.type_definitions.contains_key(&definition) {

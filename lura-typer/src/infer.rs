@@ -870,7 +870,7 @@ impl Infer for TopLevel {
         .env
         .predicates
         .entry(name.clone())
-        .or_insert_with(Default::default)
+        .or_default()
         .insert(Predicate::IsIn(name, types));
     }
 

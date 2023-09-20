@@ -739,7 +739,7 @@ pub mod seals {
           .domain
           .iter()
           .cloned()
-          .map(|(name, type_rep)| (name, type_rep.seal().into()))
+          .map(|(name, type_rep)| (name, type_rep.seal()))
           .collect(),
         codomain: self.instantiate(domain).seal().into(),
       }

@@ -89,7 +89,7 @@ impl Scope {
     self
       .references
       .entry(definition)
-      .or_insert_with(im::OrdSet::new)
+      .or_default()
       .clone()
   }
 
@@ -100,7 +100,7 @@ impl Scope {
     self
       .references
       .entry(it)
-      .or_insert_with(im::OrdSet::new)
+      .or_default()
       .insert(reference);
 
     // Return the reference

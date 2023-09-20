@@ -28,6 +28,7 @@ const LEGEND_TYPE: &[SemanticTokenType] = &[
 ];
 
 #[tokio::main]
+#[allow(clippy::arc_with_non_send_sync)]
 async fn main() {
   env_logger::init();
 

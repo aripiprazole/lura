@@ -130,13 +130,13 @@ impl<'db> Manifest<'db> {
           .collect_vec();
 
         // Add syntax errors' diagnostics to the manifest
-        self.diagnostics.extend(diagnostics.into_iter());
+        self.diagnostics.extend(diagnostics);
 
         let hir = hir_lower(self.db, package, file);
         let diagnostics = hir_lower::accumulated::<Diagnostics>(self.db, package, file);
 
         // Add HIR errors' diagnostics to the manifest
-        self.diagnostics.extend(diagnostics.into_iter());
+        self.diagnostics.extend(diagnostics);
 
         files.insert(package, hir);
       }

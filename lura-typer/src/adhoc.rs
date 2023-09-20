@@ -304,7 +304,7 @@ impl Predicate<state::Hoas> {
     match (self.force(), pred.force()) {
       // SECTION: Unify predicates
       (Predicate::IsIn(name_a, types_a), Predicate::IsIn(name_b, types_b)) if name_a == name_b => {
-        for (tau_a, tau_b) in types_a.into_iter().zip(types_b.into_iter()) {
+        for (tau_a, tau_b) in types_a.into_iter().zip(types_b) {
           if !tau_a.unify(tau_b, ctx) {
             return false;
           }
