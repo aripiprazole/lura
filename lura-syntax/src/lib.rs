@@ -10,7 +10,7 @@
 #[allow(non_upper_case_globals)]
 #[rustfmt::skip]
 pub mod generated {
-    pub mod lura;
+  pub mod node_types;
 }
 
 /// Contains error handling stuff for tree-sitter. This is a separate module because it is
@@ -19,7 +19,7 @@ pub mod error_handling;
 
 use std::{hash::Hash, ops::Deref, sync::Arc};
 
-pub use generated::{lura::*, *};
+pub use generated::node_types::*;
 use lura_diagnostic::DiagnosticDb;
 use lura_vfs::VfsDb;
 use tree_sitter::{Parser, Tree};

@@ -13,7 +13,7 @@ use std::{
 };
 
 use fxhash::FxBuildHasher;
-use lura_syntax::{anon_unions::ExplicitArguments_ImplicitArguments, generated::lura::SourceFile, Source};
+use lura_syntax::{anon_unions::ExplicitArguments_ImplicitArguments, Source, SourceFile};
 use salsa::Cycle;
 use tree_sitter::{Node, Tree};
 use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};

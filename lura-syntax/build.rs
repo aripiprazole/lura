@@ -12,7 +12,7 @@ fn main() {
 /// Regenerates the `src/generated/lura.rs` file from the `src/node-types.json`
 fn regenerate_node_types() {
   let input_path = Path::new("../vendor/tree-sitter-lura/src/node-types.json");
-  let target = Path::new("src/generated/lura.rs");
+  let target = Path::new("src/generated/node_types.rs");
   let node_types = type_sitter_gen::generate_nodes(input_path, &tree_sitter()).expect("failed to generate nodes");
   clear_output_files(target);
   write_rust_file(target, node_types);
@@ -33,6 +33,8 @@ fn clear_output_files(target: &Path) {
 /// with rustfmt.
 fn write_rust_file(path: &Path, contents: impl Display) {
   let mut file = File::create(path).expect("failed to create file");
+  let contents = RustFmt::new()
+    .format_str(contents.to_string())
+    .expect("failed to format file");
   write!(file, "{}", contents).expect("failed to write file");
-  RustFmt::new().format_file(path).expect("failed to format file");
 }
