@@ -44,8 +44,8 @@ pub fn run_test_suite(source_code: &str, expect: &str, f: impl FnOnce(RootDb, So
         ChangeTag::Equal => format!("  {change}").fg(Color::White),
       };
       print!("{}", sign);
-      panic!("The expected output does not match the actual output.");
     }
+    panic!("The expected output does not match the actual output.");
   }
 }
 
