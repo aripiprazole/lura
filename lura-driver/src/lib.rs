@@ -112,17 +112,17 @@ mod tests {
 
   const EXAMPLE: &[&str] = &[
     // Generalised functions
-    "public id : ^a. a -> a",
+    "public id : forall ^a. ^a -> ^a",
     // Data type tests
     "public data List (^a) {}",
     // Type class tests
     "public trait Show (^a) {}",
-    "println : [Show a] => a -> ()",
-    "putStrLn : [Show a] => a -> ()",
+    "println : [Show ^a] => ^a -> ()",
+    "putStrLn : [Show ^a] => ^a -> ()",
     "putStrLn = println",
     // Instances
     "instance Show of String {}",
-    "instance Show (^a) of (List a) {}",
+    "instance Show of (List ^a) {}",
     // Defines test functions to test
     // instantiation.
     "fa (args: List String)",

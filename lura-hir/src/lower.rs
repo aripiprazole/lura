@@ -1983,7 +1983,7 @@ mod term_solver {
     /// It does translate the syntax primary expression
     /// using the level supplied.
     pub fn primary(&mut self, tree: lura_syntax::Primary, level: HirLevel) -> Expr {
-      use lura_syntax::anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr::*;
+      use lura_syntax::anon_unions::ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr::*;
 
       let location = self.range(tree.range());
 
@@ -2009,6 +2009,31 @@ mod term_solver {
           // scope, and if it is not present in the scope, it will invoke a compiler query
           // to search in the entire package.
           let path = this.path(identifier);
+
+          let def = match level {
+            HirLevel::Expr => this.qualify(path, DefinitionKind::Function),
+            HirLevel::Type => this.qualify(path, DefinitionKind::Type),
+          };
+
+          // Creates a new [`Reference`] from the [`Definition`] and the location.
+          let reference = this.scope.using(this.db, def, location);
+
+          // Creates a new [`Expr`] with the [`Definition`] as the callee.
+          Expr::Path(reference)
+        }
+        // Free variables are variables that aren't bound in the context,
+        // and it's only allowed in the type level.
+        //
+        // TODO: add to a list of free-variables, to build the forall type
+        FreeVariable(identifier) => {
+          let location = this.range(identifier.range());
+
+          // Create a new path with the identifier, and search for the definition in the
+          // scope, and if it is not present in the scope, it will invoke a compiler query
+          // to search in the entire package.
+          let text = identifier.utf8_text(this.src.source_text(this.db).as_bytes()).unwrap_or_default();
+          let identifier = Identifier::symbol(this.db, text, location.clone());
+          let path = HirPath::new(this.db, location.clone(), vec![identifier]);
 
           let def = match level {
             HirLevel::Expr => this.qualify(path, DefinitionKind::Function),
