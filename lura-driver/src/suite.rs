@@ -16,9 +16,17 @@ macro_rules! make_test {
   ($name:ident, $run:expr) => {
     #[test]
     fn $name() {
-      let source_code = include_str!(concat!("../suite/", stringify!($name), ".lura"));
-      let expect = include_str!(concat!("../suite/", stringify!($name), ".expect"));
-      $crate::suite::run_test_suite(source_code, expect, $run);
+      let source_code = std::fs::read_to_string(concat!("suite/", stringify!($name), ".lura")).unwrap();
+      let expect = std::fs::read_to_string(concat!("suite/", stringify!($name), ".expect")).unwrap();
+      $crate::suite::run_test_suite(&source_code, &expect, $run);
+    }
+  };
+  ($name:ident, $file:expr, $run:expr) => {
+    #[test]
+    fn $name() {
+      let source_code = std::fs::read_to_string(concat!("suite/", $file, ".lura")).unwrap();
+      let expect = std::fs::read_to_string(concat!("suite/", $file, ".expect")).unwrap();
+      $crate::suite::run_test_suite(&source_code, &expect, $run);
     }
   };
 }
