@@ -4,7 +4,9 @@ use rust_format::{Formatter, RustFmt};
 use type_sitter_gen::tree_sitter;
 
 fn main() {
-  regenerate_node_types();
+  if std::env::var("NO_REBUILD_TYPE_SITTER").is_err() {
+    regenerate_node_types();
+  }
 
   println!("cargo:rerun-if-changed=../vendor/tree-sitter-lura/src/parser.c");
 }

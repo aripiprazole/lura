@@ -14,7 +14,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: true
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -23,12 +23,16 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
       - name: Check formatting
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: -- --check
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
   check:
     name: Compilation check
@@ -42,7 +46,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: true
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -50,11 +54,15 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
   clippy:
     name: Lint check
@@ -68,7 +76,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: true
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -77,12 +85,16 @@ jobs:
           toolchain: nightly
           override: true
           components: clippy
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
       - name: Run lints
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
   test:
     name: Test check
@@ -104,8 +116,12 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
 
       - name: Run test check
         uses: actions-rs/cargo@v1
         with:
           command: test
+        env:
+          NO_REBUILD_TYPE_SITTER: 1
