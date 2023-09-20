@@ -44,8 +44,13 @@ impl AriadneReport {
     self
   }
 
-  /// Prints the report to stderr.
-  pub fn eprint(self) -> eyre::Result<()> {
+  pub fn write(self, output: &mut dyn std::io::Write) -> eyre::Result<()> {
+    write!(output, "{}", self.dump()?)?;
+    Ok(())
+  }
+
+  pub fn dump(self) -> eyre::Result<String> {
+    let mut output = Vec::new();
     let errors = self.group_errors_by_file();
 
     // NOTE: We use a `FxHashSet` to avoid printing the same file
@@ -95,9 +100,16 @@ impl AriadneReport {
           )
         }))
         .finish()
-        .eprint((file.path.clone(), ariadne::Source::from(&content)))
+        .write((file.path.clone(), ariadne::Source::from(&content)), &mut output)
         .wrap_err_with(|| format!("failed to print the report for file {}", file.path))?;
     }
+
+    Ok(String::from_utf8_lossy(&output).into_owned())
+  }
+
+  /// Prints the report to stderr.
+  pub fn eprint(self) -> eyre::Result<()> {
+    println!("{}", self.dump()?);
     Ok(())
   }
 

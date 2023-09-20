@@ -1,0 +1,114 @@
+Advice: type table information
+    ╭─[repl:1:1]
+    │
+  1 │     public id : forall ^a. ^a -> ^a
+    │                        ┬─  
+    │                        ╰─── parameter a has type ?0
+  2 │     public data List (^a) {}
+    │                       ┬─  
+    │                       ╰─── parameter a has type ?0
+  3 │     public trait Show (^a) {}
+    │                        ┬─  
+    │                        ╰─── parameter a has type ?0
+  4 │     println : [Show ^a] => ^a -> ()
+    │                                  ┬─  
+    │                                  ╰─── has type ()
+  5 │     putStrLn : [Show ^a] => ^a -> ()
+    │                                   ┬─  
+    │                                   ╰─── has type ()
+  6 │     putStrLn = println
+    │                ┬──────  
+    │                ╰──────── has type _ -> ()
+    │ 
+  8 │     instance Show (^a) of (List ^a) {}
+    │                    ┬─  
+    │                    ╰─── parameter a has type ?0
+  9 │     fa (args: List String)
+    │         ┬────────────────  
+    │         ╰────────────────── parameter args has type (List String)
+ 10 │     fb (args: List Int)
+    │         ┬─────────────  
+    │         ╰─────────────── parameter args has type (List Int32)
+ 11 │ ╭─▶ main (args: List String) {
+    │ │         ┬────────────────  
+    │ │         ╰────────────────── parameter args has type (List String)
+ 12 │ │     let a = fa args
+    │ │             ┬──┬───  
+    │ │             ╰──────── has type ?0
+    │ │             │  │     
+    │ │             ╰──────── has type (List String) -> ?0
+    │ │                │     
+    │ │                ╰───── has type (List String)
+ 13 │ │     let b = fb args
+    │ │             ┬──┬───  
+    │ │             ╰──────── has type (List Int32) -> ?0
+    │ │             │  │     
+    │ │             ╰──────── has type ?0
+    │ │                │     
+    │ │                ╰───── has type (List String)
+ 14 │ │     let x = id 10
+    │ │             ┬──┬─  
+    │ │             ╰────── has type UInt32 -> UInt32
+    │ │             │  │   
+    │ │             ╰────── has type UInt32
+    │ │                │   
+    │ │                ╰─── has type UInt32
+ 15 │ │     let y = id "hello"
+    │ │             ┬──┬──────  
+    │ │             ╰─────────── has type String
+    │ │             │  │        
+    │ │             ╰─────────── has type String -> String
+    │ │                │        
+    │ │                ╰──────── has type String
+ 16 │ │     let z = println "string"
+    │ │             ┬───────┬───────  
+    │ │             ╰───────────────── has type ()
+    │ │             │       │         
+    │ │             ╰───────────────── has type String -> ()
+    │ │                     │         
+    │ │                     ╰───────── has type String
+ 17 │ │     let g = println 10
+    │ │             ┬───────┬─  
+    │ │             ╰─────────── has type ()
+    │ │             │       │   
+    │ │             ╰─────────── has type UInt32 -> ()
+    │ │                     │   
+    │ │                     ╰─── has type UInt32
+ 18 │ │     let f = println args
+    │ │             ┬───────┬───  
+    │ │             ╰───────────── has type ()
+    │ │             │       │     
+    │ │             ╰───────────── has type (List String) -> ()
+    │ │                     │     
+    │ │                     ╰───── has type (List String)
+ 19 │ │     y
+    │ │     ┬  
+    │ │     ╰── has type String
+ 20 │ ├─▶ }
+    │ │      
+    │ ╰────── has type String
+    │     
+    │     Note: These are generated types, they are not part of the source code.
+────╯
+Error: found 5 errors
+    ╭─[repl:1:1]
+    │
+  5 │ putStrLn : [Show ^a] => ^a -> ()
+    │ ┬───────────────────────────────  
+    │ ╰─────────────────────────────── type error: missing predicates in the context, you should add it here
+    │ 
+ 10 │ fb (args: List Int)
+    │ ┬──────────────────  
+    │ ╰──────────────────── type error: missing predicates in the context, you should add it here
+    │ 
+ 13 │   let b = fb args
+    │           ┬──────  
+    │           ╰──────── type error: incompatible type values, expected `String` but found `Int32`
+    │ 
+ 17 │   let g = println 10
+    │           ┬─────────  
+    │           ╰─────────── type error: predicate is not defined `(Show UInt32)`
+ 18 │   let f = println args
+    │           ┬───────────  
+    │           ╰───────────── type error: predicate is not defined `(Show (List String))`
+────╯

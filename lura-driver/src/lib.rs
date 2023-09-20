@@ -15,6 +15,9 @@ pub mod watcher;
 
 pub mod rename;
 
+#[allow(unused)]
+pub mod suite;
+
 extern crate salsa_2022 as salsa;
 
 /// The root database implementation for the Lura frontend, after the frontend, there's the
@@ -91,68 +94,21 @@ impl salsa::ParallelDatabase for RootDb {
 #[cfg(test)]
 #[allow(clippy::unnecessary_mut_passed)]
 mod tests {
-  use std::collections::HashMap;
-
-  use ariadne::{Color, Fmt};
-  use itertools::Itertools;
-  use lura_ariadne::AriadneReport;
-  use lura_diagnostic::{Diagnostics, TextRange};
+  use lura_diagnostic::Diagnostics;
   use lura_hir::{
-    fmt::HirFormatter,
     lower::hir_lower,
     package::{Package, PackageKind, Version},
-    source::HirElement,
   };
   use lura_syntax::Source;
-  use lura_typer::table::{infer_type_table, TypeTable};
+  use lura_typer::table::infer_type_table;
   use lura_vfs::SourceFile;
-  use salsa_2022::DebugWithDb;
 
-  use crate::RootDb;
+  use crate::{
+    suite::{debug_type_table, push_ariadne_errors},
+    RootDb,
+  };
 
-  const EXAMPLE: &[&str] = &[
-    // Generalised functions
-    "public id : forall ^a. ^a -> ^a",
-    // Data type tests
-    "public data List (^a) {}",
-    // Type class tests
-    "public trait Show (^a) {}",
-    "println : [Show ^a] => ^a -> ()",
-    "putStrLn : [Show ^a] => ^a -> ()",
-    "putStrLn = println",
-    // Instances
-    "instance Show of String {}",
-    "instance Show of (List ^a) {}",
-    // Defines test functions to test
-    // instantiation.
-    "fa (args: List String)",
-    "fb (args: List Int)",
-    // Defines a main function
-    "main (args: List String) {",
-    // -- Concrete application tests
-    "  let a = fa args",
-    "  let b = fb args",
-    // -- Id tests
-    "  let x = id 10",
-    "  let y = id \"hello\"",
-    // -- Trait tests
-    "  let z = println \"string\"",
-    "  let g = println 10",
-    "  let f = println args",
-    // -- Return tests
-    "  y",
-    "}",
-  ];
-
-  /// This is an end-to-end test of the pipeline, from parsing to type checking/compiling, etc,
-  /// it's not a unit test.
-  ///
-  /// This test is meant to be run with `cargo test -- --nocapture` so that the logs are printed.
-  #[test]
-  fn pipeline_tests() {
-    let db = RootDb::default();
-    let source = EXAMPLE.join("\n");
-
+  crate::make_test!(typeclasses, |db, source, output| {
     let file = SourceFile::new(&db, "repl".into(), "Repl".into(), source);
     let src = lura_syntax::parse(&db, file);
 
@@ -160,19 +116,20 @@ mod tests {
     let hir = hir_lower(&db, local, src);
     let table = infer_type_table(&db, hir);
 
-    debug_type_table_report(&db, table);
+    debug_type_table(output, &db, table)?;
 
     // Concats the diagnostics of the various passes and prints them.
     //
     // Using the aridane crate, we can print the diagnostics in a nice way,
     // with colors and all.
-    AriadneReport::default()
-      .expand(lura_syntax::parse::accumulated::<Diagnostics>(&db, file))
-      .expand(hir_lower::accumulated::<Diagnostics>(&db, local, src))
-      .expand(infer_type_table::accumulated::<Diagnostics>(&db, hir))
-      .eprint()
-      .unwrap();
-  }
+    push_ariadne_errors(output, &[
+      lura_syntax::parse::accumulated::<Diagnostics>(&db, file),
+      hir_lower::accumulated::<Diagnostics>(&db, local, src),
+      infer_type_table::accumulated::<Diagnostics>(&db, hir),
+    ])?;
+
+    Ok(())
+  });
 
   fn create_package(db: &RootDb, source: Source, name: &str) -> Package {
     let version = Version(0, 0, 1);
@@ -183,74 +140,5 @@ mod tests {
 
     // Registers the package in the database.
     db.register_package(package)
-  }
-
-  fn debug_type_table_report(db: &RootDb, type_table: TypeTable) {
-    let expressions = type_table.expressions(db);
-
-    let mut parameters = HashMap::new();
-    for (parameter, type_rep) in type_table.parameters(db) {
-      let location = parameter.location(db);
-      let file_name = location.file_name().to_string();
-
-      parameters
-        .entry(file_name)
-        .or_insert_with(Vec::new)
-        .push((parameter, type_rep));
-    }
-
-    let file_type_tables = expressions.iter().group_by(|(expression, _)| {
-      let location = expression.location(db);
-      let file_name = location.file_name().to_string();
-      let contents = location.source().to_string();
-      (file_name, contents)
-    });
-
-    for ((file, contents), type_table) in file_type_tables.into_iter() {
-      // Get all the parameters contained in the current file,
-      // to be able to print them in the report.
-      let parameters = parameters.get(&file).cloned().unwrap_or_default();
-
-      type Span = (String, std::ops::Range<usize>);
-      ariadne::Report::<Span>::build(ariadne::ReportKind::Advice, file.clone(), 0)
-        .with_message("type table information")
-        .with_note("These are generated types, they are not part of the source code.")
-        .with_config(
-          ariadne::Config::default()
-            .with_cross_gap(true)
-            .with_char_set(ariadne::CharSet::Unicode)
-            .with_label_attach(ariadne::LabelAttach::Start),
-        )
-        .with_labels(parameters.into_iter().map(|(parameter, type_rep)| {
-          let location = parameter.location(db);
-          let range = location.start().0..location.end().0;
-
-          // TODO: use a better representation for types
-          let type_rep = type_rep.to_string();
-
-          // Build pattern string
-          let pattern = parameter.binding(db);
-          let pattern = pattern.formatter();
-          let pattern = format!("{:?}", pattern.debug_all(db));
-
-          ariadne::Label::new((file.clone(), range))
-            .with_color(Color::Yellow)
-            .with_message(format!("parameter {} has type {}", pattern.fg(Color::Yellow), type_rep.fg(Color::Red)))
-        }))
-        .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
-          let location = expr.location(db);
-          let range = location.start().0..location.end().0;
-
-          // TODO: use a better representation for types
-          let type_rep = type_rep.to_string();
-
-          ariadne::Label::new((file.clone(), range))
-            .with_color(Color::Green)
-            .with_message(format!("has type {}", type_rep.fg(Color::Green)))
-        }))
-        .finish()
-        .print((file.clone(), ariadne::Source::from(&contents)))
-        .unwrap();
-    }
   }
 }
