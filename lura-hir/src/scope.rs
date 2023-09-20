@@ -86,22 +86,14 @@ impl Scope {
   /// Returns the references to the given `definition` in the current scope. It will search in the
   /// current scope, and in the parent scope.
   pub fn references(&mut self, definition: Definition) -> im::OrdSet<Reference> {
-    self
-      .references
-      .entry(definition)
-      .or_default()
-      .clone()
+    self.references.entry(definition).or_default().clone()
   }
 
   /// Adds a reference to the given `definition` in the current scope.
   pub fn using(&mut self, db: &dyn crate::HirDb, it: Definition, loc: Location) -> Reference {
     // Create a new reference to [it] and insert it in the current scope
     let reference = Reference::new(db, it, loc);
-    self
-      .references
-      .entry(it)
-      .or_default()
-      .insert(reference);
+    self.references.entry(it).or_default().insert(reference);
 
     // Return the reference
     reference
