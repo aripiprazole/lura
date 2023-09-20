@@ -17,16 +17,16 @@ macro_rules! make_test {
     #[test]
     fn $name() {
       let source_code = std::fs::read_to_string(concat!("suite/", stringify!($name), ".lura")).unwrap();
-      let expect = std::fs::read_to_string(concat!("suite/", stringify!($name), ".expect")).unwrap();
-      $crate::suite::run_test_suite(&source_code, &expect, $run);
+      let expect = std::fs::read_to_string(concat!("suite/", stringify!($name), ".expect")).unwrap_or_default();
+      $crate::suite::run_test_suite(stringify!($name), &source_code, &expect, $run);
     }
   };
   ($name:ident, $file:expr, $run:expr) => {
     #[test]
     fn $name() {
       let source_code = std::fs::read_to_string(concat!("suite/", $file, ".lura")).unwrap();
-      let expect = std::fs::read_to_string(concat!("suite/", $file, ".expect")).unwrap();
-      $crate::suite::run_test_suite(&source_code, &expect, $run);
+      let expect = std::fs::read_to_string(concat!("suite/", $file, ".expect")).unwrap_or_default();
+      $crate::suite::run_test_suite($file, &source_code, &expect, $run);
     }
   };
 }
@@ -35,7 +35,9 @@ type SourceCode = String;
 type Expect<'a> = &'a mut dyn Write;
 
 /// Runs a test suite, with the given `name` and `f`.
-pub fn run_test_suite(source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>) {
+pub fn run_test_suite(
+  file: &str, source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
+) {
   let db = RootDb::default();
   let mut output = Vec::new();
   if let Err(err) = f(db, source_code.into(), &mut output) {
@@ -43,6 +45,10 @@ pub fn run_test_suite(source_code: &str, expect: &str, f: impl FnOnce(RootDb, So
   }
 
   let output = strip_ansi_escapes::strip_str(String::from_utf8_lossy(&output));
+  if expect.is_empty() {
+    std::fs::write(format!("suite/{file}.expect"), output).unwrap();
+    return;
+  }
   if output != expect {
     let diff = TextDiff::from_lines(expect, &output);
     for change in diff.iter_all_changes() {
