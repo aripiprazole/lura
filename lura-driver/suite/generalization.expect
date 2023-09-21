@@ -8,34 +8,24 @@ Advice: type table information
  3 │ ╭─▶ main {
  4 │ │     let a = id "10"
    │ │             ┬──┬───  
-   │ │             ╰──────── has type 'a -> 'a
+   │ │             ╰──────── has type String -> String
    │ │             │  │     
-   │ │             ╰──────── has type ?0
+   │ │             ╰──────── has type String
    │ │                │     
    │ │                ╰───── has type String
  5 │ │     let b = id 20
    │ │             ┬──┬─  
-   │ │             ╰────── has type ?0
+   │ │             ╰────── has type UInt32
    │ │             │  │   
-   │ │             ╰────── has type 'a -> 'a
+   │ │             ╰────── has type UInt32 -> UInt32
    │ │                │   
    │ │                ╰─── has type UInt32
  6 │ │     b
    │ │     ┬  
-   │ │     ╰── has type ?0
+   │ │     ╰── has type UInt32
  7 │ ├─▶ }
    │ │       
-   │ ╰─────── has type ?0
+   │ ╰─────── has type UInt32
    │     
    │     Note: These are generated types, they are not part of the source code.
-───╯
-Error: found 2 errors
-   ╭─[repl:1:1]
-   │
- 4 │   let a = id "10"
-   │           ┬──────  
-   │           ╰──────── type error: cannot unify `String` with `'a`
- 5 │   let b = id 20
-   │           ┬────  
-   │           ╰────── type error: cannot unify `UInt32` with `'a`
 ───╯
