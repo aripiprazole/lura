@@ -45,6 +45,12 @@ type Expect<'a> = &'a mut dyn Write;
 pub fn run_test_suite(
   file: &str, source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
 ) {
+  let _ = env_logger::builder()
+    .is_test(true)
+    .filter_level(log::LevelFilter::Debug)
+    .filter_module("salsa_2022", log::LevelFilter::Off)
+    .try_init();
+
   let db = RootDb::default();
   let mut output = Vec::new();
   if let Err(err) = f(db, source_code.into(), &mut output) {
@@ -66,6 +72,7 @@ pub fn run_test_suite(
       };
       print!("{}", sign);
     }
+    println!();
     panic!("The expected output does not match the actual output.");
   }
 }
