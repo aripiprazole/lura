@@ -10,7 +10,8 @@ pub mod utils;
 
 make_test_suite! {
   tests: {
-    typeclasses: "typeclasses"
+    typeclasses: "typeclasses",
+    generalization: "generalization"
   },
   run: |db, source, output| {
     let file = SourceFile::new(&db, "repl".into(), "Repl".into(), source);
