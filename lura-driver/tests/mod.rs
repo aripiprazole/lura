@@ -9,11 +9,11 @@ use utils::create_package;
 pub mod utils;
 
 make_test_suite! {
-  tests: {
-    typeclasses: "typeclasses",
-    generalization: "generalization"
-  },
-  run: |db, source, output| {
+  tests {
+    typeclasses "typeclasses"
+    generalization "generalization"
+  }
+  run |db, source, output| {
     let file = SourceFile::new(&db, "repl".into(), "Repl".into(), source);
 
     let src = parse(&db, file);
