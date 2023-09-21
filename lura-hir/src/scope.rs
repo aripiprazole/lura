@@ -215,6 +215,13 @@ impl Scope {
         None => todo!("report unresolved or panic unreachable"),
       },
       _ => {
+        if let Some(definition) = self
+          .free_variables
+          .iter()
+          .find(|it| it.name(db).to_string(db) == path.to_string(db))
+        {
+          return self.using(db, *definition, path.location(db));
+        }
         let definition = self.define(db, path, path.location(db), DefinitionKind::Type);
         self.free_variables.insert(definition);
         self.using(db, definition, definition.location(db))

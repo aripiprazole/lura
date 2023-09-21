@@ -1854,22 +1854,22 @@ mod term_solver {
       let scrutinee = tree.condition().solve(self, |this, node| this.expr(node, level));
 
       let then = tree.then().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.child().solve(this, |this, node| match node {
-                    Block(block) => Expr::block(this.db, this.block(block, level)),
-                    _ => this.expr(node.into_node().try_into().unwrap(), level),
-                })
-            });
+        node.child().solve(this, |this, node| match node {
+          Block(block) => Expr::block(this.db, this.block(block, level)),
+          _ => this.expr(node.into_node().try_into().unwrap(), level),
+        })
+      });
 
       let otherwise = tree.otherwise().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.value().solve(this, |this, node| match node {
-                    Block(block) => Expr::block(this.db, this.block(block, level)),
-                    _ => this.expr(node.into_node().try_into().unwrap(), level),
-                })
-            });
+        node.value().solve(this, |this, node| match node {
+          Block(block) => Expr::block(this.db, this.block(block, level)),
+          _ => this.expr(node.into_node().try_into().unwrap(), level),
+        })
+      });
 
       let clauses = vec![
         MatchArm {
