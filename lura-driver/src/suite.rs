@@ -31,6 +31,13 @@ macro_rules! make_test {
   };
 }
 
+#[macro_export]
+macro_rules! make_test_suite {
+  (tests: {$($name:ident:$file:expr),*}, run: $run:expr) => {
+    $($crate::make_test!($name, $file, $run);)*
+  };
+}
+
 type SourceCode = String;
 type Expect<'a> = &'a mut dyn Write;
 
