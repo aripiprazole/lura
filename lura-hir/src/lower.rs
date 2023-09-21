@@ -2031,20 +2031,15 @@ mod term_solver {
           // Create a new path with the identifier, and search for the definition in the
           // scope, and if it is not present in the scope, it will invoke a compiler query
           // to search in the entire package.
+          //
+          // NOTE: We need to remove the first character, because it's a `^` character. So we can
+          // get the identifier without the `^` character.
           let text = identifier.utf8_text(this.src.source_text(this.db).as_bytes()).unwrap_or_default();
-          let identifier = Identifier::symbol(this.db, text, location.clone());
+          let identifier = Identifier::symbol(this.db, &text[1..text.len()], location.clone());
           let path = HirPath::new(this.db, location.clone(), vec![identifier]);
 
-          let def = match level {
-            HirLevel::Expr => this.qualify(path, DefinitionKind::Function),
-            HirLevel::Type => this.qualify(path, DefinitionKind::Type),
-          };
-
-          // Creates a new [`Reference`] from the [`Definition`] and the location.
-          let reference = this.scope.using(this.db, def, location);
-
           // Creates a new [`Expr`] with the [`Definition`] as the callee.
-          Expr::Path(reference)
+          Expr::Path(this.scope.insert_free_variable(this.db, path))
         }
       })
     }
