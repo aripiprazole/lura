@@ -27,7 +27,7 @@ use crate::{
   type_rep::{
     forall::HoasForall,
     holes::{Hole, HoleKind, HoleRef},
-    pi::HoasPi,
+    pi::Pi,
     stuck::Stuck,
     *,
   },
@@ -527,7 +527,7 @@ impl Check for Pattern {
 }
 
 impl Infer for Constructor {
-  type Output = Type<state::Hoas>;
+  type Output = Type;
 
   /// Infers the type of the callee. This is used
   /// to infer the type of the callee.
@@ -545,7 +545,7 @@ impl Infer for Constructor {
 }
 
 impl Infer for Callee {
-  type Output = (Preds, Type<state::Hoas>);
+  type Output = (Preds, Type);
 
   /// Infers the type of the callee. This is used
   /// to infer the type of the callee.
@@ -568,7 +568,7 @@ impl Infer for Callee {
 }
 
 impl Infer for Expr {
-  type Output = (Preds, Type<state::Hoas>);
+  type Output = (Preds, Type);
 
   // Associate the type with the expression
   // This is used to access the type of the expression in
@@ -789,7 +789,7 @@ impl Infer for Expr {
 }
 
 impl Infer for Spanned<Literal> {
-  type Output = Type<state::Hoas>;
+  type Output = Type;
 
   /// Infers the type of the literal. This is used
   /// to infer the type of the literal.
@@ -815,7 +815,7 @@ impl Infer for Spanned<Literal> {
 }
 
 impl Infer for TopLevel {
-  type Output = Type<state::Hoas>;
+  type Output = Type;
 
   /// Infers the type of the top level. This is used
   /// to infer the type of the top level.
@@ -925,7 +925,7 @@ impl Infer for TopLevel {
           let return_type = parameters.iter().fold(goal, |acc, parameter| {
             // Creates a new type variable to represent
             // the type of the declaration
-            Tau::Pi(HoasPi {
+            Tau::Pi(Pi {
               name: None,
               domain: parameter.clone().into(),
               codomain: Rc::new(move |_| acc.clone()),
@@ -1471,7 +1471,7 @@ impl Type<state::Hoas> {
     match self {
       Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
       Type::App(a, b) => Type::App(a.replace(name, replacement.clone()).into(), b.replace(name, replacement).into()),
-      Type::Pi(fun) => Type::Pi(HoasPi {
+      Type::Pi(fun) => Type::Pi(Pi {
         name: fun.name.clone(),
         domain: fun.domain.clone().replace(name, replacement.clone()).into(),
         codomain: Rc::new(move |domain| fun.codomain(domain).replace(name, replacement.clone())),
@@ -1652,7 +1652,7 @@ impl<'tctx> InferCtx<'tctx> {
           parameter.binding(ctx.db).check(type_rep, ctx)
         })
         .fold(value, |acc, next| {
-          Tau::Pi(HoasPi {
+          Tau::Pi(Pi {
             name: None,
             domain: next.into(),
             codomain: Rc::new(move |_| acc.clone()),

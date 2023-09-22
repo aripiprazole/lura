@@ -148,7 +148,7 @@ impl lura_diagnostic::TextRange for ThirLocation {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Reference {
   pub base: lura_hir::solver::Reference,
-  pub type_rep: crate::type_rep::TypeRep,
+  pub type_rep: crate::type_rep::Type,
   pub location: ThirLocation,
 }
 
@@ -162,7 +162,7 @@ pub mod expr {
   /// An extension trait for [`lura_hir::expr::Expr`].
   pub trait ThirExprExt {
     fn location(&self) -> ThirLocation;
-    fn type_rep(&self) -> crate::type_rep::TypeRep;
+    fn type_rep(&self) -> crate::type_rep::Type;
   }
 
   /// Represents the value a call expression is calling. It can be either a definition, or an
@@ -190,7 +190,7 @@ pub mod expr {
     // /// last parameter of a function, and it will be used as the do-notation. It's inspired on
     // /// Kotlin's syntax sugar for lambdas.
     // pub do_notation: Option<stmt::Block>,
-    pub type_rep: crate::type_rep::TypeRep,
+    pub type_rep: crate::type_rep::Type,
     pub location: ThirLocation,
   }
 

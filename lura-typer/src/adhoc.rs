@@ -7,13 +7,12 @@ use lura_hir::source::{
   pattern::{Constructor, Pattern},
   HirElement,
 };
-use type_rep::state;
 
 use crate::{
   ftv::{Ftv, Fv},
   infer::InferCtx,
   thir::{ThirDiagnostic, ThirLocation},
-  type_rep::{self, state::Hoas, Bound, Name, Quote, Type},
+  type_rep::{self, Name, Quote, Type, Term},
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -24,45 +23,24 @@ pub struct ClassEnv {
 
 /// Represents a class, i.e. a collection of types that share a common
 /// interface.
-pub struct Trait<S: state::TypeState> {
+pub struct Trait {
   pub superclasses: Vec<String>,
-  pub instances: Vec<Instance<S>>,
+  pub instances: Vec<Instance>,
 }
 
-pub type Instance<S> = Qual<S, Predicate<S>>;
+pub type Instance<S> = Qual<Predicate<S>>;
 
 /// Represents a qualified type, i.e. a type with predicates.
 ///
 /// For example, `Eq a => a` is a qualified type, where `Eq a` is the predicate
 /// and `a` is the type value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Qual<S: state::TypeState, T> {
-  pub predicates: Vec<Predicate<S>>,
+pub struct Qual<T> {
+  pub predicates: Vec<Predicate>,
   pub data: T,
 }
 
-impl<S: state::TypeState, T> Qual<S, T> {
-  /// Creates a new qualified type.
-  pub fn new(value: T) -> Self {
-    Self {
-      predicates: vec![],
-      data: value,
-    }
-  }
-}
-
-impl<T: Quote> Quote for Qual<state::Hoas, T> {
-  type Sealed = Qual<state::Quoted, T::Sealed>;
-
-  fn seal(self) -> Self::Sealed {
-    Qual {
-      predicates: self.predicates.into_iter().map(|p| p.seal()).collect(),
-      data: self.data.seal(),
-    }
-  }
-}
-
-impl<S: state::TypeState, T> Deref for Qual<S, T> {
+impl<T> Deref for Qual<T> {
   type Target = T;
 
   fn deref(&self) -> &Self::Target {
@@ -70,7 +48,7 @@ impl<S: state::TypeState, T> Deref for Qual<S, T> {
   }
 }
 
-impl<M: state::TypeState, T: Display> Display for Qual<M, T> {
+impl<T: Display> Display for Qual<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     if self.predicates.is_empty() {
       return self.data.fmt(f);
@@ -91,39 +69,31 @@ pub fn no_preds() -> Preds {
 
 /// Represents a list of predicates. A list of constraints
 /// that should constrain a type.
-pub type Preds = Vec<Predicate<Hoas>>;
+pub type Preds = Vec<Predicate>;
 
 /// Represents a predicate, i.e. a constraint on a type.
 ///
 /// For example, `Eq a` is a predicate, where `Eq` is the class and `a` is the
 /// type value.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Predicate<S: state::TypeState> {
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Predicate {
+  #[default]
   None,
-  IsIn(Name, Vec<Type<S>>),
-}
-
-/// NOTE: This is made from scratch because `S` doesn't have to be [`Default`].
-#[allow(clippy::derivable_impls)]
-impl<S: state::TypeState> Default for Predicate<S> {
-  // Creates a new predicate, based on a type value.
-  fn default() -> Self {
-    Predicate::None
-  }
+  IsIn(Name, Vec<Term>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstraintSolverError {
-  pub missing_predicates: Vec<Predicate<Hoas>>,
+  pub missing_predicates: Vec<Predicate>,
   pub message: String,
 }
 
 /// The free variables we would generalise over.
 type PredFvs = im_rc::HashSet<Fv, FxBuildHasher>;
 
-type Constraints = im_rc::HashMap<Name, im_rc::HashSet<Predicate<state::Hoas>>>;
+type Constraints = im_rc::HashMap<Name, im_rc::HashSet<Predicate>>;
 
-impl Predicate<state::Hoas> {
+impl Predicate {
   /// Creates a new predicate, based on a type value.
   ///
   /// Destructs the pattern and creates a predicate based on the type value.
@@ -229,8 +199,8 @@ impl Predicate<state::Hoas> {
     let arguments = values
       .into_iter()
       .map(|name| match name {
-        Some(name) => Type::Bound(Bound::Flexible(name)),
-        None => Type::Bound(Bound::Hole),
+        Some(name) => todo!(),
+        None => todo!(),
       })
       .collect::<Vec<_>>();
 
@@ -255,9 +225,10 @@ impl Predicate<state::Hoas> {
     let mut new_types = vec![];
     for mut tau in types.iter().cloned() {
       for variable in free_variables.clone() {
-        if let Bound::Flexible(name) = variable {
-          tau = tau.replace(name.definition, ctx.new_meta());
-        }
+        todo!()
+        // if let Bound::Flexible(name) = variable {
+        //   tau = tau.replace(name.definition, ctx.new_meta());
+        // }
       }
       new_types.push(tau);
     }
@@ -268,15 +239,8 @@ impl Predicate<state::Hoas> {
 
   /// Returns `true` if the predicate is in head normal form.
   pub fn is_hnf(&self) -> bool {
-    fn type_is_hnf(tau: Type<state::Hoas>) -> bool {
-      match tau.force() {
-        Type::App(callee, argument) => type_is_hnf(*callee) && type_is_hnf(*argument),
-        Type::Forall(_) => false,
-        Type::Pi(_) => false,
-        Type::Hole(_) => false,
-        Type::Bound(_) => false,
-        _ => true,
-      }
+    fn type_is_hnf(tau: Type) -> bool {
+      todo!()
     }
 
     match self {
@@ -432,18 +396,7 @@ impl Predicate<state::Hoas> {
   }
 }
 
-impl Quote for Predicate<state::Hoas> {
-  type Sealed = Predicate<state::Quoted>;
-
-  fn seal(self) -> Self::Sealed {
-    match self {
-      Predicate::IsIn(name, tau) => Predicate::IsIn(name, tau.into_iter().map(Quote::seal).collect()),
-      Predicate::None => Predicate::None,
-    }
-  }
-}
-
-impl<S: state::TypeState> Display for Predicate<S> {
+impl Display for Predicate {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Predicate::None => write!(f, ""),

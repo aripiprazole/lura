@@ -84,7 +84,7 @@ impl Ftv for forall::HoasForall {
   }
 }
 
-impl Ftv for pi::HoasPi {
+impl Ftv for pi::Pi {
   fn ftv(&self) -> Fvs {
     // NOTE: it doesn't use the [`hashset!`] macro, because
     // it uses the default hasher, which is not compatible

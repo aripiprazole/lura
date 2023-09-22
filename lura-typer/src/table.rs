@@ -6,15 +6,15 @@ use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, 
 use crate::{
   declaration::TypedDeclaration,
   infer::{Infer, InferCtx},
-  type_rep::{Quote, TypeRep},
+  type_rep::{Quote, Type},
 };
 
 #[salsa::tracked]
 pub struct TypeTable {
   pub debruijin_index: im::HashMap<usize, String, FxBuildHasher>,
   pub declarations: im::HashMap<TopLevel, TypedDeclaration, FxBuildHasher>,
-  pub parameters: im::HashMap<Parameter, TypeRep, FxBuildHasher>,
-  pub expressions: im::HashMap<Expr, TypeRep, FxBuildHasher>,
+  pub parameters: im::HashMap<Parameter, Type, FxBuildHasher>,
+  pub expressions: im::HashMap<Expr, Type, FxBuildHasher>,
 }
 
 /// Defines the [`infer_type_table`] query.
