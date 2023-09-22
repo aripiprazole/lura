@@ -1,0 +1,124 @@
+Advice: type table information
+    ╭─[repl:1:1]
+    │
+  1 │     public id : forall ^a. ^a -> ^a
+    │                        ┬─  
+    │                        ╰─── parameter a has type ?0
+    │ 
+  3 │     public data List (^a) {}
+    │                       ┬─  
+    │                       ╰─── parameter _ has type 'a
+    │ 
+  5 │     public trait Show (^a) {}
+    │                        ┬─  
+    │                        ╰─── parameter _ has type 'a
+    │ 
+  7 │     println : [Show ^a] => ^a -> ()
+    │                                  ┬─  
+    │                                  ╰─── has type ()
+  8 │     putStrLn : [Show ^a] => ^a -> ()
+    │                                   ┬─  
+    │                                   ╰─── has type ()
+  9 │     putStrLn = println
+    │                ┬──────  
+    │                ╰──────── has type 'a -> ()
+    │ 
+ 13 │     fa (args: List String)
+    │         ┬────────────────  
+    │         ╰────────────────── parameter args has type (List String)
+ 14 │     fb (args: List Int)
+    │         ┬─────────────  
+    │         ╰─────────────── parameter args has type (List Int32)
+    │ 
+ 16 │ ╭─▶ main (args: List String) {
+    │ │         ┬────────────────  
+    │ │         ╰────────────────── parameter args has type (List String)
+ 17 │ │     let a = fa args
+    │ │             ┬──┬───  
+    │ │             ╰──────── has type (List String) -> ?0
+    │ │             │  │     
+    │ │             ╰──────── has type ?0
+    │ │                │     
+    │ │                ╰───── has type (List String)
+ 18 │ │     let b = fb args
+    │ │             ┬──┬───  
+    │ │             ╰──────── has type ?0
+    │ │             │  │     
+    │ │             ╰──────── has type (List Int32) -> ?0
+    │ │                │     
+    │ │                ╰───── has type (List String)
+ 19 │ │     let x = id 10
+    │ │             ┬──┬─  
+    │ │             ╰────── has type 'a -> 'a
+    │ │             │  │   
+    │ │             ╰────── has type ?0
+    │ │                │   
+    │ │                ╰─── has type UInt32
+ 20 │ │     let y = id "hello"
+    │ │             ┬──┬──────  
+    │ │             ╰─────────── has type 'a -> 'a
+    │ │             │  │        
+    │ │             ╰─────────── has type ?0
+    │ │                │        
+    │ │                ╰──────── has type String
+ 21 │ │     let z = println "string"
+    │ │             ┬───────┬───────  
+    │ │             ╰───────────────── has type ?0
+    │ │             │       │         
+    │ │             ╰───────────────── has type 'a -> ()
+    │ │                     │         
+    │ │                     ╰───────── has type String
+ 22 │ │     let g = println 10
+    │ │             ┬───────┬─  
+    │ │             ╰─────────── has type 'a -> ()
+    │ │             │       │   
+    │ │             ╰─────────── has type ?0
+    │ │                     │   
+    │ │                     ╰─── has type UInt32
+ 23 │ │     let f = println args
+    │ │             ┬───────┬───  
+    │ │             ╰───────────── has type ?0
+    │ │             │       │     
+    │ │             ╰───────────── has type 'a -> ()
+    │ │                     │     
+    │ │                     ╰───── has type (List String)
+ 24 │ │     y
+    │ │     ┬  
+    │ │     ╰── has type ?0
+ 25 │ ├─▶ }
+    │ │       
+    │ ╰─────── has type ?0
+    │     
+    │     Note: These are generated types, they are not part of the source code.
+────╯
+Error: found 9 errors
+    ╭─[repl:1:1]
+    │
+  7 │ println : [Show ^a] => ^a -> ()
+    │ ┬──────────────────────────────  
+    │ ╰──────────────────────────────── type error: invalid predicate, expected a constructor pattern
+  8 │ putStrLn : [Show ^a] => ^a -> ()
+    │ ┬──────────┬────────────────────  
+    │ ╰───────────────────────────────── type error: invalid predicate, expected a constructor pattern
+    │            │                      
+    │            ╰────────────────────── type error: cannot unify `'a` with `'a`
+    │ 
+ 18 │   let b = fb args
+    │           ┬──────  
+    │           ╰──────── type error: incompatible type values, expected `String` but found `Int32`
+ 19 │   let x = id 10
+    │           ┬────  
+    │           ╰────── type error: cannot unify `UInt32` with `'a`
+ 20 │   let y = id "hello"
+    │           ┬─────────  
+    │           ╰─────────── type error: cannot unify `String` with `'a`
+ 21 │   let z = println "string"
+    │           ┬───────────────  
+    │           ╰───────────────── type error: cannot unify `String` with `'a`
+ 22 │   let g = println 10
+    │           ┬─────────  
+    │           ╰─────────── type error: cannot unify `UInt32` with `'a`
+ 23 │   let f = println args
+    │           ┬───────────  
+    │           ╰───────────── type error: cannot unify `(List String)` with `'a`
+────╯

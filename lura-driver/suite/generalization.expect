@@ -1,0 +1,31 @@
+Advice: type table information
+   ╭─[repl:1:1]
+   │
+ 1 │     id : forall ^a. ^a -> ^a
+   │                 ┬─  
+   │                 ╰─── parameter a has type ?0
+   │ 
+ 3 │ ╭─▶ main {
+ 4 │ │     let a = id "10"
+   │ │             ┬──┬───  
+   │ │             ╰──────── has type String -> String
+   │ │             │  │     
+   │ │             ╰──────── has type String
+   │ │                │     
+   │ │                ╰───── has type String
+ 5 │ │     let b = id 20
+   │ │             ┬──┬─  
+   │ │             ╰────── has type UInt32
+   │ │             │  │   
+   │ │             ╰────── has type UInt32 -> UInt32
+   │ │                │   
+   │ │                ╰─── has type UInt32
+ 6 │ │     b
+   │ │     ┬  
+   │ │     ╰── has type UInt32
+ 7 │ ├─▶ }
+   │ │       
+   │ ╰─────── has type UInt32
+   │     
+   │     Note: These are generated types, they are not part of the source code.
+───╯

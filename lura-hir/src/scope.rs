@@ -5,6 +5,7 @@ use fxhash::FxBuildHasher;
 use crate::{
   solver::{Definition, DefinitionId, DefinitionKind, Reference},
   source::{HirPath, HirSource, Location},
+  HirDb,
 };
 
 /// Represents the kind of the scope
@@ -42,6 +43,7 @@ pub struct Import {
 pub struct Scope {
   pub kind: ScopeKind,
   pub parent: Option<Arc<Scope>>,
+  pub free_variables: im::OrdSet<Definition>,
 
   /// The imports informations
   pub imports: im::HashSet<Import, FxBuildHasher>,
@@ -69,6 +71,7 @@ impl Scope {
       variables: im::HashMap::default(),
       traits: im::HashMap::default(),
       imports: im::HashSet::default(),
+      free_variables: im::OrdSet::new(),
     }
   }
 
@@ -114,6 +117,7 @@ impl Scope {
       values: im::HashMap::default(),
       variables: im::HashMap::default(),
       imports: im::HashSet::default(),
+      free_variables: im::OrdSet::new(),
     }
   }
 
@@ -196,6 +200,32 @@ impl Scope {
       DefinitionKind::Module => None,
       DefinitionKind::Command => None,
       DefinitionKind::Unresolved => None,
+    }
+  }
+
+  /// Create free variable in the current scope.
+  pub fn insert_free_variable(&mut self, db: &dyn HirDb, path: HirPath) -> Reference {
+    match self.kind {
+      ScopeKind::Block | ScopeKind::Sigma | ScopeKind::Pi => match self.parent {
+        Some(ref parent) => {
+          let mut parent = parent.clone();
+          let parent = Arc::make_mut(&mut parent);
+          parent.insert_free_variable(db, path)
+        }
+        None => todo!("report unresolved or panic unreachable"),
+      },
+      _ => {
+        if let Some(definition) = self
+          .free_variables
+          .iter()
+          .find(|it| it.name(db).to_string(db) == path.to_string(db))
+        {
+          return self.using(db, *definition, path.location(db));
+        }
+        let definition = self.define(db, path, path.location(db), DefinitionKind::Type);
+        self.free_variables.insert(definition);
+        self.using(db, definition, definition.location(db))
+      }
     }
   }
 

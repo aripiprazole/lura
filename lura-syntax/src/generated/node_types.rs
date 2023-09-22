@@ -1687,6 +1687,63 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for ForallParameter<'tree> {
     Self(node)
   }
 }
+#[doc = "Typed node `free_variable`\n\nThis node has a child: `identifier` ([Identifier])\n"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub struct FreeVariable<'tree>(tree_sitter::Node<'tree>);
+#[automatically_derived]
+impl<'tree> FreeVariable<'tree> {
+  #[doc = "Get the node's only named child"]
+  #[allow(dead_code)]
+  #[inline]
+  pub fn child(&self) -> type_sitter_lib::NodeResult<'tree, Identifier<'tree>> {
+    self
+      .0
+      .named_child(0)
+      .map(<Identifier<'tree> as TryFrom<_>>::try_from)
+      .expect("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+  }
+}
+#[automatically_derived]
+impl<'tree> TryFrom<tree_sitter::Node<'tree>> for FreeVariable<'tree> {
+  type Error = type_sitter_lib::IncorrectKind<'tree>;
+
+  #[inline]
+  fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+    if node.kind() == "free_variable" {
+      Ok(Self(node))
+    } else {
+      Err(type_sitter_lib::IncorrectKind {
+        node,
+        kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+      })
+    }
+  }
+}
+#[automatically_derived]
+impl<'tree> type_sitter_lib::TypedNode<'tree> for FreeVariable<'tree> {
+  const KIND: &'static str = "free_variable";
+
+  #[inline]
+  fn node(&self) -> &tree_sitter::Node<'tree> {
+    &self.0
+  }
+
+  #[inline]
+  fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+    &mut self.0
+  }
+
+  #[inline]
+  fn into_node(self) -> tree_sitter::Node<'tree> {
+    self.0
+  }
+
+  #[inline]
+  unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
+    Self(node)
+  }
+}
 #[doc = "Typed node `function_constructor`\n\nThis node has these fields:\n- `attribute`: `attribute*` ([Attribute])\n- `doc_string`: `doc_string*` ([DocString])\n- `name`: `path` ([Path])\n- `parameter`: `{ann_expr | binary_expr | forall_expr | lam_expr | match_expr | pi_expr | primary | sigma_expr | type_app_expr}*` ([anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr])\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -3407,7 +3464,7 @@ impl<'tree> type_sitter_lib::TypedNode<'tree> for PiNamedParameterSet<'tree> {
     Self(node)
   }
 }
-#[doc = "Typed node `primary`\n\nThis node has a child: `{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]\n\n"]
+#[doc = "Typed node `primary`\n\nThis node has a child: `{array_expr | free_variable | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [FreeVariable]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]\n\n"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub struct Primary<'tree>(tree_sitter::Node<'tree>);
@@ -3420,13 +3477,9 @@ impl<'tree> Primary<'tree> {
     &self,
   ) -> type_sitter_lib::NodeResult<
     'tree,
-    anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>,
+    anon_unions::ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>,
   > {
-    self
-      .0
-      .named_child(0)
-      .map(<anon_unions::ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> as TryFrom<_>>::try_from)
-      .expect("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
+    self . 0 . named_child (0) . map (< anon_unions :: ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr < 'tree > as TryFrom < _ >> :: try_from) . expect ("tree-sitter node missing its required child, there should at least be a MISSING node in its place")
   }
 }
 #[automatically_derived]
@@ -5348,6 +5401,52 @@ pub mod unnamed {
   #[automatically_derived]
   impl<'tree> type_sitter_lib::TypedNode<'tree> for F64<'tree> {
     const KIND: &'static str = "f64";
+
+    #[inline]
+    fn node(&self) -> &tree_sitter::Node<'tree> {
+      &self.0
+    }
+
+    #[inline]
+    fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
+      &mut self.0
+    }
+
+    #[inline]
+    fn into_node(self) -> tree_sitter::Node<'tree> {
+      self.0
+    }
+
+    #[inline]
+    unsafe fn from_node_unchecked(node: tree_sitter::Node<'tree>) -> Self {
+      Self(node)
+    }
+  }
+  #[doc = "Typed node `forall`\n\nThis node has no children\n"]
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  #[allow(non_camel_case_types)]
+  pub struct Forall<'tree>(tree_sitter::Node<'tree>);
+  #[automatically_derived]
+  impl<'tree> Forall<'tree> {}
+  #[automatically_derived]
+  impl<'tree> TryFrom<tree_sitter::Node<'tree>> for Forall<'tree> {
+    type Error = type_sitter_lib::IncorrectKind<'tree>;
+
+    #[inline]
+    fn try_from(node: tree_sitter::Node<'tree>) -> Result<Self, Self::Error> {
+      if node.kind() == "forall" {
+        Ok(Self(node))
+      } else {
+        Err(type_sitter_lib::IncorrectKind {
+          node,
+          kind: <Self as type_sitter_lib::TypedNode<'tree>>::KIND,
+        })
+      }
+    }
+  }
+  #[automatically_derived]
+  impl<'tree> type_sitter_lib::TypedNode<'tree> for Forall<'tree> {
+    const KIND: &'static str = "forall";
 
     #[inline]
     fn node(&self) -> &tree_sitter::Node<'tree> {
@@ -10521,11 +10620,12 @@ pub mod anon_unions {
       }
     }
   }
-  #[doc = "one of `{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]"]
+  #[doc = "one of `{array_expr | free_variable | if_expr | literal | match_expr | path | return_expr | tuple_expr}`:\n- [ArrayExpr]\n- [FreeVariable]\n- [IfExpr]\n- [Literal]\n- [MatchExpr]\n- [Path]\n- [ReturnExpr]\n- [TupleExpr]"]
   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   #[allow(non_camel_case_types)]
-  pub enum ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
+  pub enum ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
     ArrayExpr(ArrayExpr<'tree>),
+    FreeVariable(FreeVariable<'tree>),
     IfExpr(IfExpr<'tree>),
     Literal(Literal<'tree>),
     MatchExpr(MatchExpr<'tree>),
@@ -10534,13 +10634,23 @@ pub mod anon_unions {
     TupleExpr(TupleExpr<'tree>),
   }
   #[automatically_derived]
-  impl<'tree> ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
+  impl<'tree> ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
     #[doc = "Returns the node if it is of kind `array_expr` ([ArrayExpr]), otherwise returns None"]
     #[inline]
     #[allow(unused, non_snake_case)]
     pub fn array_expr(self) -> Option<ArrayExpr<'tree>> {
       match self {
         Self::ArrayExpr(x) => Some(x),
+        _ => None,
+      }
+    }
+
+    #[doc = "Returns the node if it is of kind `free_variable` ([FreeVariable]), otherwise returns None"]
+    #[inline]
+    #[allow(unused, non_snake_case)]
+    pub fn free_variable(self) -> Option<FreeVariable<'tree>> {
+      match self {
+        Self::FreeVariable(x) => Some(x),
         _ => None,
       }
     }
@@ -10606,7 +10716,9 @@ pub mod anon_unions {
     }
   }
   #[automatically_derived]
-  impl<'tree> TryFrom<tree_sitter::Node<'tree>> for ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
+  impl<'tree> TryFrom<tree_sitter::Node<'tree>>
+    for ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>
+  {
     type Error = type_sitter_lib::IncorrectKind<'tree>;
 
     #[inline]
@@ -10614,6 +10726,9 @@ pub mod anon_unions {
       match node.kind() {
         "array_expr" => Ok(unsafe {
           Self::ArrayExpr(<ArrayExpr<'tree> as type_sitter_lib::TypedNode<'tree>>::from_node_unchecked(node))
+        }),
+        "free_variable" => Ok(unsafe {
+          Self::FreeVariable(<FreeVariable<'tree> as type_sitter_lib::TypedNode<'tree>>::from_node_unchecked(node))
         }),
         "if_expr" => {
           Ok(unsafe { Self::IfExpr(<IfExpr<'tree> as type_sitter_lib::TypedNode<'tree>>::from_node_unchecked(node)) })
@@ -10641,13 +10756,17 @@ pub mod anon_unions {
     }
   }
   #[automatically_derived]
-  impl<'tree> type_sitter_lib::TypedNode<'tree> for ArrayExpr_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree> {
-    const KIND: &'static str = "{array_expr | if_expr | literal | match_expr | path | return_expr | tuple_expr}";
+  impl<'tree> type_sitter_lib::TypedNode<'tree>
+    for ArrayExpr_FreeVariable_IfExpr_Literal_MatchExpr_Path_ReturnExpr_TupleExpr<'tree>
+  {
+    const KIND: &'static str =
+      "{array_expr | free_variable | if_expr | literal | match_expr | path | return_expr | tuple_expr}";
 
     #[inline]
     fn node(&self) -> &tree_sitter::Node<'tree> {
       match self {
         Self::ArrayExpr(x) => x.node(),
+        Self::FreeVariable(x) => x.node(),
         Self::IfExpr(x) => x.node(),
         Self::Literal(x) => x.node(),
         Self::MatchExpr(x) => x.node(),
@@ -10661,6 +10780,7 @@ pub mod anon_unions {
     fn node_mut(&mut self) -> &mut tree_sitter::Node<'tree> {
       match self {
         Self::ArrayExpr(x) => x.node_mut(),
+        Self::FreeVariable(x) => x.node_mut(),
         Self::IfExpr(x) => x.node_mut(),
         Self::Literal(x) => x.node_mut(),
         Self::MatchExpr(x) => x.node_mut(),
@@ -10674,6 +10794,7 @@ pub mod anon_unions {
     fn into_node(self) -> tree_sitter::Node<'tree> {
       match self {
         Self::ArrayExpr(x) => x.into_node(),
+        Self::FreeVariable(x) => x.into_node(),
         Self::IfExpr(x) => x.into_node(),
         Self::Literal(x) => x.into_node(),
         Self::MatchExpr(x) => x.into_node(),

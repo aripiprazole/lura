@@ -906,9 +906,11 @@ version = "0.0.1"
 dependencies = [
  "ariadne",
  "dashmap",
+ "env_logger",
  "eyre",
  "fxhash",
  "itertools",
+ "log",
  "lura-ariadne",
  "lura-diagnostic",
  "lura-hir",
@@ -916,6 +918,8 @@ dependencies = [
  "lura-typer",
  "lura-vfs",
  "salsa-2022",
+ "similar",
+ "strip-ansi-escapes",
  "tree-sitter",
  "tree-sitter-lura",
  "type-sitter-lib",
@@ -996,6 +1000,7 @@ dependencies = [
  "if_chain",
  "im",
  "im-rc",
+ "log",
  "lura-diagnostic",
  "lura-hir",
  "petgraph",
@@ -1436,6 +1441,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "similar"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "420acb44afdae038210c99e69aae24109f32f15500aa708e81d46c9f29d55fcf"
+
+[[package]]
 name = "sized-chunks"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1477,6 +1488,15 @@ name = "streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
+
+[[package]]
+name = "strip-ansi-escapes"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55ff8ef943b384c414f54aefa961dd2bd853add74ec75e7ac74cf91dba62bcfa"
+dependencies = [
+ "vte",
+]
 
 [[package]]
 name = "strsim"
@@ -1737,9 +1757,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-lura"
-version = "0.1.19"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7bbd8202dbf4ccc0df5dfc8b7e455d437076929627e800f6c4884b75f747eb2"
+checksum = "f201d79a66e648cf8a274d89796a13aefb6438769a0280a7cd7cba1f69ec76c8"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -1839,6 +1859,26 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "vte"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5022b5fbf9407086c180e9557be968742d839e68346af7792b8592489732197"
+dependencies = [
+ "utf8parse",
+ "vte_generate_state_changes",
+]
+
+[[package]]
+name = "vte_generate_state_changes"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d257817081c7dffcdbab24b9e62d2def62e2ff7d00b1c20062551e6cccc145ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "walkdir"

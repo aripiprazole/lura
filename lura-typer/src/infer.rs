@@ -1039,7 +1039,9 @@ impl Infer for TopLevel {
       // Gets the return type
       pi.unify(function_type.clone(), ctx);
 
-      ctx.env.variables.insert(name, function_type.clone());
+      let type_repr = ctx.quantify(function_type.clone());
+      ctx.env.variables.insert(name, type_repr.clone());
+      log::debug!("{} : {}", name.to_string(ctx.db), type_repr.seal());
 
       // Creates a new environment for the clauses
       let mut env = ctx.env.clone();
@@ -1530,7 +1532,49 @@ impl<'tctx> InferCtx<'tctx> {
   /// This is only enabled by language feature flag in the
   /// CLI.
   fn quantify(&self, tau: Tau) -> Tau {
-    tau
+    fn generalize(variables: &mut Vec<(Name, Type<state::Hoas>)>, tau: Tau) {
+      match tau {
+        Type::App(callee, argument) => {
+          generalize(variables, *callee);
+          generalize(variables, *argument);
+        }
+        Type::Stuck(stuck) => {
+          generalize(variables, *stuck.base);
+          for tau in stuck.spine {
+            generalize(variables, tau.clone());
+          }
+        }
+        Type::Hole(hole) => match hole.data.borrow_mut().kind() {
+          HoleKind::Error => {}
+          HoleKind::Empty { .. } => {}
+          HoleKind::Filled(value) => {
+            generalize(variables, value.clone());
+          }
+        },
+        Type::Bound(Bound::Flexible(name)) => {
+          variables.push((name, Tau::Universe));
+        }
+        _ => {}
+      }
+    }
+
+    let mut variables = vec![];
+    generalize(&mut variables, tau.clone());
+
+    if variables.is_empty() {
+      tau
+    } else {
+      Tau::Forall(HoasForall {
+        domain: variables.clone(),
+        codomain: Rc::new(move |domain| {
+          let mut tau = tau.clone();
+          for ((name, _), value) in variables.iter().zip(domain) {
+            tau = tau.replace(name.definition, value);
+          }
+          Qual::new(tau)
+        }),
+      })
+    }
   }
 
   /// Creates a new meta type. This is used to
