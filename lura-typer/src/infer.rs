@@ -25,10 +25,8 @@ use crate::{
   options::TyperFeatures,
   thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
   type_rep::{
-    forall::HoasForall,
     holes::{Hole, HoleKind, HoleRef},
     pi::Pi,
-    stuck::Stuck,
     *,
   },
   utils::LocalDashMap,
@@ -64,7 +62,7 @@ pub struct InternalVariant {
 #[derive(Default, Clone)]
 pub struct TypeEnv {
   pub level: Level,
-  pub predicates: im_rc::HashMap<Name, im_rc::HashSet<Predicate<state::Hoas>>, FxBuildHasher>,
+  pub predicates: im_rc::HashMap<Name, im_rc::HashSet<Predicate>, FxBuildHasher>,
   pub constructors: im_rc::HashMap<Definition, Rc<InternalVariant>, FxBuildHasher>,
   pub references: im_rc::HashMap<Tau, Rc<InternalVariant>, FxBuildHasher>,
   pub variables: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
@@ -85,23 +83,12 @@ impl Substitution<'_, '_> {
   /// - "occurs  check" : check that the hole doesn't occur in the type
   ///                     or simplier, check that you aren't making recursive types
   /// - "scope check"   : check that you aren't using bound vars outside its scope
-  fn hole_unify_prechecks(&mut self, tau: Tau, scope: Level, hole: HoleMut) {
+  fn hole_unify_prechecks(&mut self, tau: Tau, scope: Level, hole: HoleRef) {
     let _ = scope;
     let _ = hole;
 
     match tau {
       // SECTION: Types
-      Type::Universe => {}
-      Type::Primary(_) => {}
-      Type::Constructor(_) => {}
-      Type::Bound(Bound::Flexible(_)) => {}
-      Type::Bound(Bound::Hole) => {}
-      Type::Stuck(stuck) => {
-        self.hole_unify_prechecks(*stuck.base, scope, hole.clone());
-        for value in stuck.spine {
-          self.hole_unify_prechecks(value, scope, hole.clone());
-        }
-      }
       Type::Forall(_) => {
         // Named holes, because this is a dependent
         // function type, we need to create a new hole
@@ -122,54 +109,48 @@ impl Substitution<'_, '_> {
         // self.hole_unify_prechecks(codomain, scope, hole)
       }
       Type::Pi(pi) => {
-        let ctx = self.ctx.snapshot();
-        let domain = pi.domain.eval(&ctx, self.ctx.eval_env.clone());
-
-        // Unnamed holes, because this isn't a dependent
-        // function type, we can just use the same hole
-        let parameter = Tau::Bound(match pi.name {
-          Some(ref name) => Bound::Flexible(name.clone()),
-          None => Bound::Hole,
-        });
-
-        // Exeuctes the HOAS function to get the codomain
-        // and then evaluates it to WHNF
-        let codomain = pi.codomain(parameter);
-
-        self.hole_unify_prechecks(domain, scope, hole.clone());
-        self.hole_unify_prechecks(codomain, scope, hole)
+        // TODO
+        // let ctx = self.ctx.snapshot();
+        // let domain = pi.domain.eval(&ctx, self.ctx.eval_env.clone());
+        //
+        // // Unnamed holes, because this isn't a dependent
+        // // function type, we can just use the same hole
+        // let parameter = Tau::Bound(match pi.name {
+        //   Some(ref name) => Bound::Flexible(name.clone()),
+        //   None => Bound::Hole,
+        // });
+        // self.hole_unify_prechecks(domain, scope, hole.clone());
+        // self.hole_unify_prechecks(codomain, scope, hole)
       }
-      Type::Bound(Bound::Index(_, level)) => {
-        if level > scope {
-          self.errors.push_back(TypeError::EscapingScope(level));
-        }
-      }
-      Type::App(a, b) => {
-        self.hole_unify_prechecks(*a, scope, hole.clone());
-        self.hole_unify_prechecks(*b, scope, hole)
+      Type::Ix(ix) if ix > scope => {
+        self.errors.push_back(TypeError::EscapingScope(ix));
       }
       // SECTION: Hole
-      Type::Hole(h) => {
+      Type::Flexible(h, spine) => {
         use holes::HoleKind::*;
         if h == hole {
-          self.errors.push_back(TypeError::OccursCheck(Type::Hole(h)));
+          self.errors.push_back(TypeError::OccursCheck(Type::Flexible(h, spine)));
           return;
         }
 
-        let mut hole_ref = h.borrow_mut();
+        // Checks that the hole doesn't occur in the type
+        for value in spine {
+          self.hole_unify_prechecks(value, scope, hole.clone());
+        }
 
-        match hole_ref.kind() {
-          Empty { scope: l } if *l > scope => hole_ref.set_kind(Empty { scope }),
+        match h.kind() {
+          Empty { scope: l } if *l > scope => h.set_kind(Empty { scope }),
           Filled(ty) => self.hole_unify_prechecks(ty.clone(), scope, hole),
           _ => {}
         }
       }
+      _ => {}
     }
   }
 
   /// Unifies a hole with a type. This is used to
   /// unify a hole with a type.
-  fn unify_hole(&mut self, ty: Tau, hole: HoleMut) -> Option<()> {
+  fn unify_hole(&mut self, type_repr: Type, hole: HoleRef) -> Option<()> {
     use holes::HoleKind::*;
 
     // I don't know but this is needed to avoid reborrow
@@ -180,23 +161,26 @@ impl Substitution<'_, '_> {
       // SECTION: Holes
       Empty { scope } => {
         // Checks that the hole doesn't occur in the type
-        if ty == Tau::Hole(hole.clone()) {
-          return None;
+        if let Type::Flexible(h, spine) = type_repr.clone() {
+          if h == hole {
+            self.errors.push_back(TypeError::OccursCheck(Type::Flexible(h, spine)));
+            return None;
+          }
         }
 
         // Unify the hole with the type, and then set the kind
         // of the hole to filled
-        self.hole_unify_prechecks(ty.clone(), scope, hole.clone());
-        hole.borrow_mut().set_kind(Filled(ty));
+        self.hole_unify_prechecks(type_repr.clone(), scope, hole.clone());
+        hole.set_kind(Filled(type_repr));
         Some(())
       }
-      Filled(a) => self.internal_unify(a, ty),
+      Filled(a) => self.internal_unify(a, type_repr),
     }
   }
 
   /// Unifies two types. This is used to unify two types. It
   /// equates the two types.
-  fn internal_unify(&mut self, a: Tau, b: Tau) -> Option<()> {
+  fn internal_unify(&mut self, a: Type, b: Type) -> Option<()> {
     // Matches the types to equate them.
     match (a, b) {
       // SECTION: Unification
@@ -403,12 +387,6 @@ impl Debug for Substitution<'_, '_> {
   }
 }
 
-/// Represents a type in HOAS state.
-type Tau = Type<state::Hoas>;
-
-// Represents a hole in HOAS state.
-type HoleMut = HoleRef<state::Hoas>;
-
 /// Defines the inference crate, it does make
 /// the work to infer the type of the expression.
 ///
@@ -419,8 +397,8 @@ pub(crate) trait Infer {
 
   #[inline(always)]
   fn store_ty_var(self, target: Self::Output, ctx: &mut InferCtx)
-  where
-    Self: Sized,
+    where
+      Self: Sized,
   {
     let _ = target;
     let _ = ctx;
@@ -430,9 +408,9 @@ pub(crate) trait Infer {
   /// Infers the type of the element.
   #[inline(always)]
   fn infer(self, ctx: &mut InferCtx) -> Self::Output
-  where
-    Self: Sized + HirElement + Clone,
-    Self::Output: Clone,
+    where
+      Self: Sized + HirElement + Clone,
+      Self::Output: Clone,
   {
     // Save the location, and update the location
     let old_location = replace(&mut ctx.location, self.location(ctx.db));
@@ -448,8 +426,8 @@ pub(crate) trait Infer {
   /// Infers the type of the element.
   #[inline(always)]
   fn infer_with(self, el: &impl HirElement, ctx: &mut InferCtx) -> Self::Output
-  where
-    Self: Sized,
+    where
+      Self: Sized,
   {
     // Save the location, and update the location
     let old_location = replace(&mut ctx.location, el.location(ctx.db));
@@ -1746,7 +1724,7 @@ impl<'tctx> InferCtx<'tctx> {
                 id: ErrorId("unsupported-hole-implicits"),
                 location: ctx.new_location(sigma.location(ctx.db)),
                 message: message!["hole implicits are not supported"],
-              })
+              });
             }
           };
 
@@ -1985,8 +1963,8 @@ impl<'tctx> InferCtx<'tctx> {
   /// of a function, we need to add the parameters to the environment
   /// temporally, and then remove them.
   fn with_env<F, U>(&mut self, env: TypeEnv, f: F) -> U
-  where
-    F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
+    where
+      F: for<'tctxn> FnOnce(&mut InferCtx<'tctxn>) -> U,
   {
     let old_env = replace(&mut self.env, env);
     let result = f(self);

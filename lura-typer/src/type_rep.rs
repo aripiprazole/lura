@@ -142,7 +142,7 @@ pub enum Type {
   /// Represents a stuck type. This is used to represent a type that is stuck.
   ///
   /// A stuck type is a type that is not fully evaluated, and can't be evaluated
-  Flexible(holes::Hole, Vec<Type>),
+  Flexible(holes::HoleRef, Vec<Type>),
 }
 
 impl Type {
@@ -450,12 +450,16 @@ pub mod holes {
   impl HoleRef {
     pub(crate) fn new(value: Hole) -> Self {
       Self {
-        data: Rc::new(RefCell::new(value)),
+        data: Arc::new(RwLock::new(value)),
       }
     }
 
     pub fn kind(&self) -> HoleKind {
-      self.data.borrow().kind.clone()
+      self.data.read().unwrap().kind().clone()
+    }
+
+    pub fn set_kind(&self, kind: HoleKind) {
+      self.data.write().unwrap().set_kind(kind)
     }
   }
 
