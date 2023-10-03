@@ -454,10 +454,12 @@ pub mod holes {
       }
     }
 
+    /// Clones out the kind of a hole reference
     pub fn kind(&self) -> HoleKind {
       self.data.read().unwrap().kind().clone()
     }
 
+    /// Sets the inner kind of a hole reference
     pub fn set_kind(&self, kind: HoleKind) {
       self.data.write().unwrap().set_kind(kind)
     }
