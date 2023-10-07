@@ -80,13 +80,13 @@ pub struct Name {
 }
 
 impl Debug for Name {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     Debug::fmt(&self.name, f)
   }
 }
 
 impl Display for Name {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     Display::fmt(&self.name, f)
   }
 }
@@ -120,7 +120,7 @@ pub enum Term {
   /// Represents a stuck type. This is used to represent a type that is stuck.
   ///
   /// A stuck type is a type that is not fully evaluated, and can't be evaluated
-  Flexible(holes::Hole, Vec<Type>),
+  Flexible(Hole, Vec<Type>),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -131,8 +131,8 @@ pub enum Type {
   Primary(Primary),
   Ix(Ix),
   Lam(closure::Closure),
-  Forall(pi::Pi),
-  Pi(pi::Pi),
+  Forall(Pi),
+  Pi(Pi),
 
   /// Represents a stuck type. This is used to represent a type that is stuck.
   ///
@@ -142,7 +142,7 @@ pub enum Type {
   /// Represents a stuck type. This is used to represent a type that is stuck.
   ///
   /// A stuck type is a type that is not fully evaluated, and can't be evaluated
-  Flexible(holes::HoleRef, Vec<Type>),
+  Flexible(HoleRef, Vec<Type>),
 }
 
 impl Type {
@@ -150,13 +150,10 @@ impl Type {
   ///
   /// This is used to force the type to be evaluated.
   pub(crate) fn force(self) -> Type {
-    match self {
-      Type::Hole(ref hole) => match hole.kind() {
-        HoleKind::Error => Type::Hole(HoleRef::new(Hole { kind: HoleKind::Error })),
-        HoleKind::Empty { scope } => Type::Hole(HoleRef::new(Hole {
-          kind: HoleKind::Empty { scope },
-        })),
+    match self.clone() {
+      Type::Flexible(ref hole, _) => match hole.kind() {
         HoleKind::Filled(value) => value.force(),
+        _ => self,
       },
       _ => self,
     }
@@ -164,7 +161,7 @@ impl Type {
 
   /// Checks if the type is an empty hole
   pub(crate) fn is_unbound(&self) -> bool {
-    let Type::Hole(hole) = self else { return false };
+    let Type::Flexible(hole, _) = self else { return false };
 
     match hole.kind() {
       HoleKind::Error => false,
@@ -181,18 +178,16 @@ mod debug {
 
   impl Debug for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-      todo!()
-      // match self {
-      //   Type::Universe => write!(f, "Type"),
-      //   Type::Primary(primary) => write!(f, "{primary:?}"),
-      //   Type::Constructor(constructor) => write!(f, "Constructor({constructor:?})"),
-      //   Type::App(callee, value) => write!(f, "App({callee:?}, {value:?})"),
-      //   Type::Forall(forall) => Debug::fmt(forall, f),
-      //   Type::Pi(pi) => Debug::fmt(pi, f),
-      //   Type::Hole(hole) => Debug::fmt(hole, f),
-      //   Type::Bound(bound) => Debug::fmt(bound, f),
-      //   Type::Stuck(stuck) => Debug::fmt(stuck, f),
-      // }
+      match self {
+        Type::Universe => write!(f, "Type"),
+        Type::Primary(arg0) => write!(f, "{arg0:?}"),
+        Type::Ix(arg0) => write!(f, "Ix({arg0:?})"),
+        Type::Lam(arg0) => write!(f, "Lam({arg0:?})"),
+        Type::Forall(arg0) => write!(f, "Forall({arg0:?})"),
+        Type::Pi(arg0) => write!(f, "Pi({arg0:?})"),
+        Type::Rigid(arg0, arg1) => write!(f, "Rigid({arg0:?}, {arg1:?})"),
+        Type::Flexible(arg0, arg1) => write!(f, "Flexible({arg0:?}, {arg1:?})"),
+      }
     }
   }
 }

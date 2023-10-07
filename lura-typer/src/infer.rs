@@ -1471,11 +1471,9 @@ impl<'tctx> InferCtx<'tctx> {
     // Gets a forall type to instantiate, can't instantiate
     // non-forall types.
     match sigma.force() {
-      Tau::Forall(forall) => {
-        let parameters = forall.domain.iter().map(|_| self.new_meta()).collect::<Vec<_>>();
-
+      Type::Forall(forall) => {
         // Instantiate the forall type with new meta/hole types.
-        forall.instantiate(parameters)
+        forall.instantiate(self.new_meta())
       }
       sigma => Qual::new(sigma),
     }
@@ -1637,7 +1635,7 @@ impl<'tctx> InferCtx<'tctx> {
     ///
     /// It does create a dependent function type from a simple
     /// arrow type in the Lura language.
-    fn eval_fun(ctx: &mut InferCtx, fun: ArrowTypeRep) -> Tau {
+    fn eval_fun(ctx: &mut InferCtx, fun: ArrowTypeRep) -> Type {
       // Transforms a type representation of pi arrow into
       // a semantic type arrow with a pi arrow
       let value = ctx.translate(fun.value(ctx.db));

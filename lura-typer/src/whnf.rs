@@ -8,17 +8,9 @@ use crate::{
   type_rep::{pi::Pi, Quote, Type, Term},
 };
 
-pub(crate) trait Whnf {
-  /// Evaluates type to weak head normal form.
-  ///
-  /// This is used to normalize types before
-  /// comparing them for equality.
-  fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Self;
-}
-
 impl Term {
   fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Type {
-    todo!()
+    todo!();
     // match self {
     //   // Applies the function to the value,
     //   // like `Bool -> Bool` to `Bool`.
