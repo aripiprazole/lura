@@ -444,22 +444,22 @@ pub(crate) trait Infer {
 trait Check {
   type Output;
 
-  fn check(self, ty: Tau, ctx: &mut InferCtx) -> Self::Output;
+  fn check(self, type_repr: Type, ctx: &mut InferCtx) -> Self::Output;
 }
 
 impl Check for Pattern {
-  type Output = Type<state::Hoas>;
+  type Output = Type;
 
   /// Checks the pattern against the type. This is used to
   /// check the pattern against the type.
   ///
   /// It does generate definition for the bindings in
   /// the context.
-  fn check(self, repr: Tau, ctx: &mut InferCtx) -> Self::Output {
+  fn check(self, repr: Type, ctx: &mut InferCtx) -> Self::Output {
     match self {
       // SECTION: Sentinel Values
       Pattern::Hole => repr, // It's a hole pattern
-      Pattern::Error(_) => Tau::Primary(Primary::Error),
+      Pattern::Error(_) => Type::Primary(Primary::Error),
 
       // SECTION: Patterns
       Pattern::Literal(literal) => {
@@ -561,8 +561,8 @@ impl Infer for Expr {
   fn internal_infer(self, ctx: &mut InferCtx) -> Self::Output {
     match self {
       // SECTION: Sentinel Values
-      Expr::Empty => (no_preds(), Tau::Primary(Primary::Error)),
-      Expr::Error(_) => (no_preds(), Tau::Primary(Primary::Error)),
+      Expr::Empty => (no_preds(), Type::Primary(Primary::Error)),
+      Expr::Error(_) => (no_preds(), Type::Primary(Primary::Error)),
 
       // SECTION: Expressions
       // Handles literals, references and expressions that are not handled by other cases
@@ -774,20 +774,20 @@ impl Infer for Spanned<Literal> {
   fn internal_infer(self, _: &mut InferCtx) -> Self::Output {
     match self.value {
       // SECTION: Sentinel Values
-      Literal::Empty => Tau::Primary(Primary::Error),
+      Literal::Empty => Type::Primary(Primary::Error),
 
       // SECTION: Literals
-      Literal::Int8(_) => Tau::Primary(Primary::I8),
-      Literal::UInt8(_) => Tau::Primary(Primary::U8),
-      Literal::Int16(_) => Tau::Primary(Primary::I16),
-      Literal::UInt16(_) => Tau::Primary(Primary::U16),
-      Literal::Int32(_) => Tau::Primary(Primary::I32),
-      Literal::UInt32(_) => Tau::Primary(Primary::U32),
-      Literal::Int64(_) => Tau::Primary(Primary::I64),
-      Literal::UInt64(_) => Tau::Primary(Primary::U64),
-      Literal::String(_) => Tau::Primary(Primary::String),
-      Literal::Boolean(_) => Tau::Primary(Primary::Bool),
-      Literal::Char(_) => Tau::Primary(Primary::Char),
+      Literal::Int8(_) => Type::Primary(Primary::I8),
+      Literal::UInt8(_) => Type::Primary(Primary::U8),
+      Literal::Int16(_) => Type::Primary(Primary::I16),
+      Literal::UInt16(_) => Type::Primary(Primary::U16),
+      Literal::Int32(_) => Type::Primary(Primary::I32),
+      Literal::UInt32(_) => Type::Primary(Primary::U32),
+      Literal::Int64(_) => Type::Primary(Primary::I64),
+      Literal::UInt64(_) => Type::Primary(Primary::U64),
+      Literal::String(_) => Type::Primary(Primary::String),
+      Literal::Boolean(_) => Type::Primary(Primary::Bool),
+      Literal::Char(_) => Type::Primary(Primary::Char),
     }
   }
 }
@@ -864,7 +864,7 @@ impl Infer for TopLevel {
       // has_type_type: bool,
       use_return_type: bool,
       decl: impl Declaration,
-    ) -> Tau {
+    ) -> Type {
       let name = decl.name(ctx.db);
       let parameters = decl
         .parameters(ctx.db)
@@ -892,21 +892,21 @@ impl Infer for TopLevel {
       };
 
       let constructor = match decl.type_rep(ctx.db) {
-        Some(TypeRep::Error(_)) => Tau::Constructor(name.clone()),
+        Some(TypeRep::Error(_)) => Type::constructor(name.clone()),
         Some(TypeRep::Hole) if !use_return_type => {
           // type List a b = Cons a b
           // Type -> Type -> Type
-          let goal = Type::Constructor(name.clone());
+          let goal = Type::constructor(name.clone());
 
           // Generate the type-level function
           // that represents the declaration
           let return_type = parameters.iter().fold(goal, |acc, parameter| {
             // Creates a new type variable to represent
             // the type of the declaration
-            Tau::Pi(Pi {
+            Type::Pi(Pi {
               name: None,
               domain: parameter.clone().into(),
-              codomain: Rc::new(move |_| acc.clone()),
+              codomain: acc.quote(&ctx),
             })
           });
 
@@ -934,7 +934,7 @@ impl Infer for TopLevel {
           return variant_type;
         }
         Some(type_rep) => ctx.translate(type_rep),
-        None => Tau::Constructor(name.clone()),
+        None => Type::constructor(name.clone()),
       };
 
       // Creates the type of the variant
@@ -1005,7 +1005,7 @@ impl Infer for TopLevel {
         })
         .collect::<im_rc::Vector<_>>();
 
-      let pi = Tau::from_pi(parameters.clone().into_iter(), return_type.clone());
+      let pi = Type::from_pi(parameters.clone().into_iter(), return_type.clone());
       let mut preds = no_preds();
 
       if let Type::Forall(ref forall) = function_type {
@@ -1104,7 +1104,7 @@ impl Infer for TopLevel {
               .clone()
               .into_iter()
               .skip(arity)
-              .fold(return_type.clone(), |acc, param| Tau::from_pi(vec![param].into_iter(), acc));
+              .fold(return_type.clone(), |acc, param| Type::from_pi(vec![param].into_iter(), acc));
 
             // Checks the return type of the clause
             clause.value(local.db).check(return_type.clone(), local);
@@ -1120,8 +1120,8 @@ impl Infer for TopLevel {
       // The unit type is the default return type of a function
       // if it's not defined.
       if return_type.is_unbound() {
-        if let Type::Hole(ref hole) = return_type {
-          hole.borrow_mut().set_kind(HoleKind::Filled(Tau::UNIT));
+        if let Type::Flexible(ref hole, _) = return_type {
+          hole.set_kind(HoleKind::Filled(Type::UNIT))
         }
       }
     }
@@ -1198,15 +1198,15 @@ impl Infer for TopLevel {
 }
 
 impl Check for Expr {
-  type Output = (Preds, Type<state::Hoas>);
+  type Output = (Preds, Type);
 
   /// Checks the type of the expression. This is used
   /// to check the type of the expression.
-  fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
+  fn check(self, tau: Type, ctx: &mut InferCtx) -> Self::Output {
     match self {
       // SECTION: Sentinel Values
-      Expr::Empty => (no_preds(), Tau::Primary(Primary::Error)),
-      Expr::Error(_) => (no_preds(), Tau::Primary(Primary::Error)),
+      Expr::Empty => (no_preds(), Type::ERROR),
+      Expr::Error(_) => (no_preds(), Type::ERROR),
 
       // SECTION: Expressions
       _ => {
@@ -1221,7 +1221,7 @@ impl Check for Expr {
 }
 
 impl Infer for Stmt {
-  type Output = (Preds, Type<state::Hoas>);
+  type Output = (Preds, Type);
 
   /// Infers the type of the statement. This is used
   /// to infer the type of the statement.
@@ -1264,11 +1264,11 @@ impl Infer for Stmt {
 }
 
 impl Check for Block {
-  type Output = (Preds, Type<state::Hoas>);
+  type Output = (Preds, Type);
 
   /// Checks the type of the block. This is used
   /// to check the type of the block.
-  fn check(self, tau: Tau, ctx: &mut InferCtx) -> Self::Output {
+  fn check(self, tau: Type, ctx: &mut InferCtx) -> Self::Output {
     let return_type = replace(&mut ctx.return_type, Some(tau.clone()));
 
     // Checks the type of each statement
@@ -1279,7 +1279,7 @@ impl Check for Block {
     // Checks the type of the last statement
     let (preds, new_tau) = match self.statements(ctx.db).last() {
       Some(value) => value.clone().infer(ctx),
-      None => (no_preds(), Tau::UNIT),
+      None => (no_preds(), Type::UNIT),
     };
 
     new_tau.unify(tau, ctx);
@@ -1296,7 +1296,7 @@ pub(crate) struct EvalEnv {
   /// The environment that is used to evaluate the expression.
   ///
   /// This is used to evaluate the expression.
-  pub env: im_rc::HashMap<Definition, Tau, FxBuildHasher>,
+  pub env: im_rc::HashMap<Definition, Type, FxBuildHasher>,
 }
 
 /// This is a copy of the type environment that is used to
@@ -1322,24 +1322,24 @@ pub(crate) struct Snapshot {
   pub env: TypeEnv,
   pub adhoc_env: ClassEnv,
   pub eval_env: EvalEnv,
-  pub type_env: LocalDashMap<Definition, Tau>,
+  pub type_env: LocalDashMap<Definition, Type>,
   // END SECTION: Type environment
 
   // SECTION: Contextual information
-  pub self_type: Option<Tau>,
-  pub return_type: Option<Tau>,
+  pub self_type: Option<Type>,
+  pub return_type: Option<Type>,
   // END SECTION: Contextual information
   /// Statically typed expressions that are used in the program.
   ///
   /// This is used to check that the type of the expression is
   /// correct.
-  pub expressions: im_rc::HashMap<Expr, Tau, FxBuildHasher>,
+  pub expressions: im_rc::HashMap<Expr, Type, FxBuildHasher>,
 
   /// Statically typed statements that are used in the program.
-  pub parameters: im_rc::HashMap<Parameter, Tau, FxBuildHasher>,
+  pub parameters: im_rc::HashMap<Parameter, Type, FxBuildHasher>,
 
   /// Statically typed statements that are used in the program.
-  pub declarations: im_rc::HashMap<TopLevel, Tau, FxBuildHasher>,
+  pub declarations: im_rc::HashMap<TopLevel, Type, FxBuildHasher>,
 
   /// Debruijin index bindings for type names.
   pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
@@ -1364,33 +1364,33 @@ pub(crate) struct InferCtx<'tctx> {
   pub env: TypeEnv,
   pub adhoc_env: ClassEnv,
   pub eval_env: EvalEnv,
-  pub type_env: LocalDashMap<Definition, Tau>,
+  pub type_env: LocalDashMap<Definition, Type>,
   // END SECTION: Type environment
 
   // SECTION: Contextual information
-  pub self_type: Option<Tau>,
-  pub return_type: Option<Tau>,
+  pub self_type: Option<Type>,
+  pub return_type: Option<Type>,
   pub type_rep: Option<Location>,
   // END SECTION: Contextual information
   /// Statically typed expressions that are used in the program.
   ///
   /// This is used to check that the type of the expression is
   /// correct.
-  pub expressions: im_rc::HashMap<Expr, Tau, FxBuildHasher>,
+  pub expressions: im_rc::HashMap<Expr, Type, FxBuildHasher>,
 
   /// Statically typed statements that are used in the program.
-  pub parameters: im_rc::HashMap<Parameter, Tau, FxBuildHasher>,
+  pub parameters: im_rc::HashMap<Parameter, Type, FxBuildHasher>,
 
   /// Statically typed statements that are used in the program.
-  pub declarations: im_rc::HashMap<TopLevel, Tau, FxBuildHasher>,
+  pub declarations: im_rc::HashMap<TopLevel, Type, FxBuildHasher>,
 
   /// Debruijin index bindings for type names.
   pub debruijin_index: im_rc::HashMap<usize, String, FxBuildHasher>,
 }
 
-impl Predicate<state::Hoas> {
+impl Predicate {
   // Replaces a type variable with a type.
-  pub fn replace(self, name: Definition, replacement: Tau) -> Predicate<state::Hoas> {
+  pub fn replace(self, name: Definition, replacement: Type) -> Predicate {
     match self {
       Predicate::None => Predicate::None,
       Predicate::IsIn(class_name, arguments) => Predicate::IsIn(
@@ -1405,34 +1405,10 @@ impl Predicate<state::Hoas> {
   }
 }
 
-impl HoasForall {
-  // Replaces a type variable with a type.
-  pub fn replace(self, name: Definition, replacement: Tau) -> HoasForall {
-    HoasForall {
-      // TODO: iterate dependent kinds
-      domain: self.domain.clone(),
-      codomain: Rc::new(move |parameters| {
-        let qual = self.instantiate(parameters);
-
-        // Replaces the qualifier's data
-        Qual {
-          predicates: qual
-            .predicates
-            .clone()
-            .into_iter()
-            .map(|pred| pred.replace(name, replacement.clone()))
-            .collect(),
-          data: (*qual).clone().replace(name, replacement.clone()),
-        }
-      }),
-    }
-  }
-}
-
-impl Type<state::Hoas> {
+impl Type {
   /// Unifies the type with another type. This is used
   /// to equate two types.
-  pub(crate) fn unify(&self, tau: Tau, ctx: &mut InferCtx) -> bool {
+  pub(crate) fn unify(&self, tau: Type, ctx: &mut InferCtx) -> bool {
     let mut substitution = Substitution {
       ctx,
       errors: im_rc::vector![],
@@ -1446,27 +1422,28 @@ impl Type<state::Hoas> {
 
   /// Substitutes a type variable with a type. This is used
   /// to make substitutions in the type.
-  pub fn replace(self, name: Definition, replacement: Tau) -> Tau {
+  pub fn replace(self, name: Definition, replacement: Type) -> Type {
     use holes::HoleKind::*;
-    match self {
-      Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
-      Type::App(a, b) => Type::App(a.replace(name, replacement.clone()).into(), b.replace(name, replacement).into()),
-      Type::Pi(fun) => Type::Pi(Pi {
-        name: fun.name.clone(),
-        domain: fun.domain.clone().replace(name, replacement.clone()).into(),
-        codomain: Rc::new(move |domain| fun.codomain(domain).replace(name, replacement.clone())),
-      }),
-      Type::Hole(hole) => match hole.data.borrow_mut().kind() {
-        Error => Type::Hole(HoleRef::new(Hole { kind: Error })),
-        Empty { scope } => Type::Hole(HoleRef::new(Hole {
-          kind: Empty { scope: *scope },
-        })),
-        Filled(ty) => ty.clone().replace(name, replacement),
-      },
-      Type::Bound(Bound::Flexible(flexible)) if flexible.definition == name => replacement,
-      Type::Bound(bound) => Type::Bound(bound),
-      _ => self,
-    }
+    todo!()
+    // match self {
+    //   Type::Forall(forall) => Type::Forall(forall.replace(name, replacement)),
+    //   Type::App(a, b) => Type::App(a.replace(name, replacement.clone()).into(), b.replace(name, replacement).into()),
+    //   Type::Pi(fun) => Type::Pi(Pi {
+    //     name: fun.name.clone(),
+    //     domain: fun.domain.clone().replace(name, replacement.clone()).into(),
+    //     codomain: Rc::new(move |domain| fun.codomain(domain).replace(name, replacement.clone())),
+    //   }),
+    //   Type::Hole(hole) => match hole.data.borrow_mut().kind() {
+    //     Error => Type::Hole(HoleRef::new(Hole { kind: Error })),
+    //     Empty { scope } => Type::Hole(HoleRef::new(Hole {
+    //       kind: Empty { scope: *scope },
+    //     })),
+    //     Filled(ty) => ty.clone().replace(name, replacement),
+    //   },
+    //   Type::Bound(Bound::Flexible(flexible)) if flexible.definition == name => replacement,
+    //   Type::Bound(bound) => Type::Bound(bound),
+    //   _ => self,
+    // }
   }
 }
 
@@ -1490,7 +1467,7 @@ impl<'tctx> InferCtx<'tctx> {
   // variables with unfilled holes.
   //
   // This only works with [`Type::Forall`] types.
-  pub(crate) fn instantiate(&mut self, sigma: Tau) -> Qual<state::Hoas, Tau> {
+  pub(crate) fn instantiate(&mut self, sigma: Type) -> Qual<Type> {
     // Gets a forall type to instantiate, can't instantiate
     // non-forall types.
     match sigma.force() {
@@ -1509,31 +1486,32 @@ impl<'tctx> InferCtx<'tctx> {
   ///
   /// This is only enabled by language feature flag in the
   /// CLI.
-  fn quantify(&self, tau: Tau) -> Tau {
-    fn generalize(variables: &mut Vec<(Name, Type<state::Hoas>)>, tau: Tau) {
-      match tau {
-        Type::App(callee, argument) => {
-          generalize(variables, *callee);
-          generalize(variables, *argument);
-        }
-        Type::Stuck(stuck) => {
-          generalize(variables, *stuck.base);
-          for tau in stuck.spine {
-            generalize(variables, tau.clone());
-          }
-        }
-        Type::Hole(hole) => match hole.data.borrow_mut().kind() {
-          HoleKind::Error => {}
-          HoleKind::Empty { .. } => {}
-          HoleKind::Filled(value) => {
-            generalize(variables, value.clone());
-          }
-        },
-        Type::Bound(Bound::Flexible(name)) => {
-          variables.push((name, Tau::Universe));
-        }
-        _ => {}
-      }
+  fn quantify(&self, tau: Type) -> Type {
+    fn generalize(variables: &mut Vec<(Name, Type)>, tau: Type) {
+      todo!()
+      // match tau {
+      //   Type::App(callee, argument) => {
+      //     generalize(variables, *callee);
+      //     generalize(variables, *argument);
+      //   }
+      //   Type::Stuck(stuck) => {
+      //     generalize(variables, *stuck.base);
+      //     for tau in stuck.spine {
+      //       generalize(variables, tau.clone());
+      //     }
+      //   }
+      //   Type::Hole(hole) => match hole.data.borrow_mut().kind() {
+      //     HoleKind::Error => {}
+      //     HoleKind::Empty { .. } => {}
+      //     HoleKind::Filled(value) => {
+      //       generalize(variables, value.clone());
+      //     }
+      //   },
+      //   Type::Bound(Bound::Flexible(name)) => {
+      //     variables.push((name, Tau::Universe));
+      //   }
+      //   _ => {}
+      // }
     }
 
     let mut variables = vec![];
@@ -1542,32 +1520,31 @@ impl<'tctx> InferCtx<'tctx> {
     if variables.is_empty() {
       tau
     } else {
-      Tau::Forall(HoasForall {
-        domain: variables.clone(),
-        codomain: Rc::new(move |domain| {
-          let mut tau = tau.clone();
-          for ((name, _), value) in variables.iter().zip(domain) {
-            tau = tau.replace(name.definition, value);
-          }
-          Qual::new(tau)
-        }),
-      })
+      todo!()
+      // Tau::Forall(HoasForall {
+      //   domain: variables.clone(),
+      //   codomain: Rc::new(move |domain| {
+      //     let mut tau = tau.clone();
+      //     for ((name, _), value) in variables.iter().zip(domain) {
+      //       tau = tau.replace(name.definition, value);
+      //     }
+      //     Qual::new(tau)
+      //   }),
+      // })
     }
   }
 
   /// Creates a new meta type. This is used to
   /// create a new empty hole.
-  pub(crate) fn new_meta(&mut self) -> Tau {
-    Tau::Hole(HoleRef::new(Hole {
-      kind: holes::HoleKind::Empty { scope: self.env.level },
-    }))
+  pub(crate) fn new_meta(&mut self) -> Type {
+    Type::flexible(holes::HoleKind::Empty { scope: self.env.level })
   }
 
   /// Creates a new semantic type from a syntactical type representation,
   /// it does report errors and means the type is not inferred.
   ///
   /// This is used to transform a type representation into a semantic type.
-  fn translate(&mut self, type_rep: TypeRep) -> Tau {
+  fn translate(&mut self, type_rep: TypeRep) -> Type {
     // Validates a forall binding to check if it is
     // compatible with the a type variable.
     fn forall_binding(ctx: &mut InferCtx, pattern: Pattern, loc: Location) -> Option<Name> {
@@ -1593,7 +1570,7 @@ impl<'tctx> InferCtx<'tctx> {
     // Evaluates a forall resolved type into a semantic type.
     //
     // This is used to transform a type representation into a semantic type.
-    fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Tau {
+    fn eval_forall(ctx: &mut InferCtx, forall: ArrowTypeRep) -> Type {
       // Transforms a type representation of forall arrow into
       // a semantic type arrow with a forall quantifier
       let value = ctx.translate(forall.value(ctx.db));
@@ -1634,25 +1611,26 @@ impl<'tctx> InferCtx<'tctx> {
         })
         .collect::<Vec<_>>();
 
-      Tau::Forall(HoasForall {
-        domain: parameters.clone(),
-        codomain: Rc::new(move |domain| {
-          // This is the forall's codomain, it is a function
-          // that takes a list of types and returns a type.
-          let mut value = value.clone();
-
-          // This substitutes the forall's parameters names with
-          // its equivalent values.
-          //
-          // TODO: add to the context and use the context to
-          // evaluate the type.
-          for ((name, _), type_rep) in parameters.clone().into_iter().zip(domain) {
-            value = value.replace(name.definition, type_rep)
-          }
-
-          Qual::new(value)
-        }),
-      })
+      todo!()
+      // Tau::Forall(HoasForall {
+      //   domain: parameters.clone(),
+      //   codomain: Rc::new(move |domain| {
+      //     // This is the forall's codomain, it is a function
+      //     // that takes a list of types and returns a type.
+      //     let mut value = value.clone();
+      //
+      //     // This substitutes the forall's parameters names with
+      //     // its equivalent values.
+      //     //
+      //     // TODO: add to the context and use the context to
+      //     // evaluate the type.
+      //     for ((name, _), type_rep) in parameters.clone().into_iter().zip(domain) {
+      //       value = value.replace(name.definition, type_rep)
+      //     }
+      //
+      //     Qual::new(value)
+      //   }),
+      // })
     }
 
     /// Evaluates a function type into a semantic type.
@@ -1674,11 +1652,12 @@ impl<'tctx> InferCtx<'tctx> {
           parameter.binding(ctx.db).check(type_rep, ctx)
         })
         .fold(value, |acc, next| {
-          Tau::Pi(Pi {
-            name: None,
-            domain: next.into(),
-            codomain: Rc::new(move |_| acc.clone()),
-          })
+          todo!()
+          // Tau::Pi(Pi {
+          //   name: None,
+          //   domain: next.into(),
+          //   codomain: Rc::new(move |_| acc.clone()),
+          // })
         })
     }
 
@@ -1692,7 +1671,7 @@ impl<'tctx> InferCtx<'tctx> {
     ///
     /// It's called sigma, because the semantics behaviours like
     /// a sigma, but it's not a literal sigma in the language.
-    fn eval_sigma(ctx: &mut InferCtx, sigma: ArrowTypeRep) -> Tau {
+    fn eval_sigma(ctx: &mut InferCtx, sigma: ArrowTypeRep) -> Type {
       // The variables that should be added to forall to make the language
       // easier to use
       let mut ftv: im_rc::HashSet<Fv, FxBuildHasher> = im_rc::HashSet::default();
@@ -1730,58 +1709,59 @@ impl<'tctx> InferCtx<'tctx> {
 
           // NOTE: this is a hack to make the language easier to use
           // and to make the type checker easier to implement.
-          Some((name.clone(), Tau::Universe))
+          Some((name.clone(), Type::Universe))
         })
         .collect::<Vec<_>>();
 
       let value = ctx.translate(sigma.value(ctx.db));
 
-      Tau::Forall(HoasForall {
-        domain: domain.clone(),
-        codomain: Rc::new(move |parameters| {
-          // This is the forall's codomain, it is a function
-          // that takes a list of types and returns a type.
-          let mut value = value.clone();
-
-          // This substitutes the forall's parameters names with
-          // its equivalent values.
-          let mut new_predicates = vec![];
-
-          // Normalises the predicates to make sure that
-          // the predicates are in the right form.
-          //
-          // And to check if they are present in the context!
-          for mut predicate in predicates.clone() {
-            let parameters = domain.clone().into_iter().zip(parameters.clone());
-
-            // This substitutes the forall's parameters names with
-            // its equivalent values.
-            for ((name, _), tau) in parameters {
-              predicate = predicate.replace(name.definition, tau);
-            }
-
-            new_predicates.push(predicate);
-          }
-
-          // This substitutes the forall's parameters names with
-          // its equivalent values.
-          for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
-            value = value.replace(name.definition, type_rep)
-          }
-
-          Qual {
-            predicates: new_predicates,
-            data: value,
-          }
-        }),
-      })
+      todo!()
+      // Tau::Forall(HoasForall {
+      //   domain: domain.clone(),
+      //   codomain: Rc::new(move |parameters| {
+      //     // This is the forall's codomain, it is a function
+      //     // that takes a list of types and returns a type.
+      //     let mut value = value.clone();
+      //
+      //     // This substitutes the forall's parameters names with
+      //     // its equivalent values.
+      //     let mut new_predicates = vec![];
+      //
+      //     // Normalises the predicates to make sure that
+      //     // the predicates are in the right form.
+      //     //
+      //     // And to check if they are present in the context!
+      //     for mut predicate in predicates.clone() {
+      //       let parameters = domain.clone().into_iter().zip(parameters.clone());
+      //
+      //       // This substitutes the forall's parameters names with
+      //       // its equivalent values.
+      //       for ((name, _), tau) in parameters {
+      //         predicate = predicate.replace(name.definition, tau);
+      //       }
+      //
+      //       new_predicates.push(predicate);
+      //     }
+      //
+      //     // This substitutes the forall's parameters names with
+      //     // its equivalent values.
+      //     for ((name, _), type_rep) in domain.clone().into_iter().zip(parameters) {
+      //       value = value.replace(name.definition, type_rep)
+      //     }
+      //
+      //     Qual {
+      //       predicates: new_predicates,
+      //       data: value,
+      //     }
+      //   }),
+      // })
     }
 
     /// Evaluates an application type into a semantic type.
     ///
     /// It does create stuck types from a simple application
     /// type in the Lura language.
-    fn eval_app(ctx: &mut InferCtx, app: AppTypeRep) -> Tau {
+    fn eval_app(ctx: &mut InferCtx, app: AppTypeRep) -> Type {
       let mut spine = vec![];
       let callee = ctx.translate(app.callee(ctx.db));
 
@@ -1792,7 +1772,8 @@ impl<'tctx> InferCtx<'tctx> {
         let value = ctx.translate(next);
         spine.push(value.clone());
 
-        Tau::App(acc.into(), value.into())
+        todo!()
+        // Tau::App(acc.into(), value.into())
       });
 
       // The base type for a stuck
@@ -1817,11 +1798,11 @@ impl<'tctx> InferCtx<'tctx> {
     match type_rep {
       // SECTION: Sentinel Values
       TypeRep::Hole => self.new_meta(), // Infer the type
-      TypeRep::Error(_) => Tau::ERROR,
+      TypeRep::Error(_) => Type::ERROR,
 
       // SECTION: Primary Types
-      TypeRep::Unit => Tau::UNIT,
-      TypeRep::Type => Tau::TYPE,
+      TypeRep::Unit => Type::UNIT,
+      TypeRep::Type => Type::TYPE,
 
       // SECTION: Function Types
       TypeRep::Arrow(fun) if matches!(fun.kind(self.db), ArrowKind::Fun) => eval_fun(self, fun),
@@ -1832,18 +1813,18 @@ impl<'tctx> InferCtx<'tctx> {
       TypeRep::App(app) => eval_app(self, app),
 
       // SECTION: Primitive types
-      TypeRep::Path(TypeReference::Bool, _) => Tau::BOOL,
-      TypeRep::Path(TypeReference::Unit, _) => Tau::UNIT,
-      TypeRep::Path(TypeReference::Int8, _) => Tau::Primary(Primary::I8),
-      TypeRep::Path(TypeReference::UInt8, _) => Tau::Primary(Primary::U8),
-      TypeRep::Path(TypeReference::Int16, _) => Tau::Primary(Primary::I16),
-      TypeRep::Path(TypeReference::UInt16, _) => Tau::Primary(Primary::U16),
-      TypeRep::Path(TypeReference::Int32, _) => Tau::Primary(Primary::I32),
-      TypeRep::Path(TypeReference::UInt32, _) => Tau::Primary(Primary::U32),
-      TypeRep::Path(TypeReference::Int64, _) => Tau::Primary(Primary::I64),
-      TypeRep::Path(TypeReference::UInt64, _) => Tau::Primary(Primary::U64),
-      TypeRep::Path(TypeReference::String, _) => Tau::Primary(Primary::String),
-      TypeRep::Path(TypeReference::Nat, _) => Tau::Primary(Primary::I32),
+      TypeRep::Path(TypeReference::Bool, _) => Type::BOOL,
+      TypeRep::Path(TypeReference::Unit, _) => Type::UNIT,
+      TypeRep::Path(TypeReference::Int8, _) => Type::Primary(Primary::I8),
+      TypeRep::Path(TypeReference::UInt8, _) => Type::Primary(Primary::U8),
+      TypeRep::Path(TypeReference::Int16, _) => Type::Primary(Primary::I16),
+      TypeRep::Path(TypeReference::UInt16, _) => Type::Primary(Primary::U16),
+      TypeRep::Path(TypeReference::Int32, _) => Type::Primary(Primary::I32),
+      TypeRep::Path(TypeReference::UInt32, _) => Type::Primary(Primary::U32),
+      TypeRep::Path(TypeReference::Int64, _) => Type::Primary(Primary::I64),
+      TypeRep::Path(TypeReference::UInt64, _) => Type::Primary(Primary::U64),
+      TypeRep::Path(TypeReference::String, _) => Type::Primary(Primary::String),
+      TypeRep::Path(TypeReference::Nat, _) => Type::Primary(Primary::I32),
 
       // SECTION: Paths
       // We should not resolve the type here, but rather
@@ -1860,7 +1841,8 @@ impl<'tctx> InferCtx<'tctx> {
         .unwrap_or_else(|| {
           let name = self.create_new_name(reference.definition(self.db));
 
-          Tau::Bound(Bound::Flexible(name))
+          todo!()
+          // Tau::Bound(Bound::Flexible(name))
         }),
 
       TypeRep::SelfType => self.self_type.clone().unwrap_or_else(|| {
@@ -1910,7 +1892,7 @@ impl<'tctx> InferCtx<'tctx> {
 
   /// Finds a reference to a variable in the environment
   /// and returns its type.
-  fn reference(&mut self, reference: Reference) -> (Preds, Tau) {
+  fn reference(&mut self, reference: Reference) -> (Preds, Type) {
     let def = reference.definition(self.db);
 
     let generalised = self.env.variables.get(&def).cloned().unwrap_or_else(|| {
@@ -1931,7 +1913,7 @@ impl<'tctx> InferCtx<'tctx> {
 
   /// Finds a reference to a constructor in the environment
   /// and returns its type.
-  fn constructor(&mut self, reference: Reference) -> Tau {
+  fn constructor(&mut self, reference: Reference) -> Type {
     let let_ty = self
       .env
       .constructors
@@ -1953,8 +1935,8 @@ impl<'tctx> InferCtx<'tctx> {
 
   /// Gets a default void value for the type
   /// system.
-  fn void(&mut self) -> Tau {
-    Tau::Primary(Primary::Unit)
+  fn void(&mut self) -> Type {
+    Type::Primary(Primary::Unit)
   }
 
   /// Replaces temporally the environment with a new one.
@@ -2010,7 +1992,7 @@ impl<'tctx> InferCtx<'tctx> {
   }
 
   // Creates a new definition in the environment
-  fn extend(&mut self, name: Definition, tau: Tau) {
+  fn extend(&mut self, name: Definition, tau: Type) {
     self.type_env.insert(name, tau);
   }
 
