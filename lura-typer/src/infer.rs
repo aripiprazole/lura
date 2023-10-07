@@ -1788,10 +1788,11 @@ impl<'tctx> InferCtx<'tctx> {
       } else {
         // If the spine is not empty, we create a stuck type
         // with the base type and the spine.
-        Tau::Stuck(Stuck {
-          base: base.into(),
-          spine,
-        })
+        todo!()
+        // Tau::Stuck(Stuck {
+        //   base: base.into(),
+        //   spine,
+        // })
       }
     }
 
@@ -1922,7 +1923,7 @@ impl<'tctx> InferCtx<'tctx> {
       .unwrap_or_else(|| {
         // If the constructor is not found, then we return the error type
         Rc::new(InternalVariant {
-          name: Tau::Primary(Primary::Error),
+          name: Type::Primary(Primary::Error),
           parameters: im_rc::vector![],
         })
       });
