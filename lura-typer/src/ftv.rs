@@ -2,15 +2,11 @@ use fxhash::FxBuildHasher;
 use im_rc::HashSet;
 
 use crate::type_rep::{
-  forall,
   holes::{HoleKind, HoleRef},
-  pi, state, stuck, Bound, Type,
+  pi, Type,
 };
 
-/// Represents a variable that isn't bound to any context.
-pub type Fv = Bound;
-
-pub type Fvs = im_rc::Vector<Fv>;
+pub type Fvs = im_rc::Vector<String>;
 
 pub trait Ftv {
   /// Collects all variables that are free in the type.
@@ -20,83 +16,44 @@ pub trait Ftv {
   fn ftv(&self) -> Fvs;
 }
 
-impl Ftv for Type<state::Hoas> {
+impl Ftv for Type {
   fn ftv(&self) -> Fvs {
-    match self {
-      Type::Universe => Default::default(),
-      Type::Primary(_) => Default::default(),
-      Type::Constructor(_) => Default::default(),
-      Type::Forall(forall) => forall.ftv(),
-      Type::Pi(pi) => pi.ftv(),
-      Type::Stuck(stuck) => stuck.ftv(),
-      Type::Hole(hole) => hole.ftv(),
-      Type::App(callee, value) => remove_duplicates(callee.ftv().into_iter().chain(value.ftv()).collect()),
-      Type::Bound(bound) => {
-        // NOTE: it doesn't use the [`hashset!`] macro, because
-        // it uses the default hasher, which is not compatible
-        // with the [`FxBuildHasher`].
-        let mut ftv = Fvs::default();
-        ftv.push_back(bound.clone());
-        ftv
-      }
-    }
-  }
-}
-
-impl Ftv for HoleRef<state::Hoas> {
-  fn ftv(&self) -> Fvs {
-    match self.kind() {
-      HoleKind::Error => Default::default(),
-      HoleKind::Empty { .. } => Default::default(),
-      HoleKind::Filled(value) => value.ftv(),
-    }
-  }
-}
-
-impl Ftv for stuck::Stuck<state::Hoas> {
-  fn ftv(&self) -> Fvs {
-    let ftv = self
-      .spine
-      .iter()
-      .flat_map(|value| value.ftv())
-      .chain(self.base.ftv())
-      .collect();
-
-    remove_duplicates(ftv)
-  }
-}
-
-impl Ftv for forall::HoasForall {
-  fn ftv(&self) -> Fvs {
-    let domain = self.domain.iter().map(|_| Type::Bound(Bound::Hole));
-
-    // NOTE: it doesn't use the [`hashset!`] macro, because
-    // it uses the default hasher, which is not compatible
-    // with the [`FxBuildHasher`].
-    let ftv = self
-      .domain
-      .iter()
-      .flat_map(|(_, kind)| kind.ftv())
-      .chain(self.instantiate(domain.collect()).ftv())
-      .collect();
-
-    remove_duplicates(ftv)
+    todo!()
+    // match self {
+    //   Type::Universe => Default::default(),
+    //   Type::Primary(_) => Default::default(),
+    //   Type::Constructor(_) => Default::default(),
+    //   Type::Forall(forall) => forall.ftv(),
+    //   Type::Pi(pi) => pi.ftv(),
+    //   Type::Stuck(stuck) => stuck.ftv(),
+    //   Type::Hole(hole) => hole.ftv(),
+    //   Type::App(callee, value) => remove_duplicates(callee.ftv().into_iter().chain(value.ftv()).collect()),
+    //   Type::Bound(bound) => {
+    //     // NOTE: it doesn't use the [`hashset!`] macro, because
+    //     // it uses the default hasher, which is not compatible
+    //     // with the [`FxBuildHasher`].
+    //     let mut ftv = Fvs::default();
+    //     ftv.push_back(bound.clone());
+    //     ftv
+    //   }
+    // }
   }
 }
 
 impl Ftv for pi::Pi {
   fn ftv(&self) -> Fvs {
-    // NOTE: it doesn't use the [`hashset!`] macro, because
-    // it uses the default hasher, which is not compatible
-    // with the [`FxBuildHasher`].
-    let ftv = self
-      .domain
-      .ftv()
-      .into_iter()
-      .chain(self.codomain(Type::Bound(Bound::Hole)).ftv())
-      .collect();
-
-    remove_duplicates(ftv)
+    todo!()
+    // // NOTE: it doesn't use the [`hashset!`] macro, because
+    // // it uses the default hasher, which is not compatible
+    // // with the [`FxBuildHasher`].
+    // let ftv = self
+    //   .domain
+    //   .ftv()
+    //   .into_iter()
+    //   .chain(self.codomain(Type::Bound(Bound::Hole)).ftv())
+    //   .collect();
+    //
+    // remove_duplicates(ftv)
   }
 }
 

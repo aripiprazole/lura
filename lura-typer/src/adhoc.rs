@@ -9,7 +9,7 @@ use lura_hir::source::{
 };
 
 use crate::{
-  ftv::{Ftv, Fv},
+  ftv::{Ftv},
   infer::InferCtx,
   thir::{ThirDiagnostic, ThirLocation},
   type_rep::{self, Name, Quote, Type, Term},
@@ -89,7 +89,7 @@ pub struct ConstraintSolverError {
 }
 
 /// The free variables we would generalise over.
-type PredFvs = im_rc::HashSet<Fv, FxBuildHasher>;
+type PredFvs = im_rc::HashSet<String, FxBuildHasher>;
 
 type Constraints = im_rc::HashMap<Name, im_rc::HashSet<Predicate>>;
 
