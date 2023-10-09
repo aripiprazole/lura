@@ -282,39 +282,6 @@ pub mod pi {
   }
 }
 
-impl Type {
-  /// Create a new pi type. This is used to create a new pi type.
-  ///
-  /// # Parameters
-  ///
-  /// - `domain`: The domain of the pi type.
-  /// - `value`: The value of the pi type.
-  pub fn from_pi<I>(mut parameters: I, return_type: Self) -> Self
-  where
-    I: Iterator<Item = Self>,
-  {
-    let Some(first) = parameters.next() else {
-      return return_type;
-    };
-
-    let mut result = Self::Pi(Pi {
-      name: None,
-      domain: first.into(),
-      codomain: Rc::new(move |_| return_type.clone()),
-    });
-
-    for domain in parameters {
-      result = Type::Pi(Pi {
-        name: None,
-        domain: domain.into(),
-        codomain: Rc::new(move |_| result.clone()),
-      });
-    }
-
-    result
-  }
-}
-
 /// Implements display traits tor the types. This is used to display the
 /// types, debug or otherwise.
 ///
