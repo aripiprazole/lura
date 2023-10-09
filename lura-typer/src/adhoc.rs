@@ -17,8 +17,8 @@ use crate::{
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassEnv {
-  pub type_predicates: im_rc::HashMap<Type<Hoas>, Vec<Predicate<Hoas>>>,
-  pub expressions: im_rc::HashMap<Expr, Vec<Predicate<Hoas>>>,
+  pub type_predicates: im_rc::HashMap<Type, Vec<Predicate>>,
+  pub expressions: im_rc::HashMap<Expr, Vec<Predicate>>,
 }
 
 /// Represents a class, i.e. a collection of types that share a common
@@ -28,7 +28,7 @@ pub struct Trait {
   pub instances: Vec<Instance>,
 }
 
-pub type Instance<S> = Qual<Predicate<S>>;
+pub type Instance = Qual<Predicate>;
 
 /// Represents a qualified type, i.e. a type with predicates.
 ///
