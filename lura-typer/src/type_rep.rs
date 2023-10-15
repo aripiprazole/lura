@@ -91,7 +91,7 @@ impl Display for Name {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Term {
   Universe,
   Primary(Primary),
