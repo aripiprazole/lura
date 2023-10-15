@@ -121,25 +121,25 @@ impl Substitution<'_, '_> {
         // self.hole_unify_prechecks(domain, scope, hole.clone());
         // self.hole_unify_prechecks(codomain, scope, hole)
       }
-      Type::Ix(ix) if ix > scope => {
-        self.errors.push_back(TypeError::EscapingScope(ix));
-      }
       // SECTION: Hole
-      Type::Flexible(h, spine) => {
+      Type::Rigid(lvl, spine) => {
+        self.hole_unify_prechecks(*lvl, scope, hole.clone());
+        for type_rep in spine.into_iter() {
+          self.hole_unify_prechecks(type_rep, scope, hole.clone());
+        }
+      }
+      flexible @ Type::Flexible(ref mut h, ref spine) => {
         use holes::HoleKind::*;
         if h == hole {
-          self.errors.push_back(TypeError::OccursCheck(Type::Flexible(h, spine)));
+          self.errors.push_back(TypeError::OccursCheck(flexible));
           return;
         }
-
-        // Checks that the hole doesn't occur in the type
-        for value in spine {
-          self.hole_unify_prechecks(value, scope, hole.clone());
+        for type_rep in spine {
+          self.hole_unify_prechecks(type_rep.clone(), scope, hole.clone());
         }
-
         match h.kind() {
           Empty { scope: l } if *l > scope => h.set_kind(Empty { scope }),
-          Filled(ty) => self.hole_unify_prechecks(ty.clone(), scope, hole),
+          Filled(type_rep) => self.hole_unify_prechecks(type_rep.clone(), scope, hole),
           _ => {}
         }
       }
@@ -160,6 +160,9 @@ impl Substitution<'_, '_> {
       // SECTION: Holes
       Empty { scope } => {
         // Checks that the hole doesn't occur in the type
+        // if type_rep == Tau::Hole(hole.clone()) {
+        //   return None;
+        // }
         if let Type::Flexible(h, spine) = type_repr.clone() {
           if h == hole {
             self.errors.push_back(TypeError::OccursCheck(Type::Flexible(h, spine)));
@@ -179,149 +182,128 @@ impl Substitution<'_, '_> {
 
   /// Unifies two types. This is used to unify two types. It
   /// equates the two types.
+  #[rustfmt::skip]
   fn internal_unify(&mut self, a: Type, b: Type) -> Option<()> {
+    // Matches the types to equate them.
+    match (a, b) {
+      // SECTION: Unification
+      (Type::Flexible(hole_a, spine_a),                               b) => self.unify_hole(b, hole_a)?,
+      (a                              , Type::Flexible(hole_b, spine_b)) => self.unify_hole(a, hole_b)?,
+
+      // SECTION: Concrete values
+      (Type::Primary(value_a)         ,        Type::Primary(value_b)) if value_a == value_b => {}
+      (Type::Primary(value_a)         ,        Type::Primary(value_b)) if value_a != value_b => {
+        self.errors.push_back(TypeError::IncompatibleValues {
+          expected: value_a,
+          actual: value_b,
+        });
+
+        return None;
+      }
+      (Type::Universe                 ,                Type::Universe)                       => {}
+      (_                              , Type::Primary(Primary::Error))                       => {}
+      (Type::Primary(Primary::Error)  ,                             _)                       => {}
+
+      // SECTION: Stuck Data
+      (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
+        // Unifies the base of the stuck values
+        self.internal_unify(*stuck_a.base, *stuck_b.base)?;
+
+        // Unifies the spines of the stuck values
+        for (a, b) in stuck_a.spine.iter().zip(stuck_b.spine.iter()) {
+          self.internal_unify(a.clone(), b.clone())?;
+        }
+      }
+
+      (Type::Pi(pi_a), Type::Pi(pi_b)) => {
+        // Unifies two type-level functions. This is used to unify
+        // two type-level functions. It equates the two functions.
+        //
+        // Snapshots the context, and then evaluates the domain
+        // and codomain of the functions. Then it unifies the
+        // domains and codomains.
+        let ctx = self.ctx.snapshot();
+        let domain_a = pi_a.domain.eval(&ctx, self.ctx.eval_env.clone());
+        let domain_b = pi_b.domain.eval(&ctx, self.ctx.eval_env.clone());
+
+        let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
+        let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
+
+        // Recurse on the domain and codomain
+        self.internal_unify(domain_a, domain_b)?;
+        self.internal_unify(codomain_a, codomain_b)?;
+      }
+      (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
+        // Basically recurse on the callee and the value
+        self.internal_unify(*callee_a, *callee_b)?;
+        self.internal_unify(*value_a, *value_b)?;
+      }
+      (Type::Forall(forall_a), Type::Forall(forall_b)) => {
+        // "Alpha equivalence": forall a. a -> a = forall b. b -> b
+        if forall_a.domain.len() != forall_b.domain.len() {
+          self.errors.push_back(TypeError::IncorrectArity {
+            expected: forall_a.domain.len(),
+            actual: forall_b.domain.len(),
+          });
+
+          return None;
+        }
+
+        // SECTION: OLD HINDLEY MILNER CODE
+        //
+        // ```rs
+        // let mut acc_a = *forall_a.data.value.clone();
+        // let mut acc_b = *forall_b.data.value.clone();
+        // for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
+        //     let level = self.ctx.add_to_env(param_a.name);
+        //     let name = self.ctx.create_new_name(param_a.name);
+        //     let debruijin = Tau::Bound(Bound::Index(name, level));
+        //     acc_a = acc_a.replace(param_a.name, debruijin.clone());
+        //     acc_b = acc_b.replace(param_b.name, debruijin);
+        // }
+        //
+        // // Unify the results to compare the results
+        // self.internal_unify(acc_a, acc_b);
+        // ```
+        //
+        // As the code doesn't implement subjumption, we need to
+        // throw an error whenever this unification is called.
+        //
+        // TODO: Implement subjumption
+        //
+        // NOTE: When higher-rank poly doesn't have polymorphic
+        // subtyping, it's unsound. So, we need to implement
+        // polymorphic subtyping.
+        self.ctx.accumulate::<()>(ThirDiagnostic {
+          id: ErrorId("polymorphic-subtyping"),
+          location: ThirLocation::CallSite,
+          message: message!["Polymorphic subtyping is not implemented yet"],
+        });
+
+        return None;
+      }
+      (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
+        if level_a != level_b {
+          self.errors.push_back(TypeError::IncorrectLevel {
+            expected: level_a,
+            actual: level_b,
+          });
+
+          return None;
+        }
+      }
+
+      // SECTION: Type Error
+      // Report accumulating type check error, when the types
+      // cannot be unified.
+      (a, b) => {
+        self.errors.push_back(TypeError::CannotUnify(a, b));
+
+        return None;
+      }
+    };
+
     Some(())
-    // // Matches the types to equate them.
-    // match (a, b) {
-    //   // SECTION: Unification
-    //   (Type::Hole(hole_a), b) => self.unify_hole(b, hole_a)?,
-    //   (a, Type::Hole(hole_b)) => self.unify_hole(a, hole_b)?,
-    //
-    //   // SECTION: Sentinel Values
-    //   (_, Type::Primary(Primary::Error)) => {}
-    //   (Type::Primary(Primary::Error), _) => {}
-    //
-    //   // SECTION: Empty variables
-    //   (Type::Bound(Bound::Hole), _) => {}
-    //   (_, Type::Bound(Bound::Hole)) => {}
-    //
-    //   // SECTION: Types
-    //   (Type::Universe, Type::Universe) => {}
-    //
-    //   // SECTION: Stuck Data
-    //   (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
-    //     // Unifies the base of the stuck values
-    //     self.internal_unify(*stuck_a.base, *stuck_b.base)?;
-    //
-    //     // Unifies the spines of the stuck values
-    //     for (a, b) in stuck_a.spine.iter().zip(stuck_b.spine.iter()) {
-    //       self.internal_unify(a.clone(), b.clone())?;
-    //     }
-    //   }
-    //
-    //   // SECTION: Types
-    //   (Type::Primary(primary_a), Type::Primary(primary_b)) => {
-    //     if primary_a != primary_b {
-    //       self.errors.push_back(TypeError::IncompatibleValues {
-    //         expected: primary_a,
-    //         actual: primary_b,
-    //       });
-    //
-    //       return None;
-    //     }
-    //   }
-    //
-    //   (Type::Constructor(constructor_a), Type::Constructor(constructor_b)) => {
-    //     // Unify the constructor names, if they are the same definition
-    //     // it does unify correctly, otherwise it throws an error.
-    //     if constructor_a.definition != constructor_b.definition {
-    //       self.errors.push_back(TypeError::IncompatibleTypes {
-    //         expected: constructor_a.definition,
-    //         actual: constructor_b.definition,
-    //       });
-    //
-    //       return None;
-    //     }
-    //   }
-    //   (Type::Pi(pi_a), Type::Pi(pi_b)) => {
-    //     // Unifies two type-level functions. This is used to unify
-    //     // two type-level functions. It equates the two functions.
-    //     //
-    //     // Snapshots the context, and then evaluates the domain
-    //     // and codomain of the functions. Then it unifies the
-    //     // domains and codomains.
-    //     let ctx = self.ctx.snapshot();
-    //     let domain_a = pi_a.domain.eval(&ctx, self.ctx.eval_env.clone());
-    //     let domain_b = pi_b.domain.eval(&ctx, self.ctx.eval_env.clone());
-    //
-    //     let codomain_a = pi_a.codomain(Type::Bound(Bound::Hole));
-    //     let codomain_b = pi_b.codomain(Type::Bound(Bound::Hole));
-    //
-    //     // Recurse on the domain and codomain
-    //     self.internal_unify(domain_a, domain_b)?;
-    //     self.internal_unify(codomain_a, codomain_b)?;
-    //   }
-    //   (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
-    //     // Basically recurse on the callee and the value
-    //     self.internal_unify(*callee_a, *callee_b)?;
-    //     self.internal_unify(*value_a, *value_b)?;
-    //   }
-    //   (Type::Forall(forall_a), Type::Forall(forall_b)) => {
-    //     // "Alpha equivalence": forall a. a -> a = forall b. b -> b
-    //     if forall_a.domain.len() != forall_b.domain.len() {
-    //       self.errors.push_back(TypeError::IncorrectArity {
-    //         expected: forall_a.domain.len(),
-    //         actual: forall_b.domain.len(),
-    //       });
-    //
-    //       return None;
-    //     }
-    //
-    //     // SECTION: OLD HINDLEY MILNER CODE
-    //     //
-    //     // ```rs
-    //     // let mut acc_a = *forall_a.data.value.clone();
-    //     // let mut acc_b = *forall_b.data.value.clone();
-    //     // for (param_a, param_b) in forall_a.domain.iter().zip(forall_b.domain.iter()) {
-    //     //     let level = self.ctx.add_to_env(param_a.name);
-    //     //     let name = self.ctx.create_new_name(param_a.name);
-    //     //     let debruijin = Tau::Bound(Bound::Index(name, level));
-    //     //     acc_a = acc_a.replace(param_a.name, debruijin.clone());
-    //     //     acc_b = acc_b.replace(param_b.name, debruijin);
-    //     // }
-    //     //
-    //     // // Unify the results to compare the results
-    //     // self.internal_unify(acc_a, acc_b);
-    //     // ```
-    //     //
-    //     // As the code doesn't implement subjumption, we need to
-    //     // throw an error whenever this unification is called.
-    //     //
-    //     // TODO: Implement subjumption
-    //     //
-    //     // NOTE: When higher-rank poly doesn't have polymorphic
-    //     // subtyping, it's unsound. So, we need to implement
-    //     // polymorphic subtyping.
-    //     self.ctx.accumulate::<()>(ThirDiagnostic {
-    //       id: ErrorId("polymorphic-subtyping"),
-    //       location: ThirLocation::CallSite,
-    //       message: message!["Polymorphic subtyping is not implemented yet"],
-    //     });
-    //
-    //     return None;
-    //   }
-    //   (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
-    //     if level_a != level_b {
-    //       self.errors.push_back(TypeError::IncorrectLevel {
-    //         expected: level_a,
-    //         actual: level_b,
-    //       });
-    //
-    //       return None;
-    //     }
-    //   }
-    //
-    //   // SECTION: Type Error
-    //   // Report accumulating type check error, when the types
-    //   // cannot be unified.
-    //   (a, b) => {
-    //     self.errors.push_back(TypeError::CannotUnify(a, b));
-    //
-    //     return None;
-    //   }
-    // };
-    //
-    // Some(())
   }
 
   /// Accumulate all errors that were reported during the unification
@@ -833,7 +815,7 @@ impl Infer for TopLevel {
         .map(|tau| {
           // Creates a new type variable to represent
           // the type of the implementation
-          ctx.translate(tau).quote()
+          ctx.translate(tau)
         })
         .collect::<Vec<_>>();
 

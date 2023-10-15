@@ -120,7 +120,7 @@ pub enum Term {
   /// Represents a stuck type. This is used to represent a type that is stuck.
   ///
   /// A stuck type is a type that is not fully evaluated, and can't be evaluated
-  Flexible(Hole, Vec<Type>),
+  Flexible(holes::HoleRef, Vec<Type>),
 }
 
 /// Represents a type. This is the core type of the system. It's a recursive type that can be
@@ -336,7 +336,7 @@ mod display {
 
   impl Display for HoleRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(f, "{}", self.data.borrow())
+      write!(f, "{}", self.data.read().unwrap())
     }
   }
 }
@@ -417,13 +417,14 @@ pub mod holes {
     }
 
     /// Clones out the kind of a hole reference
+    /// Get the kind of the hole.
     pub fn kind(&self) -> HoleKind {
       self.data.read().unwrap().kind().clone()
     }
 
-    /// Sets the inner kind of a hole reference
+    /// Set the kind of the hole.
     pub fn set_kind(&self, kind: HoleKind) {
-      self.data.write().unwrap().set_kind(kind)
+      self.data.write().unwrap().kind = kind;
     }
   }
 
