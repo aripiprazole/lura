@@ -33,7 +33,7 @@ pub trait Quote {
 /// Represents a primary type. This is used to represent a type that is not a constructor.
 ///
 /// Can be a sentinel value that is used to represent an error.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Primary {
   /// The error type. This is used to represent a type that is not valid. It's a sentinel value
   /// that is used to represent an error.
@@ -440,13 +440,13 @@ pub mod holes {
 
   impl PartialEq for HoleRef {
     fn eq(&self, other: &Self) -> bool {
-      self.data.borrow().eq(&other.data.borrow())
+      self.data.read().unwrap().eq(&other.data.read().unwrap())
     }
   }
 
   impl Hash for HoleRef {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-      self.data.borrow().hash(state);
+      self.data.read().unwrap().hash(state);
     }
   }
 }
