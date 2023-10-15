@@ -2,6 +2,7 @@
 #![feature(trait_upcasting)]
 #![feature(fn_traits)]
 #![feature(stmt_expr_attributes)]
+#![feature(box_patterns)]
 
 use lura_hir::HirDb;
 use salsa::DbWithJar;

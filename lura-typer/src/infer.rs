@@ -21,11 +21,10 @@ use lura_hir::{
 
 use crate::{
   adhoc::{no_preds, ClassEnv, Predicate, Preds, Qual},
-  ftv::Fv,
   options::TyperFeatures,
   thir::{ThirDiagnostic, ThirLocation, ThirTextRange},
   type_rep::{
-    holes::{Hole, HoleKind, HoleRef},
+    holes::{HoleKind, HoleRef},
     pi::Pi,
     *,
   },
@@ -180,6 +179,19 @@ impl Substitution<'_, '_> {
     }
   }
 
+  /// Unifies two spines. This is used to unify two list of applications
+  /// of types. It equates the two spines.
+  fn unify_sp(&mut self, spine_a: &[Type], spine_b: &[Type]) {
+    if spine_a.len() != spine_b.len() {
+      // TODO: error
+      return;
+    }
+
+    for (item_a, item_b) in spine_a.iter().zip(spine_b) {
+      self.internal_unify(item_a.clone(), item_b.clone())?;
+    }
+  }
+
   /// Unifies two types. This is used to unify two types. It
   /// equates the two types.
   #[rustfmt::skip]
@@ -187,8 +199,10 @@ impl Substitution<'_, '_> {
     // Matches the types to equate them.
     match (a, b) {
       // SECTION: Unification
-      (Type::Flexible(hole_a, spine_a),                               b) => self.unify_hole(b, hole_a)?,
-      (a                              , Type::Flexible(hole_b, spine_b)) => self.unify_hole(a, hole_b)?,
+      (Type::Flexible(hole_a, spine_a), Type::Flexible(hole_b, spine_b)) if hole_a == hole_b => self.unify_sp(&spine_a, &spine_b),
+      (Type::Rigid(hole_a, spine_a)   ,    Type::Rigid(hole_b, spine_b)) if hole_a == hole_b => self.unify_sp(&spine_a, &spine_b),
+      (Type::Flexible(hole_a, spine_a),                        type_rep) => self.unify_hole(type_rep, hole_a)?,
+      (type_rep                       , Type::Flexible(hole_b, spine_b)) => self.unify_hole(type_rep, hole_b)?,
 
       // SECTION: Concrete values
       (Type::Primary(value_a)         ,        Type::Primary(value_b)) if value_a == value_b => {}
@@ -200,43 +214,16 @@ impl Substitution<'_, '_> {
 
         return None;
       }
-      (Type::Universe                 ,                Type::Universe)                       => {}
-      (_                              , Type::Primary(Primary::Error))                       => {}
-      (Type::Primary(Primary::Error)  ,                             _)                       => {}
+      (Type::Universe                 ,                Type::Universe) => {}
+      (_                              , Type::Primary(Primary::Error)) => {}
+      (Type::Primary(Primary::Error)  ,                             _) => {}
 
-      // SECTION: Stuck Data
-      (Type::Stuck(stuck_a), Type::Stuck(stuck_b)) => {
-        // Unifies the base of the stuck values
-        self.internal_unify(*stuck_a.base, *stuck_b.base)?;
+      // SECTION: Type level functions
+      (Type::Pi(pi_a)                 , Type::Pi(pi_b)) => {
+        let Pi {name: _, domain: box domain_a, codomain: codomain_a} = pi_a;
+        let Pi {name: _, domain: box domain_b, codomain: codomain_b} = pi_b;
 
-        // Unifies the spines of the stuck values
-        for (a, b) in stuck_a.spine.iter().zip(stuck_b.spine.iter()) {
-          self.internal_unify(a.clone(), b.clone())?;
-        }
-      }
-
-      (Type::Pi(pi_a), Type::Pi(pi_b)) => {
-        // Unifies two type-level functions. This is used to unify
-        // two type-level functions. It equates the two functions.
-        //
-        // Snapshots the context, and then evaluates the domain
-        // and codomain of the functions. Then it unifies the
-        // domains and codomains.
-        let ctx = self.ctx.snapshot();
-        let domain_a = pi_a.domain.eval(&ctx, self.ctx.eval_env.clone());
-        let domain_b = pi_b.domain.eval(&ctx, self.ctx.eval_env.clone());
-
-        let codomain_a = pi_a.codomain(Tau::Bound(Bound::Hole));
-        let codomain_b = pi_b.codomain(Tau::Bound(Bound::Hole));
-
-        // Recurse on the domain and codomain
         self.internal_unify(domain_a, domain_b)?;
-        self.internal_unify(codomain_a, codomain_b)?;
-      }
-      (Type::App(callee_a, value_a), Type::App(callee_b, value_b)) => {
-        // Basically recurse on the callee and the value
-        self.internal_unify(*callee_a, *callee_b)?;
-        self.internal_unify(*value_a, *value_b)?;
       }
       (Type::Forall(forall_a), Type::Forall(forall_b)) => {
         // "Alpha equivalence": forall a. a -> a = forall b. b -> b
@@ -281,16 +268,6 @@ impl Substitution<'_, '_> {
         });
 
         return None;
-      }
-      (Type::Bound(Bound::Index(_, level_a)), Type::Bound(Bound::Index(_, level_b))) => {
-        if level_a != level_b {
-          self.errors.push_back(TypeError::IncorrectLevel {
-            expected: level_a,
-            actual: level_b,
-          });
-
-          return None;
-        }
       }
 
       // SECTION: Type Error
@@ -965,24 +942,25 @@ impl Infer for TopLevel {
 
           // Creates the type of the parameter
           if_chain! {
-              if let HirLevel::Type = parameter.level(ctx.db);
-              // TODO: handle error, type parameters can't be patterns, they
-              // should be simple bindings.
-              if let Pattern::Binding(binding) = parameter.binding(ctx.db);
-              then {
-                  // Meta information
-                  let name = ctx.create_new_name(binding.name(ctx.db));
-                  let def = name.definition;
+            if let HirLevel::Type = parameter.level(ctx.db);
+            // TODO: handle error, type parameters can't be patterns, they
+            // should be simple bindings.
+            if let Pattern::Binding(binding) = parameter.binding(ctx.db);
+            then {
+              // Meta information
+              let name = ctx.create_new_name(binding.name(ctx.db));
+              let def = name.definition;
 
-                  // Debruijin index
-                  let level = ctx.add_to_env(def);
+              // Debruijin index
+              let level = ctx.add_to_env(def);
 
-                  // Creates a new type variable to represent
-                  // the type of the declaration
-                  Tau::Bound(Bound::Index(name, level))
-              } else {
-                  type_rep
-              }
+              // Creates a new type variable to represent
+              // the type of the declaration
+              // Tau::Bound(Bound::Index(name, level))
+              todo!()
+            } else {
+              type_rep
+            }
           }
         })
         .collect::<im_rc::Vector<_>>();
@@ -1696,7 +1674,7 @@ impl<'tctx> InferCtx<'tctx> {
     fn eval_sigma(ctx: &mut InferCtx, sigma: ArrowTypeRep) -> Type {
       // The variables that should be added to forall to make the language
       // easier to use
-      let mut ftv: im_rc::HashSet<Fv, FxBuildHasher> = im_rc::HashSet::default();
+      // let mut ftv: im_rc::HashSet<Fv, FxBuildHasher> = im_rc::HashSet::default();
 
       let predicates = sigma
         .parameters(ctx.db)
@@ -1709,31 +1687,31 @@ impl<'tctx> InferCtx<'tctx> {
           let (pattern, pattern_ftv) = Predicate::new(ctx, constraint)?;
 
           // Accumulates the free type variables
-          ftv.extend(pattern_ftv);
+          // ftv.extend(pattern_ftv);
 
           Some(pattern)
         })
         .collect::<Vec<_>>();
 
-      let domain = ftv
-        .iter()
-        .filter_map(|fv| {
-          let name = match fv {
-            Fv::Flexible(name) | Fv::Index(name, _) => name,
-            Fv::Hole => {
-              return ctx.accumulate(ThirDiagnostic {
-                id: ErrorId("unsupported-hole-implicits"),
-                location: ctx.new_location(sigma.location(ctx.db)),
-                message: message!["hole implicits are not supported"],
-              });
-            }
-          };
-
-          // NOTE: this is a hack to make the language easier to use
-          // and to make the type checker easier to implement.
-          Some((name.clone(), Type::Universe))
-        })
-        .collect::<Vec<_>>();
+      // let domain = ftv
+      //   .iter()
+      //   .filter_map(|fv| {
+      //     let name = match fv {
+      //       Fv::Flexible(name) | Fv::Index(name, _) => name,
+      //       Fv::Hole => {
+      //         return ctx.accumulate(ThirDiagnostic {
+      //           id: ErrorId("unsupported-hole-implicits"),
+      //           location: ctx.new_location(sigma.location(ctx.db)),
+      //           message: message!["hole implicits are not supported"],
+      //         });
+      //       }
+      //     };
+      //
+      //     // NOTE: this is a hack to make the language easier to use
+      //     // and to make the type checker easier to implement.
+      //     Some((name.clone(), Type::Universe))
+      //   })
+      //   .collect::<Vec<_>>();
 
       let value = ctx.translate(sigma.value(ctx.db));
 
