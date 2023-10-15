@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl Term {
-  fn eval(&self, ctx: &Snapshot, env: EvalEnv) -> Type {
+  pub(crate) fn eval(&self, environment: Vec<Type>) -> Type {
     todo!();
     // match self {
     //   // Applies the function to the value,

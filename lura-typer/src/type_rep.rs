@@ -220,6 +220,14 @@ pub mod closure {
     pub environment: Vec<Type>,
     pub body: Term,
   }
+
+  impl Closure {
+    /// Apply the closure to an argument. This is used to apply the closure to an argument.
+    pub fn apply(mut self, argument: Type) -> Type {
+      self.environment.push(argument);
+      self.body.eval(self.environment)
+    }
+  }
 }
 
 /// Represents a type dependent function. This is used to
