@@ -171,6 +171,14 @@ impl Type {
   }
 }
 
+impl Quote for Type {
+  type Sealed = Term;
+
+  fn seal(self) -> Self::Sealed {
+    todo!()
+  }
+}
+
 /// Add debug implementation for better data presentation when
 /// debugging the type system
 mod debug {

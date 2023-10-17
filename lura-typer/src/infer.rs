@@ -122,12 +122,11 @@ impl Substitution<'_, '_> {
       }
       // SECTION: Hole
       Type::Rigid(lvl, spine) => {
-        self.hole_unify_prechecks(*lvl, scope, hole.clone());
         for type_rep in spine.into_iter() {
           self.hole_unify_prechecks(type_rep, scope, hole.clone());
         }
       }
-      flexible @ Type::Flexible(ref mut h, ref spine) => {
+      flexible @ Type::Flexible(mut h, ref spine) => {
         use holes::HoleKind::*;
         if h == hole {
           self.errors.push_back(TypeError::OccursCheck(flexible));
@@ -137,7 +136,7 @@ impl Substitution<'_, '_> {
           self.hole_unify_prechecks(type_rep.clone(), scope, hole.clone());
         }
         match h.kind() {
-          Empty { scope: l } if *l > scope => h.set_kind(Empty { scope }),
+          Empty { scope: l } if l > scope => h.set_kind(Empty { scope }),
           Filled(type_rep) => self.hole_unify_prechecks(type_rep.clone(), scope, hole),
           _ => {}
         }
@@ -226,16 +225,6 @@ impl Substitution<'_, '_> {
         self.internal_unify(domain_a, domain_b)?;
       }
       (Type::Forall(forall_a), Type::Forall(forall_b)) => {
-        // "Alpha equivalence": forall a. a -> a = forall b. b -> b
-        if forall_a.domain.len() != forall_b.domain.len() {
-          self.errors.push_back(TypeError::IncorrectArity {
-            expected: forall_a.domain.len(),
-            actual: forall_b.domain.len(),
-          });
-
-          return None;
-        }
-
         // SECTION: OLD HINDLEY MILNER CODE
         //
         // ```rs
