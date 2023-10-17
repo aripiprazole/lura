@@ -18,12 +18,10 @@ pub trait TyperDb: HirDb + DbWithJar<Jar> {}
 
 impl<DB> TyperDb for DB where DB: ?Sized + HirDb + salsa::DbWithJar<Jar> {}
 
-pub mod adhoc;
 pub mod coverage;
 pub mod declaration;
 pub mod elaboration;
 pub mod ftv;
-pub mod infer;
 pub mod information;
 pub mod options;
 pub mod table;

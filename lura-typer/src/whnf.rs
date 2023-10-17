@@ -3,7 +3,7 @@ use std::rc::Rc;
 use lura_diagnostic::{code, message, ErrorId};
 
 use crate::{
-  infer::{EvalEnv, Snapshot},
+  // infer::{EvalEnv, Snapshot},
   thir::{ThirDiagnostic, ThirLocation},
   type_rep::{pi::Pi, Quote, Type, Term},
 };
