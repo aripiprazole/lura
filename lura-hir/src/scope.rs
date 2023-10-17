@@ -28,6 +28,27 @@ pub enum ScopeKind {
   File,
 }
 
+impl ScopeKind {
+  /// If the current scope kind should increase the scope level, or
+  /// in other words, create a new environment.
+  pub fn should_increase_scope_level(&self) -> bool {
+    match self {
+      Self::Function => true,
+      Self::Method => true,
+      Self::Lambda => true,
+      Self::Data => true,
+      Self::Class => true,
+      Self::Trait => true,
+      Self::Block => false,
+      Self::Pi => true,
+      Self::Sigma => true,
+      Self::Type => true,
+      Self::InternalFile => true,
+      Self::File => false,
+    }
+  }
+}
+
 /// Represents a import in HIR, and it's intended to be used to store imports in a scope.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Import {
@@ -41,6 +62,7 @@ pub struct Import {
 /// It's also used to store parameters, variables, functions, types and more.
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
+  pub level: usize,
   pub kind: ScopeKind,
   pub parent: Option<Arc<Scope>>,
   pub free_variables: im::OrdSet<Definition>,
@@ -63,6 +85,7 @@ impl Scope {
   pub fn new(kind: ScopeKind) -> Self {
     Self {
       kind,
+      level: 0,
       parent: None,
       references: im::HashMap::default(),
       constructors: im::HashMap::default(),
@@ -109,6 +132,11 @@ impl Scope {
   pub fn fork(&self, kind: ScopeKind) -> Self {
     Self {
       kind,
+      level: if kind.should_increase_scope_level() {
+        self.level + 1
+      } else {
+        self.level
+      },
       parent: Some(Arc::new(self.clone())),
       references: im::HashMap::default(),
       constructors: im::HashMap::default(),

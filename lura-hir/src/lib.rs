@@ -83,3 +83,4 @@ pub mod scope;
 pub mod solver;
 pub mod source;
 pub mod walking;
+pub mod debruijin;
