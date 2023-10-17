@@ -249,7 +249,6 @@ pub mod pi {
   ///
   /// NOTE: This is supposed to be used to implement GADT
   /// and type families.
-
   #[derive(Clone)]
   pub struct Pi {
     pub name: Option<Name>,
