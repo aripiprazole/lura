@@ -7,7 +7,7 @@ use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
 // They were defined here, so we are rexporting it to avoid confusion!
 pub use crate::errors::HirDiagnostic;
 use crate::{
-  debruijin::Lvl,
+  debruijin::Level,
   lower::{hir_declare, hir_lower},
   primitives::{initialize_primitive_bag, primitive_type_definition},
   reference::ReferenceWalker,
@@ -64,7 +64,7 @@ pub struct Definition {
   pub id: DefinitionId,
   pub kind: DefinitionKind,
   pub name: HirPath,
-  pub defined_at: Lvl,
+  pub defined_at: Level,
 }
 
 #[salsa::tracked]
@@ -141,7 +141,7 @@ impl Definition {
     let id = DefinitionId::new(db, name.location(db), None);
 
     // Creates a new `Definition` with the given `kind`, `name`, and `location`.
-    Self::new(db, id, DefinitionKind::Unresolved, name, Lvl::default())
+    Self::new(db, id, DefinitionKind::Unresolved, name, Level::default())
   }
 }
 
@@ -165,7 +165,7 @@ pub fn unresolved(db: &dyn crate::HirDb, location: HirLocation) -> Definition {
   let id = DefinitionId::new(db, path.location(db), None);
 
   // Creates a new `Definition` with the given `kind`, `name`, and `location`.
-  Definition::new(db, id, DefinitionKind::Unresolved, path, Lvl::default())
+  Definition::new(db, id, DefinitionKind::Unresolved, path, Level::default())
 }
 
 /// Defines the [`find_function`] query.
@@ -327,7 +327,7 @@ pub fn query_module(db: &dyn crate::HirDb, name: HirPath) -> (Scope, Definition)
         let kind = DefinitionKind::Module;
         let path = HirPath::create(db, name);
 
-        return (hir.scope(db), Definition::new(db, id, kind, path, Lvl::default()));
+        return (hir.scope(db), Definition::new(db, id, kind, path, Level::default()));
       }
     }
   }

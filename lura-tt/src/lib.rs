@@ -1,7 +1,7 @@
 //! Type terms to type infer and check the lura programs, they are the simpliest
 //! normal-form terms.
 
-use lura_hir::debruijin::Idx;
+use lura_hir::debruijin::{Idx, Level};
 use lura_hir::solver::{Definition, Reference};
 use lura_hir::source::expr::{Expr, Meta};
 use lura_hir::source::Location;
@@ -53,7 +53,7 @@ pub enum Term {
   Tuple(Vec<Value>),
   Constructor(Constructor),
   Flexible(Meta, Vec<Value>),
-  Rigid(Meta, Vec<Value>),
+  Rigid(Level, Vec<Value>),
   Pi(Definition, Implicitness, Box<Type>, Closure),
   Lam(Closure),
 }

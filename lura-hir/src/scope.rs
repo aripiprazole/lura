@@ -5,7 +5,7 @@ use fxhash::FxBuildHasher;
 use crate::{
   solver::{Definition, DefinitionId, DefinitionKind, Reference},
   source::{HirPath, HirSource, Location},
-  debruijin::Lvl,
+  debruijin::Level,
   HirDb,
 };
 
@@ -63,7 +63,7 @@ pub struct Import {
 /// It's also used to store parameters, variables, functions, types and more.
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
-  pub lvl: Lvl,
+  pub lvl: Level,
   pub kind: ScopeKind,
   pub parent: Option<Arc<Scope>>,
   pub free_variables: im::OrdSet<Definition>,
@@ -86,7 +86,7 @@ impl Scope {
   pub fn new(kind: ScopeKind) -> Self {
     Self {
       kind,
-      lvl: Lvl::default(),
+      lvl: Level::default(),
       parent: None,
       references: im::HashMap::default(),
       constructors: im::HashMap::default(),

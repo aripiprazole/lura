@@ -5,14 +5,14 @@ use crate::source::expr::Expr;
 
 /// Defines a debruijin level. It does represent the level of the context/environment
 ///
-/// It can be transformed into a debruijin index by using the [`Lvl::as_idx`] method.
+/// It can be transformed into a debruijin index by using the [`Level::as_idx`] method.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Lvl(pub usize);
+pub struct Level(pub usize);
 
-impl Lvl {
+impl Level {
   /// Transforms a level into a debruijin index.
-  pub fn as_idx(&self, Lvl(x): Lvl) -> Idx {
-    let Lvl(l) = *self;
+  pub fn as_idx(&self, Level(x): Level) -> Idx {
+    let Level(l) = *self;
     assert!(l > x, "l > x, but {l} < {x}");
     assert!(l > 0, "l should be greater than 0");
 
@@ -20,7 +20,7 @@ impl Lvl {
   }
 }
 
-impl std::ops::Add<usize> for Lvl {
+impl std::ops::Add<usize> for Level {
   type Output = Self;
 
   fn add(self, rhs: usize) -> Self::Output {
@@ -28,7 +28,7 @@ impl std::ops::Add<usize> for Lvl {
   }
 }
 
-impl std::ops::AddAssign<usize> for Lvl {
+impl std::ops::AddAssign<usize> for Level {
   fn add_assign(&mut self, rhs: usize) {
     self.0 += rhs
   }

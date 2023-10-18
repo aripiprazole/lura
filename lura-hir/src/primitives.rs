@@ -10,7 +10,7 @@ use crate::{
     HirPath, Location,
   },
 };
-use crate::debruijin::Lvl;
+use crate::debruijin::Level;
 
 /// The primitive map, that stores all the primitives that are available in the
 /// language.
@@ -81,7 +81,7 @@ pub fn new_type_rep(db: &dyn crate::HirDb, path: HirPath, repr: TypeRep) {
     .entry(text.clone().unwrap())
     .or_insert_with(move || {
       let id = DefinitionId::new(db, Location::CallSite, text.clone());
-      Definition::new(db, id, DefinitionKind::Type, path, Lvl::default())
+      Definition::new(db, id, DefinitionKind::Type, path, Level::default())
     });
 
   // Define the type if it is not defined
