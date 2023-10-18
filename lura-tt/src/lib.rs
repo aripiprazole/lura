@@ -41,7 +41,7 @@ pub struct Closure {
 
 /// Implicitness of a term.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Icit {
+pub enum Implicitness {
   Impl,
   Expl,
 }
@@ -54,6 +54,6 @@ pub enum Term {
   Constructor(Constructor),
   Flexible(Meta, Vec<Value>),
   Rigid(Meta, Vec<Value>),
-  Pi(Definition, Icit, Box<Type>, Closure),
+  Pi(Definition, Implicitness, Box<Type>, Closure),
   Lam(Closure),
 }
