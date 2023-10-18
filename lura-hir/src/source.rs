@@ -2414,6 +2414,10 @@ pub mod expr {
     }
   }
 
+  /// Meta id that is used by the elaboration to define stuff
+  #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+  pub struct Meta(pub usize, pub Location);
+
   /// Defines the expression element in the HIR. It's the most important element in the HIR, and
   /// in the language itself, as it's defines instructions that can be executed, and values that
   /// can be used.
@@ -2426,6 +2430,7 @@ pub mod expr {
 
     Error(HirError),
     Path(Reference),
+    Meta(Meta),
     Literal(Spanned<literal::Literal>),
     Call(CallExpr),
     Ann(AnnExpr),
@@ -2576,6 +2581,7 @@ pub mod expr {
         Expr::Empty => write!(f, "Empty"),
         Expr::Error(error) => write!(f, "Error({:?})", error.debug_all(db)),
         Expr::Literal(literal) => write!(f, "Literal({literal:?})"),
+        Expr::Meta(meta) => write!(f, "Meta({meta:?})"),
         Expr::Path(reference) => reference.debug_all(db).fmt(f),
         Expr::Call(call_expr) => call_expr.debug_all(db).fmt(f),
         Expr::Ann(ann_expr) => ann_expr.debug_all(db).fmt(f),
@@ -2590,6 +2596,7 @@ pub mod expr {
     fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
       match self {
         Expr::Empty => listener.visit_empty_expr(),
+        Expr::Meta(_) => {}, // TODO
         Expr::Call(call_expr) => call_expr.accept(db, listener),
         Expr::Ann(ann_expr) => ann_expr.accept(db, listener),
         Expr::Abs(abs_expr) => abs_expr.accept(db, listener),
@@ -2622,6 +2629,7 @@ pub mod expr {
     fn location(&self, db: &dyn crate::HirDb) -> Location {
       match self {
         Self::Empty => Location::call_site(db),
+        Self::Meta(Meta(_, location)) => location.clone(),
         Self::Error(downcast) => downcast.location(db),
         Self::Path(downcast) => downcast.location(db),
         Self::Literal(downcast) => downcast.location.clone().unwrap(),

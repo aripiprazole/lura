@@ -646,6 +646,7 @@ mod impls {
       match self {
         Empty => write!(f, "_"),
         Error(_) => write!(f, "!"),
+        Meta(_) => write!(f, "!"),
         Path(path) => path.hir_fmt(db, f, scope),
         Literal(literal) => literal.value.hir_fmt(db, f, scope),
         Call(call_expr) => call_expr.hir_fmt(db, f, scope),

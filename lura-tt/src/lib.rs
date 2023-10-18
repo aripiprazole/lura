@@ -3,7 +3,7 @@
 
 use lura_hir::debruijin::Idx;
 use lura_hir::solver::{Definition, Reference};
-use lura_hir::source::expr::Expr;
+use lura_hir::source::expr::{Expr, Meta};
 use lura_hir::source::Location;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -52,11 +52,8 @@ pub enum Term {
   Var(Idx, Option<Reference>),
   Tuple(Vec<Value>),
   Constructor(Constructor),
-  Flexible(Hole, Vec<Value>),
-  Rigid(Hole, Vec<Value>),
+  Flexible(Meta, Vec<Value>),
+  Rigid(Meta, Vec<Value>),
   Pi(Definition, Icit, Box<Type>, Closure),
   Lam(Closure),
 }
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Hole {}
