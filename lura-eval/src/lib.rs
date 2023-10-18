@@ -7,17 +7,19 @@
 use std::panic::AssertUnwindSafe;
 
 use lura_hir::source::expr::Expr;
-use lura_tt::{Environment, Value};
+use lura_tt::{Env, Value};
+
+use crate::domain::Ctx;
 
 pub mod domain;
 pub mod logic;
 pub mod stack;
 
 /// Evaluates an expression into a value
-pub fn eval(db: &dyn lura_hir::HirDb, env: Environment, expr: Expr) -> Result<Value, domain::RuntimeError> {
+pub fn eval(db: &dyn lura_hir::HirDb, env: Env, ctx: Ctx, expr: Expr) -> Result<Value, domain::RuntimeError> {
   let db = AssertUnwindSafe(db);
   let internal_stack = stack::Stack::default();
-  std::panic::catch_unwind(|| normalize(*db, internal_stack, env, expr)).map_err(|err| {
+  std::panic::catch_unwind(|| normalize(*db, internal_stack, env, ctx, expr)).map_err(|err| {
     match err.downcast::<domain::RuntimeError>() {
       Ok(runtime_error) => *runtime_error.clone(),
 
@@ -28,6 +30,6 @@ pub fn eval(db: &dyn lura_hir::HirDb, env: Environment, expr: Expr) -> Result<Va
   })
 }
 
-pub fn normalize(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Environment, expr: Expr) -> Value {
+pub fn normalize(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, ctx: Ctx, expr: Expr) -> Value {
   todo!()
 }
