@@ -926,6 +926,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lura-eval"
+version = "0.0.1"
+dependencies = [
+ "lura-diagnostic",
+ "lura-hir",
+ "lura-syntax",
+ "lura-tt",
+ "lura-vfs",
+ "salsa-2022",
+]
+
+[[package]]
 name = "lura-hir"
 version = "0.0.1"
 dependencies = [
@@ -988,6 +1000,17 @@ dependencies = [
  "tree-sitter-lura",
  "type-sitter-gen",
  "type-sitter-lib",
+]
+
+[[package]]
+name = "lura-tt"
+version = "0.0.1"
+dependencies = [
+ "lura-diagnostic",
+ "lura-hir",
+ "lura-syntax",
+ "lura-vfs",
+ "salsa-2022",
 ]
 
 [[package]]
