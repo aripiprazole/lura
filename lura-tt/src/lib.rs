@@ -23,6 +23,7 @@ pub struct Constructor {
 }
 
 pub type Type = Term;
+pub type Environment = Vec<Value>;
 
 /// Value that can have a type associated with it.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -35,7 +36,7 @@ pub enum Value {
 /// take environments to evaluate the quoted expression.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Closure {
-  pub environment: Vec<Value>,
+  pub environment: Environment,
   pub expr: Expr,
 }
 
