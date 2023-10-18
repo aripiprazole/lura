@@ -15,7 +15,7 @@ use crate::{
   scope::{Scope, ScopeKind},
   source::{DefaultWithDb, HirLocation, HirPath, Location, VirtualPath},
 };
-use crate::debruijin::Idx;
+use crate::debruijin::Index;
 
 /// Represents the kind of a definition in the High-Level Intermediate Representation. It's
 /// intended to be used to store the kind of the definition, and to be used to create the HIR.
@@ -92,7 +92,7 @@ pub struct Reference {
   pub location: Location,
 
   /// The index of the reference with debruijin indices.
-  pub idx: Idx,
+  pub idx: Index,
 }
 
 #[salsa::tracked]

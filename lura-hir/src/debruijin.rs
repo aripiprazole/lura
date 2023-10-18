@@ -11,12 +11,12 @@ pub struct Level(pub usize);
 
 impl Level {
   /// Transforms a level into a debruijin index.
-  pub fn as_idx(&self, Level(x): Level) -> Idx {
+  pub fn as_idx(&self, Level(x): Level) -> Index {
     let Level(l) = *self;
     assert!(l > x, "l > x, but {l} < {x}");
     assert!(l > 0, "l should be greater than 0");
 
-    Idx(l - x - 1)
+    Index(l - x - 1)
   }
 }
 
@@ -38,15 +38,15 @@ impl std::ops::AddAssign<usize> for Level {
 ///
 /// It's used to represent a variable in the syntax tree.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Idx(usize);
+pub struct Index(usize);
 
-impl From<usize> for Idx {
+impl From<usize> for Index {
   fn from(value: usize) -> Self {
     Self(value)
   }
 }
 
-impl std::ops::Add<usize> for Idx {
+impl std::ops::Add<usize> for Index {
   type Output = Self;
 
   fn add(self, rhs: usize) -> Self::Output {
@@ -54,7 +54,7 @@ impl std::ops::Add<usize> for Idx {
   }
 }
 
-impl std::ops::AddAssign<usize> for Idx {
+impl std::ops::AddAssign<usize> for Index {
   fn add_assign(&mut self, rhs: usize) {
     self.0 += rhs
   }

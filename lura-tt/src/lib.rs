@@ -1,7 +1,7 @@
 //! Type terms to type infer and check the lura programs, they are the simpliest
 //! normal-form terms.
 
-use lura_hir::debruijin::{Idx, Level};
+use lura_hir::debruijin::{Index, Level};
 use lura_hir::solver::{Definition, Reference};
 use lura_hir::source::expr::{Expr, Meta};
 use lura_hir::source::Location;
@@ -49,7 +49,7 @@ pub enum Implicitness {
 /// Basic normalized expression, it has the term's NFE.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Term {
-  Var(Idx, Option<Reference>),
+  Var(Index, Option<Reference>),
   Tuple(Vec<Value>),
   Constructor(Constructor),
   Flexible(Meta, Vec<Value>),
