@@ -46,6 +46,18 @@ pub enum Implicitness {
   Expl,
 }
 
+/// Dependent function type, it's a type-level function
+/// that depends on a value.
+///
+/// It allows we to construct every dependent-type features.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct Pi {
+  pub name: Definition,
+  pub implicitness: Implicitness,
+  pub type_rep: Box<Type>,
+  pub closure: Closure,
+}
+
 /// Basic normalized expression, it has the term's NFE.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Term {
@@ -54,6 +66,6 @@ pub enum Term {
   Constructor(Constructor),
   Flexible(Meta, Vec<Value>),
   Rigid(Level, Vec<Value>),
-  Pi(Definition, Implicitness, Box<Type>, Closure),
+  Pi(Pi),
   Lam(Closure),
 }
