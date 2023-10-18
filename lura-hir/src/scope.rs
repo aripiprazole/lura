@@ -5,6 +5,7 @@ use fxhash::FxBuildHasher;
 use crate::{
   solver::{Definition, DefinitionId, DefinitionKind, Reference},
   source::{HirPath, HirSource, Location},
+  debruijin::Lvl,
   HirDb,
 };
 
@@ -36,14 +37,14 @@ impl ScopeKind {
       Self::Function => true,
       Self::Method => true,
       Self::Lambda => true,
-      Self::Data => true,
-      Self::Class => true,
-      Self::Trait => true,
+      Self::Data => false,
+      Self::Class => false,
+      Self::Trait => false,
       Self::Block => false,
       Self::Pi => true,
       Self::Sigma => true,
-      Self::Type => true,
-      Self::InternalFile => true,
+      Self::Type => false,
+      Self::InternalFile => false,
       Self::File => false,
     }
   }
@@ -62,7 +63,7 @@ pub struct Import {
 /// It's also used to store parameters, variables, functions, types and more.
 #[derive(Default, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
-  pub level: usize,
+  pub lvl: Lvl,
   pub kind: ScopeKind,
   pub parent: Option<Arc<Scope>>,
   pub free_variables: im::OrdSet<Definition>,
@@ -85,7 +86,7 @@ impl Scope {
   pub fn new(kind: ScopeKind) -> Self {
     Self {
       kind,
-      level: 0,
+      lvl: Lvl::default(),
       parent: None,
       references: im::HashMap::default(),
       constructors: im::HashMap::default(),
@@ -118,7 +119,8 @@ impl Scope {
   /// Adds a reference to the given `definition` in the current scope.
   pub fn using(&mut self, db: &dyn crate::HirDb, it: Definition, loc: Location) -> Reference {
     // Create a new reference to [it] and insert it in the current scope
-    let reference = Reference::new(db, it, loc);
+    let idx = self.lvl.as_idx(it.defined_at(db));
+    let reference = Reference::new(db, it, loc, idx);
     self.references.entry(it).or_default().insert(reference);
 
     // Return the reference
@@ -132,10 +134,10 @@ impl Scope {
   pub fn fork(&self, kind: ScopeKind) -> Self {
     Self {
       kind,
-      level: if kind.should_increase_scope_level() {
-        self.level + 1
+      lvl: if kind.should_increase_scope_level() {
+        self.lvl + 1
       } else {
-        self.level
+        self.lvl
       },
       parent: Some(Arc::new(self.clone())),
       references: im::HashMap::default(),
@@ -156,12 +158,16 @@ impl Scope {
     &mut self, db: &dyn crate::HirDb, name: HirPath, location: Location, kind: DefinitionKind,
   ) -> Definition {
     let id = DefinitionId::new(db, location, None);
-    let definition = Definition::new(db, id, kind, name);
+    let definition = Definition::new(db, id, kind, name, self.lvl);
     let Some(name) = definition.name(db).to_string(db) else {
       // TODO: report error
       return definition;
     };
 
+    // Increase the scope level, as debruijin indexes only
+    // works in linear environments: let x = 10; let y = x; let z = y;
+    // when let defines a new scope.
+    self.lvl += 1;
     self.create(db, name, definition)
   }
 

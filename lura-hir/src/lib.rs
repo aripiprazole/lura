@@ -58,6 +58,7 @@ pub struct Jar(
   primitives::new_type_rep,
   primitives::primitive_type_rep,
   primitives::primitive_type_definition,
+  debruijin::Indices,
 );
 
 /// The database that stores all the information about the source code. It is
