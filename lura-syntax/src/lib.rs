@@ -137,6 +137,8 @@ mod tests {
       .set_language(tree_sitter_lura::language())
       .expect("Error loading lura language");
 
-    let _tree = parser.parse("Main { IO.println \"Hello, world\" }", None).unwrap();
+    let _tree = parser
+      .parse("Main { IO.println \"Hello, world\" }", None)
+      .unwrap();
   }
 }

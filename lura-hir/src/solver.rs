@@ -75,7 +75,10 @@ impl Definition {
 
   #[salsa::tracked]
   pub fn to_string(self, db: &dyn crate::HirDb) -> String {
-    self.name(db).to_string(db).unwrap_or("~INTERNAL ERROR~".into())
+    self
+      .name(db)
+      .to_string(db)
+      .unwrap_or("~INTERNAL ERROR~".into())
   }
 }
 
@@ -297,7 +300,8 @@ pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
   // [`DefinitionKind::Unresolved`] kind.
   //
   // And will report an error to the revision diagnostic database.
-  primitive_type_definition(db, name).unwrap_or_else(|| Definition::no(db, DefinitionKind::Type, name))
+  primitive_type_definition(db, name)
+    .unwrap_or_else(|| Definition::no(db, DefinitionKind::Type, name))
 }
 
 /// Defines the [`query_module`] query. It's defined as "query", because it's returning a scope
@@ -349,10 +353,11 @@ pub fn references(db: &dyn crate::HirDb, definition: Definition) -> OrdSet<Refer
       let hir_source = hir_lower(db, package, file);
       // TODO: fixme, for some reason it's not working with same references for the
       // definitions, the lower is duplicating the references, and creating new instances
-      let local_references =
-        ReferenceWalker::new(move |db, reference, _| reference.definition(db).id(db) == definition.id(db))
-          .build(db)
-          .collect(hir_source);
+      let local_references = ReferenceWalker::new(move |db, reference, _| {
+        reference.definition(db).id(db) == definition.id(db)
+      })
+      .build(db)
+      .collect(hir_source);
 
       references.extend(local_references);
     }

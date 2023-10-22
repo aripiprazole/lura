@@ -405,7 +405,10 @@ impl<T> Spanned<T> {
   /// Creates a new spanned value with the given [`value`] and the location pointing to the
   /// `call_site`.
   pub fn on_call_site(value: T) -> Self {
-    Self { value, location: None }
+    Self {
+      value,
+      location: None,
+    }
   }
 
   /// Creates a new spanned value with the given [`value`] and [`location`].
@@ -419,7 +422,10 @@ impl<T> Spanned<T> {
 
 impl<A> HirElement for Spanned<A> {
   fn location(&self, db: &dyn crate::HirDb) -> Location {
-    self.location.clone().unwrap_or_else(|| Location::call_site(db))
+    self
+      .location
+      .clone()
+      .unwrap_or_else(|| Location::call_site(db))
   }
 }
 
@@ -586,7 +592,8 @@ pub mod declaration {
     /// Creates a new explicit parameter with the given [`binding`], [`type_rep`], that
     /// is rigid.
     pub fn explicit(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep, location: Location,
+      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      location: Location,
     ) -> Self {
       Self::new(db, binding, type_rep, false, true, HirLevel::Expr, location)
     }
@@ -594,7 +601,8 @@ pub mod declaration {
     /// Creates a new implicit parameter with the given [`binding`], [`type_rep`], that
     /// is rigid.
     pub fn implicit(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep, location: Location,
+      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      location: Location,
     ) -> Self {
       Self::new(db, binding, type_rep, true, true, HirLevel::Expr, location)
     }
@@ -603,7 +611,8 @@ pub mod declaration {
     /// is unrigid. It can be transformed into an implicit parameter, if the type signature
     /// requires it.
     pub fn unrigid(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep, location: Location,
+      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      location: Location,
     ) -> Self {
       Self::new(
         db,
@@ -1771,7 +1780,9 @@ pub mod stmt {
   }
 
   impl AskStmt {
-    pub fn new(_: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location,
+    ) -> Self {
       Self {
         pattern,
         value,
@@ -1825,7 +1836,9 @@ pub mod stmt {
   }
 
   impl LetStmt {
-    pub fn new(_: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location,
+    ) -> Self {
       Self {
         pattern,
         value,
@@ -1960,7 +1973,9 @@ pub mod stmt {
   }
 
   impl Block {
-    pub fn new(_: &dyn crate::HirDb, statements: Vec<Stmt>, location: Location, scope: Arc<Scope>) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, statements: Vec<Stmt>, location: Location, scope: Arc<Scope>,
+    ) -> Self {
       Self {
         statements,
         location,
@@ -2159,8 +2174,8 @@ pub mod expr {
 
   impl AbsExpr {
     pub fn new(
-      _: &dyn crate::HirDb, parameters: Vec<declaration::Parameter>, value: expr::Expr, location: Location,
-      scope: Arc<Scope>,
+      _: &dyn crate::HirDb, parameters: Vec<declaration::Parameter>, value: expr::Expr,
+      location: Location, scope: Arc<Scope>,
     ) -> Self {
       Self {
         parameters,
@@ -2221,7 +2236,9 @@ pub mod expr {
   }
 
   impl AnnExpr {
-    pub fn new(_: &dyn crate::HirDb, value: expr::Expr, type_rep: type_rep::TypeRep, location: Location) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, value: expr::Expr, type_rep: type_rep::TypeRep, location: Location,
+    ) -> Self {
       Self {
         value: Box::new(value),
         type_rep,
@@ -2307,7 +2324,8 @@ pub mod expr {
 
   impl MatchExpr {
     pub fn new(
-      _: &dyn crate::HirDb, kind: MatchKind, scrutinee: expr::Expr, clauses: Vec<MatchArm>, location: Location,
+      _: &dyn crate::HirDb, kind: MatchKind, scrutinee: expr::Expr, clauses: Vec<MatchArm>,
+      location: Location,
     ) -> Self {
       Self {
         kind,
@@ -2481,7 +2499,9 @@ pub mod expr {
           .map(|type_rep| match type_rep {
             // Transforms the location from call site
             // into a new location from the path.
-            type_rep::TypeRep::Path(reference, _) => type_rep::TypeRep::Path(reference, path.location(db)),
+            type_rep::TypeRep::Path(reference, _) => {
+              type_rep::TypeRep::Path(reference, path.location(db))
+            }
             _ => type_rep,
           })
           .unwrap_or_else(|| {
@@ -2508,7 +2528,9 @@ pub mod expr {
           arguments,
           location,
           kind: _,
-        }) if arguments.is_empty() => type_rep::TypeRep::Path(type_rep::TypeReference::Unit, location),
+        }) if arguments.is_empty() => {
+          type_rep::TypeRep::Path(type_rep::TypeReference::Unit, location)
+        }
 
         // Upgrades a group expression to a type
         Self::Call(CallExpr {
@@ -2529,7 +2551,10 @@ pub mod expr {
         }) => type_rep::TypeRep::App(AppTypeRep {
           // Create dummy path type reference
           callee: find_or_primitive_path(db, reference).into(),
-          arguments: arguments.into_iter().map(|argument| argument.upgrade(db)).collect(),
+          arguments: arguments
+            .into_iter()
+            .map(|argument| argument.upgrade(db))
+            .collect(),
           location,
         }),
 
@@ -2542,7 +2567,10 @@ pub mod expr {
           kind: _,
         }) => type_rep::TypeRep::App(AppTypeRep {
           callee: expr.upgrade(db).into(),
-          arguments: arguments.into_iter().map(|argument| argument.upgrade(db)).collect(),
+          arguments: arguments
+            .into_iter()
+            .map(|argument| argument.upgrade(db))
+            .collect(),
           location,
         }),
 
@@ -2561,7 +2589,9 @@ pub mod expr {
       Diagnostics::push(
         db,
         Report::new(HirDiagnostic {
-          message: message!["Empty expression representation is not allowed to be used in any contexts",],
+          message: message![
+            "Empty expression representation is not allowed to be used in any contexts",
+          ],
           id: ErrorId("empty-expression"),
           location: Location::call_site(db),
         }),
@@ -2596,7 +2626,7 @@ pub mod expr {
     fn accept<T: walking::HirListener>(self, db: &dyn crate::HirDb, listener: &mut T) {
       match self {
         Expr::Empty => listener.visit_empty_expr(),
-        Expr::Meta(_) => {}, // TODO
+        Expr::Meta(_) => {} // TODO
         Expr::Call(call_expr) => call_expr.accept(db, listener),
         Expr::Ann(ann_expr) => ann_expr.accept(db, listener),
         Expr::Abs(abs_expr) => abs_expr.accept(db, listener),
@@ -2712,7 +2742,9 @@ pub mod type_rep {
   }
 
   impl QPath {
-    pub fn new(_: &dyn crate::HirDb, qualifier: Definition, name: Option<Identifier>, location: Location) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, qualifier: Definition, name: Option<Identifier>, location: Location,
+    ) -> Self {
       Self {
         qualifier,
         name,
@@ -2767,7 +2799,9 @@ pub mod type_rep {
   }
 
   impl AppTypeRep {
-    pub fn new(_: &dyn crate::HirDb, callee: TypeRep, arguments: Vec<TypeRep>, location: Location) -> Self {
+    pub fn new(
+      _: &dyn crate::HirDb, callee: TypeRep, arguments: Vec<TypeRep>, location: Location,
+    ) -> Self {
       Self {
         callee: Box::new(callee),
         arguments,
@@ -2824,8 +2858,8 @@ pub mod type_rep {
 
   impl ArrowTypeRep {
     pub fn new(
-      _: &dyn crate::HirDb, kind: ArrowKind, parameters: Vec<declaration::Parameter>, value: TypeRep,
-      location: Location, scope: Arc<Scope>,
+      _: &dyn crate::HirDb, kind: ArrowKind, parameters: Vec<declaration::Parameter>,
+      value: TypeRep, location: Location, scope: Arc<Scope>,
     ) -> Self {
       Self {
         kind,

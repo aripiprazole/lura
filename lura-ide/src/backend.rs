@@ -66,27 +66,29 @@ impl Backend {
           }),
           file_operations: None,
         }),
-        semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
-          SemanticTokensRegistrationOptions {
-            text_document_registration_options: TextDocumentRegistrationOptions {
-              document_selector: Some(vec![DocumentFilter {
-                language: Some("lura".to_string()),
-                scheme: Some("file".to_string()),
-                pattern: None,
-              }]),
-            },
-            semantic_tokens_options: SemanticTokensOptions {
-              work_done_progress_options: WorkDoneProgressOptions::default(),
-              legend: SemanticTokensLegend {
-                token_types: LEGEND_TYPE.into(),
-                token_modifiers: vec![],
+        semantic_tokens_provider: Some(
+          SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+            SemanticTokensRegistrationOptions {
+              text_document_registration_options: TextDocumentRegistrationOptions {
+                document_selector: Some(vec![DocumentFilter {
+                  language: Some("lura".to_string()),
+                  scheme: Some("file".to_string()),
+                  pattern: None,
+                }]),
               },
-              range: Some(true),
-              full: Some(SemanticTokensFullOptions::Bool(true)),
+              semantic_tokens_options: SemanticTokensOptions {
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+                legend: SemanticTokensLegend {
+                  token_types: LEGEND_TYPE.into(),
+                  token_modifiers: vec![],
+                },
+                range: Some(true),
+                full: Some(SemanticTokensFullOptions::Bool(true)),
+              },
+              static_registration_options: StaticRegistrationOptions::default(),
             },
-            static_registration_options: StaticRegistrationOptions::default(),
-          },
-        )),
+          ),
+        ),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Left(true)),
@@ -107,11 +109,15 @@ impl LanguageServer for Backend {
     Ok(())
   }
 
-  async fn semantic_tokens_range(&self, params: semantic_tokens_range::Input) -> semantic_tokens_range::Output {
+  async fn semantic_tokens_range(
+    &self, params: semantic_tokens_range::Input,
+  ) -> semantic_tokens_range::Output {
     semantic_tokens_range::invoke(self, params).await
   }
 
-  async fn semantic_tokens_full(&self, params: semantic_tokens_full::Input) -> semantic_tokens_full::Output {
+  async fn semantic_tokens_full(
+    &self, params: semantic_tokens_full::Input,
+  ) -> semantic_tokens_full::Output {
     semantic_tokens_full::invoke(self, params).await
   }
 

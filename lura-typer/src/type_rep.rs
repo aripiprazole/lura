@@ -161,7 +161,9 @@ impl Type {
 
   /// Checks if the type is an empty hole
   pub(crate) fn is_unbound(&self) -> bool {
-    let Type::Flexible(hole, _) = self else { return false };
+    let Type::Flexible(hole, _) = self else {
+      return false;
+    };
 
     match hole.kind() {
       HoleKind::Error => false,

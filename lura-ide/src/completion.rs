@@ -6,7 +6,8 @@ use lura_hir::{
   source::HirSource,
 };
 use tower_lsp::lsp_types::{
-  CompletionItem, CompletionItemKind, CompletionResponse, Documentation, MessageType, TextDocumentPositionParams,
+  CompletionItem, CompletionItemKind, CompletionResponse, Documentation, MessageType,
+  TextDocumentPositionParams,
 };
 
 use crate::backend::Backend;
@@ -18,7 +19,9 @@ impl Backend {
     let path = params.text_document.uri.to_string();
     let text_file = self.workspace.file_map.get(&path).unwrap();
     let searching_for_name = Default::default();
-    let offset = text_file.try_line_to_char(params.position.line as usize).ok()?;
+    let offset = text_file
+      .try_line_to_char(params.position.line as usize)
+      .ok()?;
     let position = Position {
       offset: Offset(offset + (params.position.character as usize)),
     };

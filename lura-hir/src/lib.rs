@@ -69,9 +69,13 @@ pub struct Jar(
 /// compilation of Lura.
 pub trait HirDb: PrimitiveProvider + HasManifest + ParseDb + DiagnosticDb + DbWithJar<Jar> {}
 
-impl<DB: HasManifest> HirDb for DB where DB: ?Sized + ParseDb + PrimitiveProvider + DiagnosticDb + salsa::DbWithJar<Jar> {}
+impl<DB: HasManifest> HirDb for DB where
+  DB: ?Sized + ParseDb + PrimitiveProvider + DiagnosticDb + salsa::DbWithJar<Jar>
+{
+}
 
 pub mod completions;
+pub mod debruijin;
 pub mod debug;
 pub mod errors;
 pub mod fmt;
@@ -84,4 +88,3 @@ pub mod scope;
 pub mod solver;
 pub mod source;
 pub mod walking;
-pub mod debruijin;

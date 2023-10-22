@@ -63,7 +63,9 @@ pub fn semantic_highlight(text: &str) -> Vec<LuraSemanticToken> {
   // Configure permitted highlight names into config
   config.configure(HIGHLIGHT_NAMES);
 
-  let tokens = highlighter.highlight(&config, text.as_bytes(), None, |_| None).unwrap();
+  let tokens = highlighter
+    .highlight(&config, text.as_bytes(), None, |_| None)
+    .unwrap();
 
   let mut semantic_tokens = Vec::new();
   let mut highlights = Vec::new();

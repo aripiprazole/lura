@@ -73,7 +73,10 @@ impl salsa::Database for RootDb {
     if let Some(logs) = &self.logs {
       // don't log boring events
       if let salsa::EventKind::WillExecute { .. } = event.kind {
-        logs.lock().unwrap().push(format!("Event: {:?}", event.debug(self)));
+        logs
+          .lock()
+          .unwrap()
+          .push(format!("Event: {:?}", event.debug(self)));
       }
     }
   }

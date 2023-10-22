@@ -23,7 +23,9 @@ pub struct Scope {
 pub trait HirFormatter {
   /// Format the node with the given scope.
   #[inline(always)]
-  fn fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope, indent: usize) -> std::fmt::Result {
+  fn fmt(
+    &self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope, indent: usize,
+  ) -> std::fmt::Result {
     scope.indent.set(scope.indent.take() + indent);
     self.hir_fmt(db, f, scope)?;
     scope.indent.set(scope.indent.take() - indent);
@@ -150,7 +152,9 @@ mod impls {
   /// is surrounded by curly braces.
   ///
   /// The given function is called to format the declaration.
-  fn code_block<F>(db: &dyn HirDb, scope: &Scope, f: &mut Formatter, format_decl: F) -> std::fmt::Result
+  fn code_block<F>(
+    db: &dyn HirDb, scope: &Scope, f: &mut Formatter, format_decl: F,
+  ) -> std::fmt::Result
   where
     F: FnOnce(&dyn HirDb, &mut Formatter, &Scope) -> std::fmt::Result,
   {

@@ -5,7 +5,7 @@ use lura_diagnostic::{code, message, ErrorId};
 use crate::{
   // infer::{EvalEnv, Snapshot},
   thir::{ThirDiagnostic, ThirLocation},
-  type_rep::{pi::Pi, Quote, Type, Term},
+  type_rep::{pi::Pi, Quote, Term, Type},
 };
 
 impl Term {

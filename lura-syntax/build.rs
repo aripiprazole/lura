@@ -15,7 +15,8 @@ fn main() {
 fn regenerate_node_types() {
   let input_path = Path::new("../vendor/tree-sitter-lura/src/node-types.json");
   let target = Path::new("src/generated/node_types.rs");
-  let node_types = type_sitter_gen::generate_nodes(input_path, &tree_sitter()).expect("failed to generate nodes");
+  let node_types =
+    type_sitter_gen::generate_nodes(input_path, &tree_sitter()).expect("failed to generate nodes");
   clear_output_files(target);
   write_rust_file(target, node_types);
 }

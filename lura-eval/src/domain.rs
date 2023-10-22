@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
+
 use lura_tt::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,10 +13,11 @@ pub struct RuntimeError {
 }
 
 pub type Arguments = Vec<Value>;
-pub type FFI = Arc<dyn Fn(crate::stack::Stack, Arguments) -> Value + Sync + Send + UnwindSafe + RefUnwindSafe>;
+pub type FFI =
+  Arc<dyn Fn(crate::stack::Stack, Arguments) -> Value + Sync + Send + UnwindSafe + RefUnwindSafe>;
 
 /// The context that holds external functions or ffi
 #[derive(Default)]
 pub struct Ctx {
-  pub functions: HashMap<String, FFI>
+  pub functions: HashMap<String, FFI>,
 }

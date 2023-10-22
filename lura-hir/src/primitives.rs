@@ -3,6 +3,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;
 
+use crate::debruijin::Level;
 use crate::{
   solver::{Definition, DefinitionId, DefinitionKind},
   source::{
@@ -10,7 +11,6 @@ use crate::{
     HirPath, Location,
   },
 };
-use crate::debruijin::Level;
 
 /// The primitive map, that stores all the primitives that are available in the
 /// language.
@@ -97,7 +97,10 @@ pub fn new_type_rep(db: &dyn crate::HirDb, path: HirPath, repr: TypeRep) {
 pub fn primitive_type_rep(db: &dyn crate::HirDb, path: HirPath) -> Option<TypeRep> {
   let primitives = db.primitives();
   let definition = primitives.type_representations.get(&path.to_string(db)?)?;
-  primitives.type_definitions.get(&definition).map(|value| value.clone())
+  primitives
+    .type_definitions
+    .get(&definition)
+    .map(|value| value.clone())
 }
 
 /// Defines the [`primitive_type_definition`] query.

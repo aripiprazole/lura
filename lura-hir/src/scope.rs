@@ -3,9 +3,9 @@ use std::{fmt::Debug, sync::Arc};
 use fxhash::FxBuildHasher;
 
 use crate::{
+  debruijin::Level,
   solver::{Definition, DefinitionId, DefinitionKind, Reference},
   source::{HirPath, HirSource, Location},
-  debruijin::Level,
   HirDb,
 };
 
@@ -193,7 +193,9 @@ impl Scope {
 
   /// Searches a name for the given `kind` in the current scope, and returns the definition if
   /// found.
-  pub fn search(&self, db: &dyn crate::HirDb, path: HirPath, kind: DefinitionKind) -> Option<Definition> {
+  pub fn search(
+    &self, db: &dyn crate::HirDb, path: HirPath, kind: DefinitionKind,
+  ) -> Option<Definition> {
     let name = path.to_string(db).unwrap_or_default();
 
     match kind {
@@ -207,30 +209,46 @@ impl Scope {
           Some(root) => root.search(db, path, DefinitionKind::Function),
           None => None,
         }),
-      DefinitionKind::Constructor => self
-        .constructors
-        .get(&name)
-        .copied()
-        .or_else(|| match self.parent.as_ref() {
-          Some(root) => root.search(db, path, DefinitionKind::Constructor),
-          None => None,
-        }),
-      DefinitionKind::Trait => self.traits.get(&name).copied().or_else(|| match self.parent.as_ref() {
-        Some(root) => root.search(db, path, DefinitionKind::Trait),
-        None => None,
-      }),
-      DefinitionKind::Type => self.types.get(&name).copied().or_else(|| match self.parent.as_ref() {
-        Some(root) => root.search(db, path, DefinitionKind::Type),
-        None => None,
-      }),
-      DefinitionKind::Variable => self
-        .variables
-        .get(&name)
-        .copied()
-        .or_else(|| match self.parent.as_ref() {
-          Some(root) => root.search(db, path, DefinitionKind::Variable),
-          None => None,
-        }),
+      DefinitionKind::Constructor => {
+        self
+          .constructors
+          .get(&name)
+          .copied()
+          .or_else(|| match self.parent.as_ref() {
+            Some(root) => root.search(db, path, DefinitionKind::Constructor),
+            None => None,
+          })
+      }
+      DefinitionKind::Trait => {
+        self
+          .traits
+          .get(&name)
+          .copied()
+          .or_else(|| match self.parent.as_ref() {
+            Some(root) => root.search(db, path, DefinitionKind::Trait),
+            None => None,
+          })
+      }
+      DefinitionKind::Type => {
+        self
+          .types
+          .get(&name)
+          .copied()
+          .or_else(|| match self.parent.as_ref() {
+            Some(root) => root.search(db, path, DefinitionKind::Type),
+            None => None,
+          })
+      }
+      DefinitionKind::Variable => {
+        self
+          .variables
+          .get(&name)
+          .copied()
+          .or_else(|| match self.parent.as_ref() {
+            Some(root) => root.search(db, path, DefinitionKind::Variable),
+            None => None,
+          })
+      }
       DefinitionKind::Module => None,
       DefinitionKind::Command => None,
       DefinitionKind::Unresolved => None,
@@ -264,7 +282,9 @@ impl Scope {
   }
 
   /// Publishes all definitions in the current scope to the parent scope.
-  pub fn publish_all_definitions_to(&mut self, db: &dyn crate::HirDb, prefix: &str, another: &mut Self) {
+  pub fn publish_all_definitions_to(
+    &mut self, db: &dyn crate::HirDb, prefix: &str, another: &mut Self,
+  ) {
     for (name, definition) in self.all_definitions() {
       let text = format!("{prefix}.{name}");
 
@@ -274,7 +294,10 @@ impl Scope {
 
   /// Publishes all definitions in the current scope to the parent scope.
   pub fn publish_all_definitions(&mut self, db: &dyn crate::HirDb, prefix: Definition) {
-    let prefix = prefix.name(db).to_string(db).unwrap_or("~INTERNAL ERROR~".into());
+    let prefix = prefix
+      .name(db)
+      .to_string(db)
+      .unwrap_or("~INTERNAL ERROR~".into());
 
     self.publish_all_definitions_to(db, &prefix, Arc::make_mut(&mut self.root()));
   }

@@ -60,7 +60,11 @@ impl Backend {
   }
 
   pub fn hir_source(&self, uri: Url) -> Option<HirSource> {
-    self.workspace.hir_map.get(&uri.to_string()).map(|value| *value)
+    self
+      .workspace
+      .hir_map
+      .get(&uri.to_string())
+      .map(|value| *value)
   }
 }
 

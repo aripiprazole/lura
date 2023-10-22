@@ -51,7 +51,9 @@ pub fn evaluate(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: E
   }
 }
 
-fn evaluate_type(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: TypeRep) -> Value {
+fn evaluate_type(
+  db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: TypeRep,
+) -> Value {
   match type_rep {
     TypeRep::Unit => todo!(),
     TypeRep::Hole => todo!(),
@@ -70,6 +72,8 @@ fn evaluate_block(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, block
   todo!()
 }
 
-fn evaluate_stmt(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, stmt: Stmt) -> StmtResult {
+fn evaluate_stmt(
+  db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, stmt: Stmt,
+) -> StmtResult {
   todo!()
 }

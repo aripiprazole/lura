@@ -35,7 +35,11 @@ pub mod semantic_tokens_range {
             .position(|t| *t == token.token_type)
             .map(|i| i as u32)?;
           let delta_line = line - pre_line;
-          let delta_start = if delta_line == 0 { start - pre_start } else { start };
+          let delta_start = if delta_line == 0 {
+            start - pre_start
+          } else {
+            start
+          };
           let token = Some(SemanticToken {
             delta_line,
             delta_start,
@@ -91,7 +95,11 @@ pub mod semantic_tokens_full {
             .position(|t| *t == token.token_type)
             .map(|i| i as u32)?;
           let delta_line = line - pre_line;
-          let delta_start = if delta_line == 0 { start - pre_start } else { start };
+          let delta_start = if delta_line == 0 {
+            start - pre_start
+          } else {
+            start
+          };
           let token = Some(SemanticToken {
             delta_line,
             delta_start,
@@ -184,7 +192,11 @@ pub mod completions {
       .await;
 
     if let Some(hir_source) = server.hir_source(path.clone()) {
-      return Ok(server.completions(params.text_document_position, hir_source).await);
+      return Ok(
+        server
+          .completions(params.text_document_position, hir_source)
+          .await,
+      );
     }
 
     Ok(Some(CompletionResponse::Array(new_completions)))

@@ -16,8 +16,10 @@ macro_rules! make_test {
   ($name:ident, $run:expr) => {
     #[test]
     fn $name() {
-      let source_code = std::fs::read_to_string(concat!("suite/", stringify!($name), ".lura")).unwrap();
-      let expect = std::fs::read_to_string(concat!("suite/", stringify!($name), ".expect")).unwrap_or_default();
+      let source_code =
+        std::fs::read_to_string(concat!("suite/", stringify!($name), ".lura")).unwrap();
+      let expect = std::fs::read_to_string(concat!("suite/", stringify!($name), ".expect"))
+        .unwrap_or_default();
       $crate::suite::run_test_suite(stringify!($name), &source_code, &expect, $run);
     }
   };
@@ -43,7 +45,8 @@ type Expect<'a> = &'a mut dyn Write;
 
 /// Runs a test suite, with the given `name` and `f`.
 pub fn run_test_suite(
-  file: &str, source_code: &str, expect: &str, f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
+  file: &str, source_code: &str, expect: &str,
+  f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
 ) {
   let _ = env_logger::builder()
     .is_test(true)
@@ -139,7 +142,11 @@ pub fn debug_type_table(expect: Expect, db: &RootDb, type_table: TypeTable) -> e
 
         ariadne::Label::new((file.clone(), range))
           .with_color(Color::Yellow)
-          .with_message(format!("parameter {} has type {}", pattern.fg(Color::Yellow), type_rep.fg(Color::Red)))
+          .with_message(format!(
+            "parameter {} has type {}",
+            pattern.fg(Color::Yellow),
+            type_rep.fg(Color::Red)
+          ))
       }))
       .with_labels(type_table.into_iter().map(|(expr, type_rep)| {
         let location = expr.location(db);

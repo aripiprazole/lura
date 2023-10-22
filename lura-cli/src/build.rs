@@ -53,7 +53,8 @@ impl<'db> Manifest<'db> {
 
   pub fn read_file(&mut self, folder: PathBuf, path: PathBuf) -> eyre::Result<Source> {
     let path = folder.join(path);
-    let contents = std::fs::read_to_string(&path).wrap_err_with(|| format!("Failed to read {}", path.display()))?;
+    let contents = std::fs::read_to_string(&path)
+      .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
 
     let name = folder.strip_prefix(&self.soruce_folder)?;
     let mut name = name
@@ -114,7 +115,9 @@ impl<'db> Manifest<'db> {
     Ok(())
   }
 
-  pub fn resolve_all_files(&mut self) -> eyre::Result<im::HashMap<Package, HirSource, FxBuildHasher>> {
+  pub fn resolve_all_files(
+    &mut self,
+  ) -> eyre::Result<im::HashMap<Package, HirSource, FxBuildHasher>> {
     // Clear diagnostics for new revision
     self.diagnostics = Default::default();
 
