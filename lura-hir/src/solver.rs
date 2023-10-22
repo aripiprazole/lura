@@ -7,7 +7,7 @@ use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
 // They were defined here, so we are rexporting it to avoid confusion!
 pub use crate::errors::HirDiagnostic;
 use crate::{
-  debruijin::Level,
+  debruijin::{Index, Level},
   lower::{hir_declare, hir_lower},
   primitives::{initialize_primitive_bag, primitive_type_definition},
   reference::ReferenceWalker,
@@ -15,7 +15,6 @@ use crate::{
   scope::{Scope, ScopeKind},
   source::{DefaultWithDb, HirLocation, HirPath, Location, VirtualPath},
 };
-use crate::debruijin::Index;
 
 /// Represents the kind of a definition in the High-Level Intermediate Representation. It's
 /// intended to be used to store the kind of the definition, and to be used to create the HIR.

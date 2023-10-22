@@ -15,6 +15,7 @@ pub type Arguments = Vec<Value>;
 pub type FFI = Arc<dyn Fn(crate::stack::Stack, Arguments) -> Value + Sync + Send + UnwindSafe + RefUnwindSafe>;
 
 /// The context that holds external functions or ffi
+#[derive(Default)]
 pub struct Ctx {
   pub functions: HashMap<String, FFI>
 }
