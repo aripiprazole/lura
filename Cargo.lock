@@ -953,9 +953,6 @@ dependencies = [
  "once_cell",
  "petgraph",
  "salsa-2022",
- "tree-sitter",
- "tree-sitter-lura",
- "type-sitter-lib",
 ]
 
 [[package]]

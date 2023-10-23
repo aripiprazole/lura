@@ -2223,7 +2223,7 @@ mod util {
         Err(err) => {
           let location = lower.range(err.node.range());
 
-          T::incorrect_kind(lower.db, err.node, err.kind, location)
+          T::incorrect_kind(lower.db, err.kind, location)
         }
       }
     }
@@ -2243,12 +2243,12 @@ mod util {
         Ok(ExtraOr::Extra(extra)) => {
           let location = lower.range(extra.range());
 
-          T::extra_data(lower.db, extra, location)
+          T::extra_data(lower.db, location)
         }
         Err(err) => {
           let location = lower.range(err.node.range());
 
-          T::incorrect_kind(lower.db, err.node, err.kind, location)
+          T::incorrect_kind(lower.db, err.kind, location)
         }
       }
     }

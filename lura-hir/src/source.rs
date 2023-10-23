@@ -13,7 +13,6 @@ use std::{
 
 use lura_diagnostic::{Offset, TextRange};
 use lura_syntax::Source;
-use tree_sitter::Node;
 
 use crate::{package::Package, reparse::reparse_hir_path, scope::Scope, walking};
 
@@ -39,11 +38,10 @@ pub trait DefaultWithDb {
 
   /// Returns a sentinel value for this type that signals that the value is
   /// not available.
-  fn extra_data(db: &dyn crate::HirDb, node: Node, location: Location) -> Self
+  fn extra_data(db: &dyn crate::HirDb, location: Location) -> Self
   where
     Self: Sized,
   {
-    let _ = node;
     let _ = location;
 
     Self::default_with_db(db)
@@ -51,7 +49,7 @@ pub trait DefaultWithDb {
 
   /// Returns a sentinel value for this type that signals that the value is
   /// not available.
-  fn incorrect_kind(db: &dyn crate::HirDb, _node: Node, kind: &str, location: Location) -> Self
+  fn incorrect_kind(db: &dyn crate::HirDb, kind: &str, location: Location) -> Self
   where
     Self: Sized,
   {
