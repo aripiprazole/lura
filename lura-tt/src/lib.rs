@@ -10,7 +10,6 @@ use lura_hir::source::Location;
 pub enum ConstructorKind {
   True,
   False,
-  Universe,
   Int(isize),
   String(String),
 }

@@ -1,13 +1,7 @@
 use fxhash::FxBuildHasher;
-// use im_rc::HashSet;
-// use lura_diagnostic::{Diagnostics, Report};
 use lura_hir::source::{declaration::Parameter, expr::Expr, top_level::TopLevel, HirSource};
 
-use crate::{
-  declaration::TypedDeclaration,
-  // infer::{Infer, InferCtx},
-  type_rep::{Quote, Type},
-};
+use crate::{declaration::TypedDeclaration, type_rep::Type};
 
 #[salsa::tracked]
 pub struct TypeTable {
@@ -20,7 +14,7 @@ pub struct TypeTable {
 ///
 /// [`infer_type_table`]: crate::table::infer_type_table
 #[salsa::tracked]
-pub fn infer_type_table(db: &dyn crate::TyperDb, source: HirSource) -> TypeTable {
+pub fn infer_type_table(db: &dyn crate::TyperDb, _src: HirSource) -> TypeTable {
   // let mut ctx = InferCtx {
   //   db,
   //   pkg: source.package(db),

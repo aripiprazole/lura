@@ -1,8 +1,6 @@
 use std::{
-  cell::RefCell,
   fmt::{Debug, Display, Formatter},
   hash::Hash,
-  rc::Rc,
 };
 
 use holes::*;
@@ -149,7 +147,7 @@ impl Type {
   /// Force the type to be evaluated.
   ///
   /// This is used to force the type to be evaluated.
-  pub(crate) fn force(self) -> Type {
+  pub fn force(self) -> Type {
     match self.clone() {
       Type::Flexible(ref hole, _) => match hole.kind() {
         HoleKind::Filled(value) => value.force(),
@@ -160,7 +158,7 @@ impl Type {
   }
 
   /// Checks if the type is an empty hole
-  pub(crate) fn is_unbound(&self) -> bool {
+  pub fn is_unbound(&self) -> bool {
     let Type::Flexible(hole, _) = self else {
       return false;
     };
@@ -330,13 +328,13 @@ mod display {
   }
 
   impl Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
       todo!()
     }
   }
 
   impl Display for Term {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
       todo!()
     }
   }
@@ -362,7 +360,6 @@ mod display {
 pub mod holes {
   use std::{
     ops::Deref,
-    rc::Rc,
     sync::{Arc, RwLock},
   };
 
@@ -427,7 +424,7 @@ pub mod holes {
   }
 
   impl HoleRef {
-    pub(crate) fn new(value: Hole) -> Self {
+    pub fn new(value: Hole) -> Self {
       Self {
         data: Arc::new(RwLock::new(value)),
       }
