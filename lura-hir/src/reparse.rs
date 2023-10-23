@@ -6,7 +6,9 @@ use crate::source::{HirLocation, Identifier};
 /// rename a [`HirPath`] in the source code.
 #[salsa::tracked]
 pub fn reparse_hir_path(
-  db: &dyn crate::HirDb, base: HirLocation, new_name: String,
+  db: &dyn crate::HirDb,
+  base: HirLocation,
+  new_name: String,
 ) -> Vec<Identifier> {
   new_name
     .split('.')

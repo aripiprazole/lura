@@ -24,7 +24,11 @@ pub trait HirFormatter {
   /// Format the node with the given scope.
   #[inline(always)]
   fn fmt(
-    &self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope, indent: usize,
+    &self,
+    db: &dyn HirDb,
+    f: &mut Formatter,
+    scope: &Scope,
+    indent: usize,
   ) -> std::fmt::Result {
     scope.indent.set(scope.indent.take() + indent);
     self.hir_fmt(db, f, scope)?;
@@ -63,7 +67,11 @@ impl Scope {
 
   /// Writes punctuated items. The separator is not written at the end.
   pub fn punctuated<T: HirFormatter>(
-    &self, db: &dyn HirDb, f: &mut Formatter, value: Vec<T>, sep: &str,
+    &self,
+    db: &dyn HirDb,
+    f: &mut Formatter,
+    value: Vec<T>,
+    sep: &str,
   ) -> std::fmt::Result {
     for (i, item) in value.iter().enumerate() {
       if i != 0 {
@@ -79,7 +87,11 @@ impl Scope {
   ///
   /// The separator is written at the end of each line.
   pub fn unlined<T: HirFormatter>(
-    &self, db: &dyn HirDb, f: &mut Formatter, value: Vec<T>, sep: &str,
+    &self,
+    db: &dyn HirDb,
+    f: &mut Formatter,
+    value: Vec<T>,
+    sep: &str,
   ) -> std::fmt::Result {
     for (i, item) in value.iter().enumerate() {
       if i != 0 {
@@ -125,7 +137,12 @@ mod impls {
   ///
   /// The given function is called to format the declaration.
   fn format_decl<Prefix, D, F>(
-    decl: &D, prefix: Prefix, db: &dyn HirDb, scope: &Scope, f: &mut Formatter, format_decl: F,
+    decl: &D,
+    prefix: Prefix,
+    db: &dyn HirDb,
+    scope: &Scope,
+    f: &mut Formatter,
+    format_decl: F,
   ) -> std::fmt::Result
   where
     Prefix: Into<Option<&'static str>>,
@@ -153,7 +170,10 @@ mod impls {
   ///
   /// The given function is called to format the declaration.
   fn code_block<F>(
-    db: &dyn HirDb, scope: &Scope, f: &mut Formatter, format_decl: F,
+    db: &dyn HirDb,
+    scope: &Scope,
+    f: &mut Formatter,
+    format_decl: F,
   ) -> std::fmt::Result
   where
     F: FnOnce(&dyn HirDb, &mut Formatter, &Scope) -> std::fmt::Result,
@@ -300,7 +320,9 @@ mod impls {
     fn hir_fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
       format_decl(self, "class", db, scope, f, |db, f, scope| {
         // Write the classes' methods wi
-        code_block(db, scope, f, |db, f, scope| scope.unlined(db, f, self.methods(db), ";"))
+        code_block(db, scope, f, |db, f, scope| {
+          scope.unlined(db, f, self.methods(db), ";")
+        })
       })
     }
   }
@@ -310,7 +332,9 @@ mod impls {
       // TODO: Print implementation's type
       format_decl(self, "instance", db, scope, f, |db, f, scope| {
         // Write the classes' methods wi
-        code_block(db, scope, f, |db, f, scope| scope.unlined(db, f, self.methods(db), ";"))
+        code_block(db, scope, f, |db, f, scope| {
+          scope.unlined(db, f, self.methods(db), ";")
+        })
       })
     }
   }
@@ -319,7 +343,9 @@ mod impls {
     fn hir_fmt(&self, db: &dyn HirDb, f: &mut Formatter, scope: &Scope) -> std::fmt::Result {
       format_decl(self, "trait", db, scope, f, |db, f, scope| {
         // Write the classes' methods wi
-        code_block(db, scope, f, |db, f, scope| scope.unlined(db, f, self.methods(db), ";"))
+        code_block(db, scope, f, |db, f, scope| {
+          scope.unlined(db, f, self.methods(db), ";")
+        })
       })
     }
   }
@@ -635,7 +661,9 @@ mod impls {
       self.scrutinee(db).hir_fmt(db, f, scope)?;
       write!(f, " ")?;
       write!(f, "{{")?;
-      code_block(db, scope, f, |db, f, scope| scope.unlined(db, f, self.clauses(db), ", "))?;
+      code_block(db, scope, f, |db, f, scope| {
+        scope.unlined(db, f, self.clauses(db), ", ")
+      })?;
       write!(f, "}}")
     }
   }

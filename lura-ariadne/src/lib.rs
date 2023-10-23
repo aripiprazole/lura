@@ -100,7 +100,10 @@ impl AriadneReport {
           )
         }))
         .finish()
-        .write((file.path.clone(), ariadne::Source::from(&content)), &mut output)
+        .write(
+          (file.path.clone(), ariadne::Source::from(&content)),
+          &mut output,
+        )
         .wrap_err_with(|| format!("failed to print the report for file {}", file.path))?;
     }
 

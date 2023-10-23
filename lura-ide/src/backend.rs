@@ -110,13 +110,15 @@ impl LanguageServer for Backend {
   }
 
   async fn semantic_tokens_range(
-    &self, params: semantic_tokens_range::Input,
+    &self,
+    params: semantic_tokens_range::Input,
   ) -> semantic_tokens_range::Output {
     semantic_tokens_range::invoke(self, params).await
   }
 
   async fn semantic_tokens_full(
-    &self, params: semantic_tokens_full::Input,
+    &self,
+    params: semantic_tokens_full::Input,
   ) -> semantic_tokens_full::Output {
     semantic_tokens_full::invoke(self, params).await
   }

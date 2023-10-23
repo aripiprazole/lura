@@ -4,7 +4,7 @@ use crate::{package::Package, source::HirSource};
 
 /// Controls the lowering of a source file into the HIR. It's a trait, so we can
 /// have this separated from this crate.
-/// 
+///
 /// This trait is implemented by the `lura-hir-lowering` crate, and it's used by the
 /// `lura-driver` crate.
 pub trait HirLowering {

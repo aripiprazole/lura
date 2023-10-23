@@ -949,7 +949,10 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
   /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
   /// given parameters.
   pub fn parameter(
-    &mut self, implicit: bool, rigid: bool, tree: lura_syntax::Parameter,
+    &mut self,
+    implicit: bool,
+    rigid: bool,
+    tree: lura_syntax::Parameter,
   ) -> Parameter {
     let binding = tree
       .pattern()
@@ -982,7 +985,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
   /// It does takes rigid and implicit parameters, and it will return a [`Parameter`] with the
   /// given parameters.
   pub fn any_parameter(
-    &mut self, implicit: bool, rigid: bool,
+    &mut self,
+    implicit: bool,
+    rigid: bool,
     tree: lura_syntax::anon_unions::ForallParameter_Parameter,
   ) -> Parameter {
     use lura_syntax::anon_unions::ForallParameter_Parameter::*;
@@ -1214,8 +1219,9 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 ///
 /// It's only a module, to organization purposes.
 mod pattern_solver {
-  use super::*;
   use lura_hir::source::pattern::{BindingPattern, Constructor, ConstructorPattern, Pattern};
+
+  use super::*;
 
   #[rustfmt::skip]
     type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>;
@@ -1333,8 +1339,9 @@ mod pattern_solver {
 ///
 /// It's only a module, to organization purposes.
 mod literal_solver {
-  use super::*;
   use lura_hir::source::literal::Literal;
+
+  use super::*;
 
   impl LowerHir<'_, '_> {
     pub fn literal(&mut self, tree: lura_syntax::Literal) -> Literal {
@@ -1371,7 +1378,6 @@ mod literal_solver {
 ///
 /// It's only a module, to organization purposes.
 mod stmt_solver {
-  use super::*;
   use lura_hir::{
     solver::HirLevel,
     source::{
@@ -1382,6 +1388,8 @@ mod stmt_solver {
       HirElement,
     },
   };
+
+  use super::*;
 
   type SyntaxStmt<'tree> = lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt<'tree>;
 
@@ -1536,9 +1544,6 @@ mod stmt_solver {
 /// It's only a module, to organization purposes.
 mod term_solver {
   use lura_diagnostic::{message, Diagnostics, ErrorId, Report};
-  use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern;
-
-  use super::*;
   use lura_hir::{
     solver::{HirDiagnostic, HirLevel},
     source::{
@@ -1549,6 +1554,9 @@ mod term_solver {
       HirElement,
     },
   };
+  use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern;
+
+  use super::*;
 
   #[rustfmt::skip]
     type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;

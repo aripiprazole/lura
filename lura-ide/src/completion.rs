@@ -14,7 +14,9 @@ use crate::backend::Backend;
 
 impl Backend {
   pub async fn completions(
-    &self, params: TextDocumentPositionParams, hir_source: HirSource,
+    &self,
+    params: TextDocumentPositionParams,
+    hir_source: HirSource,
   ) -> Option<CompletionResponse> {
     let path = params.text_document.uri.to_string();
     let text_file = self.workspace.file_map.get(&path).unwrap();
@@ -29,7 +31,10 @@ impl Backend {
     // log for client
     self
       .client
-      .log_message(MessageType::INFO, format!("trying completions at {:?}", position.offset.0))
+      .log_message(
+        MessageType::INFO,
+        format!("trying completions at {:?}", position.offset.0),
+      )
       .await;
 
     let completions = completions(&*self.db(), hir_source, searching_for_name, position);

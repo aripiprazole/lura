@@ -914,17 +914,16 @@ dependencies = [
  "log",
  "lura-ariadne",
  "lura-diagnostic",
+ "lura-eval",
  "lura-hir",
  "lura-hir-lowering",
  "lura-syntax",
+ "lura-tt",
  "lura-typer",
  "lura-vfs",
  "salsa-2022",
  "similar",
  "strip-ansi-escapes",
- "tree-sitter",
- "tree-sitter-lura",
- "type-sitter-lib",
 ]
 
 [[package]]

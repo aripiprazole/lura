@@ -10,7 +10,12 @@ use salsa::DbWithJar;
 extern crate salsa_2022 as salsa;
 
 #[salsa::jar(db = TyperDb)]
-pub struct Jar(table::TypeTable, table::infer_type_table, elaboration::thir_elab, thir::ThirSource);
+pub struct Jar(
+  table::TypeTable,
+  table::infer_type_table,
+  elaboration::thir_elab,
+  thir::ThirSource,
+);
 
 /// The database that Typer uses internally. This is a trait so that we can
 /// mock it during testing.

@@ -33,7 +33,10 @@ pub struct Position {
 /// location of the cursor. It's used to search for the scope completions.
 #[salsa::tracked]
 pub fn completions(
-  db: &dyn crate::HirDb, file: HirSource, path: String, position: Position,
+  db: &dyn crate::HirDb,
+  file: HirSource,
+  path: String,
+  position: Position,
 ) -> Vec<HirCompletion> {
   // TODO: filter by path
   let _ = path;

@@ -590,7 +590,9 @@ pub mod declaration {
     /// Creates a new explicit parameter with the given [`binding`], [`type_rep`], that
     /// is rigid.
     pub fn explicit(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      db: &dyn crate::HirDb,
+      binding: pattern::Pattern,
+      type_rep: type_rep::TypeRep,
       location: Location,
     ) -> Self {
       Self::new(db, binding, type_rep, false, true, HirLevel::Expr, location)
@@ -599,7 +601,9 @@ pub mod declaration {
     /// Creates a new implicit parameter with the given [`binding`], [`type_rep`], that
     /// is rigid.
     pub fn implicit(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      db: &dyn crate::HirDb,
+      binding: pattern::Pattern,
+      type_rep: type_rep::TypeRep,
       location: Location,
     ) -> Self {
       Self::new(db, binding, type_rep, true, true, HirLevel::Expr, location)
@@ -609,7 +613,9 @@ pub mod declaration {
     /// is unrigid. It can be transformed into an implicit parameter, if the type signature
     /// requires it.
     pub fn unrigid(
-      db: &dyn crate::HirDb, binding: pattern::Pattern, type_rep: type_rep::TypeRep,
+      db: &dyn crate::HirDb,
+      binding: pattern::Pattern,
+      type_rep: type_rep::TypeRep,
       location: Location,
     ) -> Self {
       Self::new(
@@ -1584,7 +1590,10 @@ pub mod pattern {
 
   impl ConstructorPattern {
     pub fn new(
-      _: &dyn crate::HirDb, name: Constructor, arguments: Vec<Pattern>, location: Location,
+      _: &dyn crate::HirDb,
+      name: Constructor,
+      arguments: Vec<Pattern>,
+      location: Location,
     ) -> ConstructorPattern {
       ConstructorPattern {
         name,
@@ -1779,7 +1788,10 @@ pub mod stmt {
 
   impl AskStmt {
     pub fn new(
-      _: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location,
+      _: &dyn crate::HirDb,
+      pattern: pattern::Pattern,
+      value: expr::Expr,
+      location: Location,
     ) -> Self {
       Self {
         pattern,
@@ -1835,7 +1847,10 @@ pub mod stmt {
 
   impl LetStmt {
     pub fn new(
-      _: &dyn crate::HirDb, pattern: pattern::Pattern, value: expr::Expr, location: Location,
+      _: &dyn crate::HirDb,
+      pattern: pattern::Pattern,
+      value: expr::Expr,
+      location: Location,
     ) -> Self {
       Self {
         pattern,
@@ -1972,7 +1987,10 @@ pub mod stmt {
 
   impl Block {
     pub fn new(
-      _: &dyn crate::HirDb, statements: Vec<Stmt>, location: Location, scope: Arc<Scope>,
+      _: &dyn crate::HirDb,
+      statements: Vec<Stmt>,
+      location: Location,
+      scope: Arc<Scope>,
     ) -> Self {
       Self {
         statements,
@@ -2172,8 +2190,11 @@ pub mod expr {
 
   impl AbsExpr {
     pub fn new(
-      _: &dyn crate::HirDb, parameters: Vec<declaration::Parameter>, value: expr::Expr,
-      location: Location, scope: Arc<Scope>,
+      _: &dyn crate::HirDb,
+      parameters: Vec<declaration::Parameter>,
+      value: expr::Expr,
+      location: Location,
+      scope: Arc<Scope>,
     ) -> Self {
       Self {
         parameters,
@@ -2235,7 +2256,10 @@ pub mod expr {
 
   impl AnnExpr {
     pub fn new(
-      _: &dyn crate::HirDb, value: expr::Expr, type_rep: type_rep::TypeRep, location: Location,
+      _: &dyn crate::HirDb,
+      value: expr::Expr,
+      type_rep: type_rep::TypeRep,
+      location: Location,
     ) -> Self {
       Self {
         value: Box::new(value),
@@ -2322,7 +2346,10 @@ pub mod expr {
 
   impl MatchExpr {
     pub fn new(
-      _: &dyn crate::HirDb, kind: MatchKind, scrutinee: expr::Expr, clauses: Vec<MatchArm>,
+      _: &dyn crate::HirDb,
+      kind: MatchKind,
+      scrutinee: expr::Expr,
+      clauses: Vec<MatchArm>,
       location: Location,
     ) -> Self {
       Self {
@@ -2389,8 +2416,12 @@ pub mod expr {
 
   impl CallExpr {
     pub fn new(
-      _: &dyn crate::HirDb, kind: CallKind, callee: Callee, arguments: Vec<expr::Expr>,
-      do_notation: Option<stmt::Block>, location: Location,
+      _: &dyn crate::HirDb,
+      kind: CallKind,
+      callee: Callee,
+      arguments: Vec<expr::Expr>,
+      do_notation: Option<stmt::Block>,
+      location: Location,
     ) -> Self {
       Self {
         kind,
@@ -2741,7 +2772,10 @@ pub mod type_rep {
 
   impl QPath {
     pub fn new(
-      _: &dyn crate::HirDb, qualifier: Definition, name: Option<Identifier>, location: Location,
+      _: &dyn crate::HirDb,
+      qualifier: Definition,
+      name: Option<Identifier>,
+      location: Location,
     ) -> Self {
       Self {
         qualifier,
@@ -2798,7 +2832,10 @@ pub mod type_rep {
 
   impl AppTypeRep {
     pub fn new(
-      _: &dyn crate::HirDb, callee: TypeRep, arguments: Vec<TypeRep>, location: Location,
+      _: &dyn crate::HirDb,
+      callee: TypeRep,
+      arguments: Vec<TypeRep>,
+      location: Location,
     ) -> Self {
       Self {
         callee: Box::new(callee),
@@ -2856,8 +2893,12 @@ pub mod type_rep {
 
   impl ArrowTypeRep {
     pub fn new(
-      _: &dyn crate::HirDb, kind: ArrowKind, parameters: Vec<declaration::Parameter>,
-      value: TypeRep, location: Location, scope: Arc<Scope>,
+      _: &dyn crate::HirDb,
+      kind: ArrowKind,
+      parameters: Vec<declaration::Parameter>,
+      value: TypeRep,
+      location: Location,
+      scope: Arc<Scope>,
     ) -> Self {
       Self {
         kind,

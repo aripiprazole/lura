@@ -35,7 +35,8 @@ macro_rules! make_test {
 
 #[macro_export]
 macro_rules! make_test_suite {
-  (tests {$($name:ident $file:expr)*} run $run:expr) => {
+  (tests ($e:expr) {$($name:ident $file:expr)*} run $run:expr) => {
+    const _: &str = $e;
     $($crate::make_test!($name, $file, $run);)*
   };
 }
@@ -45,7 +46,9 @@ type Expect<'a> = &'a mut dyn Write;
 
 /// Runs a test suite, with the given `name` and `f`.
 pub fn run_test_suite(
-  file: &str, source_code: &str, expect: &str,
+  file: &str,
+  source_code: &str,
+  expect: &str,
   f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
 ) {
   let _ = env_logger::builder()
@@ -160,7 +163,10 @@ pub fn debug_type_table(expect: Expect, db: &RootDb, type_table: TypeTable) -> e
           .with_message(format!("has type {}", type_rep.fg(Color::Green)))
       }))
       .finish()
-      .write((file.clone(), ariadne::Source::from(&contents)), &mut output)
+      .write(
+        (file.clone(), ariadne::Source::from(&contents)),
+        &mut output,
+      )
       .unwrap();
 
     write!(expect, "{}", String::from_utf8_lossy(&output))?;

@@ -329,7 +329,10 @@ pub fn query_module(db: &dyn crate::HirDb, name: HirPath) -> (Scope, Definition)
         let kind = DefinitionKind::Module;
         let path = HirPath::create(db, name);
 
-        return (hir.scope(db), Definition::new(db, id, kind, path, Level::default()));
+        return (
+          hir.scope(db),
+          Definition::new(db, id, kind, path, Level::default()),
+        );
       }
     }
   }

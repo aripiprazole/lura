@@ -10,6 +10,7 @@ use lura_hir::source::{
   expr::Expr,
   stmt::{Block, Stmt},
   type_rep::TypeRep,
+  HirSource,
 };
 use lura_tt::{Env, Value};
 
@@ -23,10 +24,14 @@ enum StmtResult {
 }
 
 /// Evaluates an expression into a value
-pub fn eval(db: &dyn lura_hir::HirDb, env: Env, expr: Expr) -> Result<Value, domain::RuntimeError> {
+pub fn eval(
+  db: &dyn lura_hir::HirDb,
+  stack: stack::Stack,
+  env: Env,
+  expr: Expr,
+) -> Result<Value, domain::RuntimeError> {
   let db = AssertUnwindSafe(db);
-  let stack = stack::Stack::default();
-  std::panic::catch_unwind(|| evaluate(*db, stack, env, expr)).map_err(|err| {
+  std::panic::catch_unwind(|| eval_expr(*db, stack, env, expr)).map_err(|err| {
     match err.downcast::<domain::RuntimeError>() {
       Ok(runtime_error) => *runtime_error.clone(),
 
@@ -37,7 +42,31 @@ pub fn eval(db: &dyn lura_hir::HirDb, env: Env, expr: Expr) -> Result<Value, dom
   })
 }
 
-pub fn evaluate(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: Expr) -> Value {
+/// Evaluates hir file in the given environment
+pub fn hir_eval(
+  db: &dyn lura_hir::HirDb,
+  stack: stack::Stack,
+  env: Env,
+  src: HirSource,
+) -> Result<Value, domain::RuntimeError> {
+  for top_level in src.contents(db) {
+    use lura_hir::source::top_level::TopLevel::*;
+    match top_level {
+      Error(_) => todo!(),
+      Using(_) => todo!(),
+      Command(_) => todo!(),
+      BindingGroup(_) => todo!(),
+      ClassDecl(_) => todo!(),
+      InstanceDecl(_) => todo!(),
+      TraitDecl(_) => todo!(),
+      DataDecl(_) => todo!(),
+      TypeDecl(_) => todo!(),
+    }
+  }
+  todo!()
+}
+
+fn eval_expr(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: Expr) -> Value {
   match expr {
     Expr::Empty | Expr::Error(_) => stack.unwind("empty expressions can't be evaluated"),
     Expr::Path(_) => todo!(),
@@ -51,9 +80,7 @@ pub fn evaluate(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: E
   }
 }
 
-fn evaluate_type(
-  db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: TypeRep,
-) -> Value {
+fn eval_type(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: TypeRep) -> Value {
   match type_rep {
     TypeRep::Unit => todo!(),
     TypeRep::Hole => todo!(),
@@ -68,12 +95,10 @@ fn evaluate_type(
   }
 }
 
-fn evaluate_block(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, block: Block) -> Value {
+fn eval_block(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, block: Block) -> Value {
   todo!()
 }
 
-fn evaluate_stmt(
-  db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, stmt: Stmt,
-) -> StmtResult {
+fn eval_stmt(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, stmt: Stmt) -> StmtResult {
   todo!()
 }

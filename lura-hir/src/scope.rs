@@ -155,7 +155,11 @@ impl Scope {
   ///
   /// If the name is already defined, it will return the existing definition.
   pub fn define(
-    &mut self, db: &dyn crate::HirDb, name: HirPath, location: Location, kind: DefinitionKind,
+    &mut self,
+    db: &dyn crate::HirDb,
+    name: HirPath,
+    location: Location,
+    kind: DefinitionKind,
   ) -> Definition {
     let id = DefinitionId::new(db, location, None);
     let definition = Definition::new(db, id, kind, name, self.lvl);
@@ -194,7 +198,10 @@ impl Scope {
   /// Searches a name for the given `kind` in the current scope, and returns the definition if
   /// found.
   pub fn search(
-    &self, db: &dyn crate::HirDb, path: HirPath, kind: DefinitionKind,
+    &self,
+    db: &dyn crate::HirDb,
+    path: HirPath,
+    kind: DefinitionKind,
   ) -> Option<Definition> {
     let name = path.to_string(db).unwrap_or_default();
 
@@ -283,7 +290,10 @@ impl Scope {
 
   /// Publishes all definitions in the current scope to the parent scope.
   pub fn publish_all_definitions_to(
-    &mut self, db: &dyn crate::HirDb, prefix: &str, another: &mut Self,
+    &mut self,
+    db: &dyn crate::HirDb,
+    prefix: &str,
+    another: &mut Self,
   ) {
     for (name, definition) in self.all_definitions() {
       let text = format!("{prefix}.{name}");
