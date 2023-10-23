@@ -1,7 +1,9 @@
 use std::fmt::Display;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct Stack {}
+pub struct Stack {
+  pub functions: im::HashMap<String, crate::domain::ForeignFunction>,
+}
 
 impl Stack {
   pub fn push_frame(&self) {}

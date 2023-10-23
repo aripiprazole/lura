@@ -930,6 +930,7 @@ dependencies = [
 name = "lura-eval"
 version = "0.0.1"
 dependencies = [
+ "im",
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",
