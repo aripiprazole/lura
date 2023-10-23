@@ -59,14 +59,21 @@ pub struct Pi {
   pub closure: Closure,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum Object {
+  Tuple(Vec<Value>),
+  Record(im::HashMap<Definition, Value>),
+}
+
 /// Basic normalized expression, it has the term's NFE.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Term {
   Var(Index, Option<Reference>),
-  Tuple(Vec<Value>),
+  Object(Object),
   Constructor(Constructor),
   Flexible(Meta, Vec<Value>),
   Rigid(Level, Vec<Value>),
   Pi(Pi),
   Lam(Closure),
+  Type,
 }

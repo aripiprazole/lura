@@ -1023,6 +1023,7 @@ dependencies = [
 name = "lura-tt"
 version = "0.0.1"
 dependencies = [
+ "im",
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",

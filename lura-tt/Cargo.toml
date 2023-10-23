@@ -12,3 +12,5 @@ lura-syntax = { version = "0.0.1", path = "../lura-syntax" }
 lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
 
 salsa-2022 = { workspace = true }
+
+im.workspace = true
