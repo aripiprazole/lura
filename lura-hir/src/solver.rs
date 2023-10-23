@@ -8,7 +8,6 @@ use lura_diagnostic::{code, message, Diagnostics, ErrorId, Report};
 pub use crate::errors::HirDiagnostic;
 use crate::{
   debruijin::{Index, Level},
-  lower::{hir_declare, hir_lower},
   primitives::{initialize_primitive_bag, primitive_type_definition},
   reference::ReferenceWalker,
   reparse::reparse_hir_path,
@@ -182,7 +181,7 @@ pub fn unresolved(db: &dyn crate::HirDb, location: HirLocation) -> Definition {
 pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir = hir_declare(db, package, file);
+      let hir = db.hir_declare(package, file);
       let mut target = Scope::new(ScopeKind::InternalFile);
 
       hir.scope(db).publish_all_definitions_to(
@@ -212,7 +211,7 @@ pub fn find_function(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir = hir_declare(db, package, file);
+      let hir = db.hir_declare(package, file);
       let mut target = Scope::new(ScopeKind::InternalFile);
 
       hir.scope(db).publish_all_definitions_to(
@@ -242,7 +241,7 @@ pub fn find_constructor(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_trait(db: &dyn crate::HirDb, name: HirPath) -> Definition {
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir = hir_declare(db, package, file);
+      let hir = db.hir_declare(package, file);
       let mut target = Scope::new(ScopeKind::InternalFile);
 
       hir.scope(db).publish_all_definitions_to(
@@ -272,7 +271,7 @@ pub fn find_trait(db: &dyn crate::HirDb, name: HirPath) -> Definition {
 pub fn find_type(db: &dyn crate::HirDb, name: HirPath) -> Definition {
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir = hir_declare(db, package, file);
+      let hir = db.hir_declare(package, file);
       let mut target = Scope::new(ScopeKind::InternalFile);
 
       hir.scope(db).publish_all_definitions_to(
@@ -319,7 +318,7 @@ pub fn query_module(db: &dyn crate::HirDb, name: HirPath) -> (Scope, Definition)
 
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir = hir_declare(db, package, file);
+      let hir = db.hir_declare(package, file);
       let name = file.module_name(db);
 
       // If the name of the file is the same as the name of the module, then it's the
@@ -350,7 +349,7 @@ pub fn references(db: &dyn crate::HirDb, definition: Definition) -> OrdSet<Refer
 
   for package in db.all_packages() {
     for file in package.all_files(db) {
-      let hir_source = hir_lower(db, package, file);
+      let hir_source = db.hir_lower(package, file);
       // TODO: fixme, for some reason it's not working with same references for the
       // definitions, the lower is duplicating the references, and creating new instances
       let local_references = ReferenceWalker::new(move |db, reference, _| {

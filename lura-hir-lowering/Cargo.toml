@@ -1,5 +1,5 @@
 [package]
-name = "lura-hir"
+name = "lura-hir-lowering"
 edition.workspace = true
 authors.workspace = true
 documentation.workspace = true
@@ -7,9 +7,11 @@ version.workspace = true
 
 [dependencies]
 lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
+lura-hir = {version = "0.0.1", path = "../lura-hir"}
 lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
+lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
 
-salsa-2022.workspace = true
+salsa-2022 = {workspace = true}
 
 eyre.workspace = true
 im.workspace = true
@@ -19,7 +21,3 @@ dashmap.workspace = true
 tree-sitter.workspace = true
 tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
-
-if_chain = "1.0.2"
-petgraph = "0.6.3"
-once_cell = "1.18.0"

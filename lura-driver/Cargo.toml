@@ -8,6 +8,7 @@ version.workspace = true
 [dependencies]
 lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
 lura-hir = {version = "0.0.1", path = "../lura-hir"}
+lura-hir-lowering = {version = "0.0.1", path = "../lura-hir-lowering"}
 lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
 lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
 lura-typer = {version = "0.0.1", path = "../lura-typer"}

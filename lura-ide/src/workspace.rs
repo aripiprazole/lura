@@ -6,10 +6,10 @@ use std::{
 use dashmap::DashMap;
 use lura_driver::RootDb;
 use lura_hir::{
-  lower::hir_lower,
   package::{Package, PackageKind, Version},
   source::HirSource,
 };
+use lura_hir_lowering::hir_lower;
 use lura_syntax::Source;
 use lura_vfs::SourceFile;
 use ropey::Rope;

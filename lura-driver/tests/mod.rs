@@ -1,6 +1,6 @@
 use lura_diagnostic::Diagnostics;
 use lura_driver::{make_test_suite, suite::*};
-use lura_hir::lower::hir_lower;
+use lura_hir_lowering::hir_lower;
 use lura_syntax::parse;
 use lura_typer::table::infer_type_table;
 use lura_vfs::SourceFile;

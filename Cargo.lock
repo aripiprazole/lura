@@ -877,6 +877,7 @@ dependencies = [
  "lura-diagnostic",
  "lura-driver",
  "lura-hir",
+ "lura-hir-lowering",
  "lura-syntax",
  "lura-vfs",
  "ropey",
@@ -914,6 +915,7 @@ dependencies = [
  "lura-ariadne",
  "lura-diagnostic",
  "lura-hir",
+ "lura-hir-lowering",
  "lura-syntax",
  "lura-typer",
  "lura-vfs",
@@ -957,6 +959,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "lura-hir-lowering"
+version = "0.0.1"
+dependencies = [
+ "dashmap",
+ "eyre",
+ "fxhash",
+ "im",
+ "lura-diagnostic",
+ "lura-hir",
+ "lura-syntax",
+ "lura-vfs",
+ "salsa-2022",
+ "tree-sitter",
+ "tree-sitter-lura",
+ "type-sitter-lib",
+]
+
+[[package]]
 name = "lura-ide"
 version = "0.0.1"
 dependencies = [
@@ -973,6 +993,7 @@ dependencies = [
  "lura-diagnostic",
  "lura-driver",
  "lura-hir",
+ "lura-hir-lowering",
  "lura-syntax",
  "lura-vfs",
  "notify-debouncer-mini",

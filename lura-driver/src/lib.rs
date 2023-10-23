@@ -5,6 +5,7 @@ use std::{
 
 use dashmap::{DashMap, DashSet};
 use lura_hir::{
+  lowering::HirLowering,
   package::{HasManifest, Package},
   primitives::{PrimitiveBag, PrimitiveProvider},
 };
@@ -33,7 +34,8 @@ extern crate salsa_2022 as salsa;
   lura_vfs::Jar,
   lura_syntax::Jar,
   lura_diagnostic::Jar,
-  lura_typer::Jar
+  lura_typer::Jar,
+  lura_hir_lowering::Jar
 )]
 #[derive(Default)]
 pub struct RootDb {
@@ -44,6 +46,17 @@ pub struct RootDb {
   primitives: Arc<PrimitiveBag>,
   files: DashMap<PathBuf, lura_vfs::SourceFile>,
   logs: Option<Arc<Mutex<Vec<String>>>>,
+}
+
+/// Bridges the [`RootDb`] with the [`lura_hir_lowering::HirLowering`] trait.
+impl HirLowering for RootDb {
+  fn hir_declare(&self, pkg: Package, src: lura_syntax::Source) -> lura_hir::source::HirSource {
+    lura_hir_lowering::hir_declare(self, pkg, src)
+  }
+
+  fn hir_lower(&self, pkg: Package, src: lura_syntax::Source) -> lura_hir::source::HirSource {
+    lura_hir_lowering::hir_lower(self, pkg, src)
+  }
 }
 
 impl RootDb {

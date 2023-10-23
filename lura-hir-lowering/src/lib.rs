@@ -4,6 +4,12 @@
 //! Lowering means that it will take the syntax tree, and will transform it into a low level for
 //! human readability, but high-level abstraction for the compiler. It's very useful to the future
 //! steps, even of the compiler frontend.
+//!
+//! This implementation uses tree-sitter, and resolves into `lura-hir`
+
+#![feature(trait_upcasting)]
+
+extern crate salsa_2022 as salsa;
 
 use std::{
   collections::{HashMap, HashSet},
@@ -13,12 +19,7 @@ use std::{
 };
 
 use fxhash::FxBuildHasher;
-use lura_syntax::{anon_unions::ExplicitArguments_ImplicitArguments, Source, SourceFile};
-use salsa::Cycle;
-use tree_sitter::{Node, Tree};
-use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};
-
-use crate::{
+use lura_hir::{
   package::Package,
   scope::{Scope, ScopeKind},
   solver::{
@@ -36,7 +37,21 @@ use crate::{
     type_rep::{AppTypeRep, ArrowKind, ArrowTypeRep, TypeRep},
     DefaultWithDb, HirPath, HirSource, Identifier, Location, OptionExt, Spanned,
   },
+  HirDb,
 };
+use lura_syntax::{anon_unions::ExplicitArguments_ImplicitArguments, Source, SourceFile};
+use salsa::{Cycle, DbWithJar};
+use tree_sitter::{Node, Tree};
+use type_sitter_lib::{ExtraOr, IncorrectKind, NodeResult, OptionNodeResultExt, TypedNode};
+
+#[salsa::jar(db = HirLoweringDb)]
+pub struct Jar(hir_declare, hir_lower);
+
+/// The database that stores all the information about the source code. It is
+/// implemented using the [`salsa`] crate, and it's used by the [`lura-driver`] crate.
+pub trait HirLoweringDb: HirDb + DbWithJar<Jar> {}
+
+impl<T> HirLoweringDb for T where T: HirDb + DbWithJar<Jar> {}
 
 #[rustfmt::skip]
 type SyntaxDecl<'tree> = lura_syntax::anon_unions::ClassDecl_Clause_Command_DataDecl_InstanceDecl_Signature_TraitDecl_TypeDecl_Using<'tree>;
@@ -59,7 +74,7 @@ type SyntaxVariant<'tree> = lura_syntax::anon_unions::Comma_FunctionConstructor_
 /// if i report an error in the resolver, it will report the same error in the lowerer, and it
 /// will duplicate the diagnostics, it should be thinked if it's sound or not.
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
-pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
+pub fn hir_declare(db: &dyn crate::HirLoweringDb, pkg: Package, src: Source) -> HirSource {
   let parse_tree = src.syntax_node(db);
 
   let lower = LowerHir {
@@ -84,7 +99,7 @@ pub fn hir_declare(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSourc
 ///
 /// For declaring, see [`hir_declare`].
 #[salsa::tracked(recovery_fn = rec_hir_lower)]
-pub fn hir_lower(db: &dyn crate::HirDb, pkg: Package, src: Source) -> HirSource {
+pub fn hir_lower(db: &dyn crate::HirLoweringDb, pkg: Package, src: Source) -> HirSource {
   let parse_tree = src.syntax_node(db);
 
   let lower = LowerHir {
@@ -1178,7 +1193,13 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
   /// Creates a new [`Location`] from the given [`tree_sitter::Range`]. It does transforms the
   /// raw location, in a high level location, to be handled within resolution.
   pub fn range(&self, range: tree_sitter::Range) -> Location {
-    Location::new(self.db, self.src, self.txt.clone(), range.start_byte, range.end_byte)
+    Location::new(
+      self.db,
+      self.src,
+      self.txt.clone(),
+      range.start_byte,
+      range.end_byte,
+    )
   }
 
   pub fn pop_scope(&mut self) -> Arc<Scope> {
@@ -1194,7 +1215,7 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 /// It's only a module, to organization purposes.
 mod pattern_solver {
   use super::*;
-  use crate::source::pattern::{BindingPattern, Constructor, ConstructorPattern, Pattern};
+  use lura_hir::source::pattern::{BindingPattern, Constructor, ConstructorPattern, Pattern};
 
   #[rustfmt::skip]
     type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>;
@@ -1313,7 +1334,7 @@ mod pattern_solver {
 /// It's only a module, to organization purposes.
 mod literal_solver {
   use super::*;
-  use crate::source::literal::Literal;
+  use lura_hir::source::literal::Literal;
 
   impl LowerHir<'_, '_> {
     pub fn literal(&mut self, tree: lura_syntax::Literal) -> Literal {
@@ -1351,7 +1372,7 @@ mod literal_solver {
 /// It's only a module, to organization purposes.
 mod stmt_solver {
   use super::*;
-  use crate::{
+  use lura_hir::{
     solver::HirLevel,
     source::{
       expr::{MatchArm, MatchExpr, MatchKind},
@@ -1417,25 +1438,25 @@ mod stmt_solver {
         .solve(self, |this, node| this.expr(node, level));
 
       let then = stmt.then().solve(self, |this, node| {
-                use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+        use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                node.child().solve(this, |this, node| match node {
-                    Block(block) => Expr::block(this.db, this.block(block, level)),
-                    _ => this.expr(node.into_node().try_into().unwrap(), level),
-                })
-            });
+        node.child().solve(this, |this, node| match node {
+            Block(block) => Expr::block(this.db, this.block(block, level)),
+            _ => this.expr(node.into_node().try_into().unwrap(), level),
+        })
+      });
 
       let otherwise = stmt.otherwise().map(|then| {
-                then.solve(self, |this, node| {
-                    use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
+        then.solve(self, |this, node| {
+          use lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_Block_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr::*;
 
-                    node.value().solve(this, |this, node| match node {
-                        Block(block) => Expr::block(this.db, this.block(block, level)),
-                        _ => this.expr(node.into_node().try_into().unwrap(), level),
-                    })
-                })
-            })
-            .unwrap_or_else(|| Expr::call_unit_expr(Location::CallSite, self.db));
+          node.value().solve(this, |this, node| match node {
+              Block(block) => Expr::block(this.db, this.block(block, level)),
+              _ => this.expr(node.into_node().try_into().unwrap(), level),
+          })
+        })
+      })
+      .unwrap_or_else(|| Expr::call_unit_expr(Location::CallSite, self.db));
 
       let clauses = vec![
         MatchArm {
@@ -1518,7 +1539,7 @@ mod term_solver {
   use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_RestPattern;
 
   use super::*;
-  use crate::{
+  use lura_hir::{
     solver::{HirDiagnostic, HirLevel},
     source::{
       expr::{MatchArm, MatchExpr, MatchKind},
@@ -1710,9 +1731,9 @@ mod term_solver {
     /// It does translate the syntax type level application expression
     /// into a high-level type level application expression.
     pub fn type_app_expr(&mut self, tree: lura_syntax::TypeAppExpr) -> TypeRep {
-      let callee = tree
-        .callee()
-        .solve(self, |this, node| this.primary(node, HirLevel::Type).upgrade(this.db));
+      let callee = tree.callee().solve(self, |this, node| {
+        this.primary(node, HirLevel::Type).upgrade(this.db)
+      });
 
       let arguments = tree
         .arguments(&mut tree.walk())

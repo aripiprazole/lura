@@ -10,11 +10,12 @@ name = "lura"
 path = "src/main.rs"
 
 [dependencies]
-lura-diagnostic = {version = "0.0.1", path = "../lura-diagnostic"}
-lura-hir = {version = "0.0.1", path = "../lura-hir"}
-lura-syntax = {version = "0.0.1", path = "../lura-syntax"}
-lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
-lura-driver = {version = "0.0.1", path = "../lura-driver"}
+lura-diagnostic = { version = "0.0.1", path = "../lura-diagnostic" }
+lura-hir = { version = "0.0.1", path = "../lura-hir" }
+lura-hir-lowering = { version = "0.0.1", path = "../lura-hir-lowering" }
+lura-syntax = { version = "0.0.1", path = "../lura-syntax" }
+lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
+lura-driver = { version = "0.0.1", path = "../lura-driver" }
 
 salsa-2022.workspace = true
 

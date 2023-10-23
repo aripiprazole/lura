@@ -6,10 +6,10 @@ use itertools::Itertools;
 use lura_diagnostic::{Diagnostics, Report};
 use lura_driver::RootDb;
 use lura_hir::{
-  lower::hir_lower,
   package::{HasManifest, Package, Version},
   source::HirSource,
 };
+use lura_hir_lowering::hir_lower;
 use lura_syntax::Source;
 use lura_vfs::SourceFile;
 use serde::{Deserialize, Serialize};
