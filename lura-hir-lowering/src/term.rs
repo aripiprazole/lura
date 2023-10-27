@@ -20,12 +20,12 @@ use lura_syntax::anon_unions::Comma_ConsPattern_GroupPattern_Literal_Parameter_R
 use super::*;
 
 #[rustfmt::skip]
-    type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
+type SyntaxExpr<'tree> = lura_syntax::anon_unions::AnnExpr_AppExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr<'tree>;
 
 #[rustfmt::skip]
-    type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
+type SyntaxTypeRep<'tree> = lura_syntax::anon_unions::AnnExpr_BinaryExpr_ForallExpr_LamExpr_MatchExpr_PiExpr_Primary_SigmaExpr_TypeAppExpr<'tree>;
 
-impl LowerHir<'_, '_> {
+impl HirLowering<'_, '_> {
   /// Resolves a clause type for GADTs, and other things that are not expressions but are
   /// type level expressions.
   pub fn clause_type(&mut self, clause: lura_syntax::ClauseType) -> TypeRep {

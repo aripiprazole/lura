@@ -19,7 +19,7 @@ use super::*;
 
 type SyntaxStmt<'tree> = lura_syntax::anon_unions::AskStmt_ExprStmt_IfStmt_LetStmt<'tree>;
 
-impl LowerHir<'_, '_> {
+impl HirLowering<'_, '_> {
   /// Resolves an statement.
   ///
   /// It does resolves a syntax statement,

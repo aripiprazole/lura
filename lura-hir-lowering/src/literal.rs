@@ -8,7 +8,7 @@ use lura_hir::source::literal::Literal;
 
 use super::*;
 
-impl LowerHir<'_, '_> {
+impl HirLowering<'_, '_> {
   pub fn literal(&mut self, tree: lura_syntax::Literal) -> Literal {
     use lura_syntax::anon_unions::Char_F32_F64_I128_I16_I64_I8_Nat_String_U1_U128_U16_U32_U64_U8::*;
 

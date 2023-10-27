@@ -10,7 +10,7 @@ use super::*;
 #[rustfmt::skip]
 type SyntaxPattern<'tree> = lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern<'tree>;
 
-impl LowerHir<'_, '_> {
+impl HirLowering<'_, '_> {
   pub fn trait_pattern(&mut self, tree: SyntaxPattern) -> Pattern {
     use lura_syntax::anon_unions::ConsPattern_GroupPattern_Literal_RestPattern::*;
 

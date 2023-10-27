@@ -77,7 +77,7 @@ type SyntaxVariant<'tree> = lura_syntax::anon_unions::Comma_FunctionConstructor_
 pub fn hir_declare(db: &dyn crate::HirLoweringDb, pkg: Package, src: Source) -> HirSource {
   let parse_tree = src.syntax_node(db);
 
-  let lower = LowerHir {
+  let lower = HirLowering {
     db,
     src,
     pkg,
@@ -102,7 +102,7 @@ pub fn hir_declare(db: &dyn crate::HirLoweringDb, pkg: Package, src: Source) -> 
 pub fn hir_lower(db: &dyn crate::HirLoweringDb, pkg: Package, src: Source) -> HirSource {
   let parse_tree = src.syntax_node(db);
 
-  let lower = LowerHir {
+  let lower = HirLowering {
     db,
     src,
     pkg,
@@ -134,7 +134,7 @@ pub fn rec_hir_lower(db: &dyn crate::HirDb, cycle: &Cycle, _: Package, _: Source
 /// The validation and the lowering to HIR are totally different steps, in this compiler.
 ///
 /// It will return the [`HirSource`] with the declarations solved, and the clauses solved too.
-struct LowerHir<'db, 'tree> {
+struct HirLowering<'db, 'tree> {
   db: &'db dyn crate::HirDb,
   src: Source,
   txt: Arc<String>,
@@ -146,7 +146,7 @@ struct LowerHir<'db, 'tree> {
   clauses: HashMap<Definition, BindingGroup, FxBuildHasher>,
 }
 
-impl<'db, 'tree> LowerHir<'db, 'tree> {
+impl<'db, 'tree> HirLowering<'db, 'tree> {
   /// Declare the source file into the scope of the lowerrer. It will declare all the top level
   /// declarations, and this won't return the [`HirSource`] with the declarations, just an empty
   /// [`HirSource`].
@@ -1218,20 +1218,20 @@ impl<'db, 'tree> LowerHir<'db, 'tree> {
 /// return the [`HirSource`] with the declarations and the clauses solved.
 #[allow(clippy::type_complexity)]
 struct Solver<'a, T> {
-  f: Box<dyn FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a>,
+  f: Box<dyn FnOnce(&dyn crate::HirDb, &mut HirLowering<'_, '_>) -> T + 'a>,
 }
 
 impl<'a, T> Solver<'a, T> {
   /// Creates a new solver function over the [`LowerHir`] struct.
   fn new<F>(f: F) -> Self
   where
-    F: FnOnce(&dyn crate::HirDb, &mut LowerHir<'_, '_>) -> T + 'a,
+    F: FnOnce(&dyn crate::HirDb, &mut HirLowering<'_, '_>) -> T + 'a,
   {
     Self { f: Box::new(f) }
   }
 
   /// Runs the solver function over the [`LowerHir`] struct, and returns the result.
-  fn run_solver(self, lower: &mut LowerHir<'_, '_>) -> T {
+  fn run_solver(self, lower: &mut HirLowering<'_, '_>) -> T {
     (self.f)(lower.db, lower)
   }
 }
@@ -1245,20 +1245,20 @@ trait NodeResultExt<'tree, N, T: Default> {
 /// Defines a trait that will extend the [`DbNodeResult`] with the [`LowerHir`] struct.
 trait DbNodeResultExt<'tree, N> {
   #[inline]
-  fn solve<F, T>(self, db: &mut LowerHir, f: F) -> T
+  fn solve<F, T>(self, db: &mut HirLowering, f: F) -> T
   where
     Self: Sized,
     T: DefaultWithDb,
-    F: FnOnce(&mut LowerHir, N) -> T,
+    F: FnOnce(&mut HirLowering, N) -> T,
   {
     self.with_db(db, |db, node| Some(f(db, node)))
   }
 
   #[inline]
-  fn or_default_error<F>(self, db: &mut LowerHir, f: F)
+  fn or_default_error<F>(self, db: &mut HirLowering, f: F)
   where
     Self: Sized,
-    F: FnOnce(&mut LowerHir, N),
+    F: FnOnce(&mut HirLowering, N),
   {
     self.with_db(db, |db, node| {
       f(db, node);
@@ -1266,10 +1266,10 @@ trait DbNodeResultExt<'tree, N> {
     })
   }
 
-  fn with_db<F, T>(self, db: &mut LowerHir, f: F) -> T
+  fn with_db<F, T>(self, db: &mut HirLowering, f: F) -> T
   where
     T: DefaultWithDb,
-    F: FnOnce(&mut LowerHir, N) -> Option<T>;
+    F: FnOnce(&mut HirLowering, N) -> Option<T>;
 }
 
 /// Defines implementations of util traits to the lower.
@@ -1309,10 +1309,10 @@ mod util {
 
   impl<'tree, N> DbNodeResultExt<'tree, N> for Result<N, IncorrectKind<'tree>> {
     #[inline]
-    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
+    fn with_db<F, T>(self, lower: &mut HirLowering, f: F) -> T
     where
       T: DefaultWithDb,
-      F: FnOnce(&mut LowerHir, N) -> Option<T>,
+      F: FnOnce(&mut HirLowering, N) -> Option<T>,
     {
       match self {
         Ok(node) => f(lower, node).unwrap_or_else(|| T::default_with_db(lower.db)),
@@ -1327,10 +1327,10 @@ mod util {
 
   impl<'tree, N> DbNodeResultExt<'tree, N> for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>> {
     #[inline]
-    fn with_db<F, T>(self, lower: &mut LowerHir, f: F) -> T
+    fn with_db<F, T>(self, lower: &mut HirLowering, f: F) -> T
     where
       T: DefaultWithDb,
-      F: FnOnce(&mut LowerHir, N) -> Option<T>,
+      F: FnOnce(&mut HirLowering, N) -> Option<T>,
     {
       match self {
         Ok(ExtraOr::Regular(node)) => {
