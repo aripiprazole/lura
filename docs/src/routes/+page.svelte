@@ -6,77 +6,21 @@
   <main class="main">
     <Sidebar />
     <section class="content">
-      <h1>Documentation</h1>
+      <h1>Welcome to Lura! 👋</h1>
       <p>
-        Lorem ipsum dolor, sit amet consectetur adipisicing elit. Iure, quos hic
-        corrupti sapiente accusamus delectus tempora? Corporis quam eligendi
-        odit! Atque delectus soluta totam qui! Porro velit alias temporibus
-        veritatis. Lorem ipsum dolor, sit amet consectetur adipisicing elit.
-        Dolor, quasi aut aliquid quisquam earum expedita iste reiciendis impedit
-        magnam eius facilis perferendis exercitationem, omnis iure in enim
-        laborum eaque nobis! Lorem ipsum dolor sit amet consectetur adipisicing
-        elit. Quis, quae? Esse molestias officia nulla laudantium obcaecati cum
-        sequi atque nam assumenda laboriosam rerum aliquid, consequuntur ipsam
-        rem? Dolores, doloribus! Tenetur. Lorem ipsum dolor, sit amet
-        consectetur adipisicing elit. Laborum, molestias error explicabo
-        laudantium, ipsam odit inventore nemo totam quibusdam vitae officiis
-        officia et cupiditate assumenda. Ipsum accusantium ab iure commodi?
+        Lura is an experimental project that aims to bring to the user, the
+        power of a functional language, with powerful and expressive types and
+        tooling. It's focused on an incremental architecture, to be able to
+        optimize and compile with the best performance possible.
       </p>
       <article>
-        <h2>Simplicity</h2>
+        <h2>Query-based architecture 🪄</h2>
         <p>
-          Lorem ipsum dolor, sit amet consectetur adipisicing elit. Iure, quos
-          hic corrupti sapiente accusamus delectus tempora? Corporis quam
-          eligendi odit! Atque delectus soluta totam qui! Porro velit alias
-          temporibus veritatis. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Dolor, quasi aut aliquid quisquam earum expedita
-          iste reiciendis impedit magnam eius facilis perferendis
-          exercitationem, omnis iure in enim laborum eaque nobis! Lorem ipsum
-          dolor sit amet consectetur adipisicing elit. Quis, quae? Esse
-          molestias officia nulla laudantium obcaecati cum sequi atque nam
-          assumenda laboriosam rerum aliquid, consequuntur ipsam rem? Dolores,
-          doloribus! Tenetur. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Laborum, molestias error explicabo laudantium, ipsam
-          odit inventore nemo totam quibusdam vitae officiis officia et
-          cupiditate assumenda. Ipsum accusantium ab iure commodi?
-        </p>
-      </article>
-      <article>
-        <h2>Functional</h2>
-        <p>
-          Lorem ipsum dolor, sit amet consectetur adipisicing elit. Iure, quos
-          hic corrupti sapiente accusamus delectus tempora? Corporis quam
-          eligendi odit! Atque delectus soluta totam qui! Porro velit alias
-          temporibus veritatis. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Dolor, quasi aut aliquid quisquam earum expedita
-          iste reiciendis impedit magnam eius facilis perferendis
-          exercitationem, omnis iure in enim laborum eaque nobis! Lorem ipsum
-          dolor sit amet consectetur adipisicing elit. Quis, quae? Esse
-          molestias officia nulla laudantium obcaecati cum sequi atque nam
-          assumenda laboriosam rerum aliquid, consequuntur ipsam rem? Dolores,
-          doloribus! Tenetur. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Laborum, molestias error explicabo laudantium, ipsam
-          odit inventore nemo totam quibusdam vitae officiis officia et
-          cupiditate assumenda. Ipsum accusantium ab iure commodi?
-        </p>
-      </article>
-      <article>
-        <h2>Ergonomy</h2>
-        <p>
-          Lorem ipsum dolor, sit amet consectetur adipisicing elit. Iure, quos
-          hic corrupti sapiente accusamus delectus tempora? Corporis quam
-          eligendi odit! Atque delectus soluta totam qui! Porro velit alias
-          temporibus veritatis. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Dolor, quasi aut aliquid quisquam earum expedita
-          iste reiciendis impedit magnam eius facilis perferendis
-          exercitationem, omnis iure in enim laborum eaque nobis! Lorem ipsum
-          dolor sit amet consectetur adipisicing elit. Quis, quae? Esse
-          molestias officia nulla laudantium obcaecati cum sequi atque nam
-          assumenda laboriosam rerum aliquid, consequuntur ipsam rem? Dolores,
-          doloribus! Tenetur. Lorem ipsum dolor, sit amet consectetur
-          adipisicing elit. Laborum, molestias error explicabo laudantium, ipsam
-          odit inventore nemo totam quibusdam vitae officiis officia et
-          cupiditate assumenda. Ipsum accusantium ab iure commodi?
+          The compiler is focused on a query-based architecture, where the
+          compiler will only compile the code that is needed, and will only
+          recompile the code that is affected by the changes. This will allow
+          the compiler to be fast and efficient, and will allow powerful and
+          easy-to-use tooling in the common IDEs.
         </p>
       </article>
     </section>
