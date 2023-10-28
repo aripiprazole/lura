@@ -17,6 +17,9 @@ html, body, #root, #__next {
   width: 100%;
   min-width: 390px;
   font-size: 13px;
+}
+
+html, body, #root, #__next, textarea {
   background: #0e0d0d;
 }
 

@@ -1,6 +1,11 @@
 <script>
   import Sidebar from "$lib/Sidebar.svelte";
+  import Code from "$lib/Code.svelte";
 </script>
+
+<svelte:head>
+  <title>Lura</title>
+</svelte:head>
 
 <div class="container">
   <main class="main">
@@ -13,6 +18,7 @@
         tooling. It's focused on an incremental architecture, to be able to
         optimize and compile with the best performance possible.
       </p>
+      <Code />
       <article>
         <h2>Query-based architecture 🪄</h2>
         <p>
@@ -28,7 +34,6 @@
 </div>
 
 <style>
-
 .container {
   display: flex;
   width: 100%;
@@ -52,6 +57,7 @@
   display: flex;
   flex-direction: column;
   gap: 3rem;
+  max-width: 51rem;
 }
 
 .content > article {
