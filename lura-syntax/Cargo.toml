@@ -12,8 +12,9 @@ lura-vfs = {version = "0.0.1", path = "../lura-vfs"}
 salsa-2022.workspace = true
 
 tree-sitter.workspace = true
-tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
+
+tree-sitter-lura = {version = "0.1.20", path = "../tree-sitter-lura"}
 
 [build-dependencies]
 type-sitter-gen.workspace = true

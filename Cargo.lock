@@ -856,7 +856,6 @@ dependencies = [
  "lura-vfs",
  "salsa-2022",
  "tree-sitter",
- "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -897,7 +896,6 @@ dependencies = [
  "paste",
  "salsa-2022",
  "tree-sitter",
- "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -969,7 +967,6 @@ dependencies = [
  "lura-vfs",
  "salsa-2022",
  "tree-sitter",
- "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -1048,7 +1045,6 @@ dependencies = [
  "petgraph",
  "salsa-2022",
  "tree-sitter",
- "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -1059,7 +1055,6 @@ dependencies = [
  "eyre",
  "salsa-2022",
  "tree-sitter",
- "tree-sitter-lura",
  "type-sitter-lib",
 ]
 
@@ -1800,8 +1795,6 @@ dependencies = [
 [[package]]
 name = "tree-sitter-lura"
 version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f201d79a66e648cf8a274d89796a13aefb6438769a0280a7cd7cba1f69ec76c8"
 dependencies = [
  "cc",
  "tree-sitter",

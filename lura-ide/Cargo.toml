@@ -20,9 +20,10 @@ lura-driver = { version = "0.0.1", path = "../lura-driver" }
 salsa-2022.workspace = true
 
 tree-sitter.workspace = true
-tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
 tree-sitter-highlight = "0.20.1"
+
+tree-sitter-lura = { version = "0.1.20", path = "../tree-sitter-lura" }
 
 dashmap.workspace = true
 eyre.workspace = true

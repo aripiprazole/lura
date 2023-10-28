@@ -1,0 +1,37 @@
+{
+  "dependencies": {
+    "nan": "^2.17.0",
+    "tree-sitter-cli": "^0.20.8"
+  },
+  "name": "tree-sitter-lura",
+  "version": "1.0.0",
+  "description": "Tree sitter grammar for Lura programming language",
+  "main": "bindings/node",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aripiprazole/lura.git"
+  },
+  "author": "Gabrielle Guimarães",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aripiprazole/lura/issues"
+  },
+  "homepage": "https://github.com/aripiprazole/lura#readme",
+  "tree-sitter": [
+    {
+      "scope": "source.lura",
+      "file-types": [
+        "lura"
+      ],
+      "highlights": [
+        "queries/highlights.scm",
+        "queries/locals.scm"
+      ],
+      "injection-regex": "^(lura)$"
+    }
+  ]
+}

@@ -1,3 +1,0 @@
-[submodule "vendor/tree-sitter-lura"]
-	path = vendor/tree-sitter-lura
-	url = git@github.com:aripiprazole/tree-sitter-lura.git

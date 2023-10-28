@@ -8,12 +8,12 @@ fn main() {
     regenerate_node_types();
   }
 
-  println!("cargo:rerun-if-changed=../vendor/tree-sitter-lura/src/parser.c");
+  println!("cargo:rerun-if-changed=../tree-sitter-lura/src/parser.c");
 }
 
 /// Regenerates the `src/generated/lura.rs` file from the `src/node-types.json`
 fn regenerate_node_types() {
-  let input_path = Path::new("../vendor/tree-sitter-lura/src/node-types.json");
+  let input_path = Path::new("../tree-sitter-lura/src/node-types.json");
   let target = Path::new("src/generated/node_types.rs");
   let node_types =
     type_sitter_gen::generate_nodes(input_path, &tree_sitter()).expect("failed to generate nodes");

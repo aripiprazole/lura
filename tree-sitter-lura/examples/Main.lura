@@ -1,0 +1,37 @@
+//! Represents a nullable value
+@stdlib
+public data Maybe (a) {
+    Just(a),
+    Nothing;
+
+    //! Unwraps the nullable value
+    @inline public unwrap : (maybe: Maybe a) -> a {
+        match maybe {
+            Just a => a
+            Nothing => panic "Tried to unwrap Nothing"
+        }
+    }
+}
+
+public trait Show (a) {
+    public show : a -> String
+}
+
+public class Person {
+    public name: String
+    public age: Int
+}
+
+public
+`+ : Int -> Int -> Int
+`+ = sum
+
+public
+println : [Show a] => a -> IO ()
+println a = return putStrLn (show a)
+
+Main {
+    let message = "Hello world"
+    args <- getStdArgs
+    println message
+}

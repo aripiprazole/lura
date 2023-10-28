@@ -9,7 +9,6 @@ version.workspace = true
 salsa-2022.workspace = true
 
 tree-sitter.workspace = true
-tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true
 
 eyre.workspace = true

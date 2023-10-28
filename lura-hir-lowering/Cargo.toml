@@ -19,5 +19,4 @@ fxhash.workspace = true
 dashmap.workspace = true
 
 tree-sitter.workspace = true
-tree-sitter-lura.workspace = true
 type-sitter-lib.workspace = true

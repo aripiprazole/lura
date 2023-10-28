@@ -74,7 +74,8 @@ impl<'tree> AppExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Primary<'tree>>>,
   > + 'a {
@@ -96,7 +97,8 @@ impl<'tree> AppExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn children<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl ExactSizeIterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -114,7 +116,8 @@ impl<'tree> AppExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn child(
-    &self, i: usize,
+    &self,
+    i: usize,
   ) -> Option<
     type_sitter_lib::NodeResult<
       'tree,
@@ -499,7 +502,8 @@ impl<'tree> Block<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn statements<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -559,7 +563,8 @@ impl<'tree> ClassDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -573,7 +578,8 @@ impl<'tree> ClassDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -587,7 +593,8 @@ impl<'tree> ClassDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn class_bodys<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -611,7 +618,8 @@ impl<'tree> ClassDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -625,7 +633,8 @@ impl<'tree> ClassDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn fields<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Signature<'tree>>>,
   > + 'a {
@@ -702,7 +711,8 @@ impl<'tree> Clause<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -716,7 +726,8 @@ impl<'tree> Clause<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -737,7 +748,8 @@ impl<'tree> Clause<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn patterns<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -879,7 +891,8 @@ impl<'tree> Command<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -900,7 +913,8 @@ impl<'tree> Command<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -967,7 +981,8 @@ impl<'tree> ConsPattern<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn patterns<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -1035,7 +1050,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -1049,7 +1065,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -1073,7 +1090,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn constructors<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -1101,7 +1119,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -1115,7 +1134,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn fields<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Signature<'tree>>>,
   > + 'a {
@@ -1129,7 +1149,8 @@ impl<'tree> DataDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn methods<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Signature<'tree>>>,
   > + 'a {
@@ -1252,7 +1273,8 @@ impl<'tree> ExplicitArguments<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -1469,7 +1491,8 @@ impl<'tree> ForallExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -1644,7 +1667,8 @@ impl<'tree> FunctionConstructor<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -1658,7 +1682,8 @@ impl<'tree> FunctionConstructor<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -2273,7 +2298,8 @@ impl<'tree> ImplicitArguments<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -2383,7 +2409,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -2397,7 +2424,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -2411,7 +2439,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -2425,7 +2454,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn fields<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Signature<'tree>>>,
   > + 'a {
@@ -2440,7 +2470,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn items<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Primary<'tree>>>,
   > + 'a {
@@ -2461,7 +2492,8 @@ impl<'tree> InstanceDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn trait_bodys<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -2531,7 +2563,8 @@ impl<'tree> LamExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -2845,7 +2878,8 @@ impl<'tree> MatchExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arms<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, MatchArm<'tree>>>,
   > + 'a {
@@ -3144,7 +3178,8 @@ impl<'tree> Path<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn segments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Identifier<'tree>>>,
   > + 'a {
@@ -3263,7 +3298,8 @@ impl<'tree> PiNamedParameterSet<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -3444,7 +3480,8 @@ impl<'tree> SigmaExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn parameters<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -3518,7 +3555,8 @@ impl<'tree> Signature<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -3532,7 +3570,8 @@ impl<'tree> Signature<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -3556,7 +3595,8 @@ impl<'tree> Signature<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -3643,7 +3683,8 @@ impl<'tree> SignatureConstructor<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -3657,7 +3698,8 @@ impl<'tree> SignatureConstructor<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -3897,7 +3939,8 @@ impl<'tree> TraitDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -3911,7 +3954,8 @@ impl<'tree> TraitDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -3935,7 +3979,8 @@ impl<'tree> TraitDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -3949,7 +3994,8 @@ impl<'tree> TraitDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn fields<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Signature<'tree>>>,
   > + 'a {
@@ -3970,7 +4016,8 @@ impl<'tree> TraitDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn trait_bodys<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -4098,7 +4145,8 @@ impl<'tree> TypeAppExpr<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Primary<'tree>>>,
   > + 'a {
@@ -4165,7 +4213,8 @@ impl<'tree> TypeDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn arguments<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<
       'tree,
@@ -4179,7 +4228,8 @@ impl<'tree> TypeDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
@@ -4203,7 +4253,8 @@ impl<'tree> TypeDecl<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn doc_strings<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, DocString<'tree>>>,
   > + 'a {
@@ -4634,7 +4685,8 @@ impl<'tree> Using<'tree> {
   #[allow(dead_code)]
   #[inline]
   pub fn attributes<'a>(
-    &self, c: &'a mut tree_sitter::TreeCursor<'tree>,
+    &self,
+    c: &'a mut tree_sitter::TreeCursor<'tree>,
   ) -> impl Iterator<
     Item = type_sitter_lib::NodeResult<'tree, type_sitter_lib::ExtraOr<'tree, Attribute<'tree>>>,
   > + 'a {
