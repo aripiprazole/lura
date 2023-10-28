@@ -18,7 +18,7 @@ pub mod domain;
 pub mod logic;
 pub mod stack;
 
-enum StmtResult {
+pub enum StmtResult {
   Value(Value),
   Ok,
 }
@@ -45,8 +45,8 @@ pub fn eval(
 /// Evaluates hir file in the given environment
 pub fn hir_eval(
   db: &dyn lura_hir::HirDb,
-  stack: stack::Stack,
-  env: Env,
+  _stack: stack::Stack,
+  _env: Env,
   src: HirSource,
 ) -> Result<Value, domain::RuntimeError> {
   for top_level in src.contents(db) {
@@ -66,7 +66,7 @@ pub fn hir_eval(
   todo!()
 }
 
-fn eval_expr(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: Expr) -> Value {
+pub fn eval_expr(_db: &dyn lura_hir::HirDb, stack: stack::Stack, _env: Env, expr: Expr) -> Value {
   match expr {
     Expr::Empty | Expr::Error(_) => stack.unwind("empty expressions can't be evaluated"),
     Expr::Path(_) => todo!(),
@@ -80,7 +80,12 @@ fn eval_expr(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, expr: Expr
   }
 }
 
-fn eval_type(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: TypeRep) -> Value {
+pub fn eval_type(
+  _db: &dyn lura_hir::HirDb,
+  _stack: stack::Stack,
+  _env: Env,
+  type_rep: TypeRep,
+) -> Value {
   match type_rep {
     TypeRep::Unit => todo!(),
     TypeRep::Hole => todo!(),
@@ -95,10 +100,20 @@ fn eval_type(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, type_rep: 
   }
 }
 
-fn eval_block(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, block: Block) -> Value {
+pub fn eval_block(
+  _db: &dyn lura_hir::HirDb,
+  _stack: stack::Stack,
+  _env: Env,
+  _block: Block,
+) -> Value {
   todo!()
 }
 
-fn eval_stmt(db: &dyn lura_hir::HirDb, stack: stack::Stack, env: Env, stmt: Stmt) -> StmtResult {
+pub fn eval_stmt(
+  _db: &dyn lura_hir::HirDb,
+  _stack: stack::Stack,
+  _env: Env,
+  _stmt: Stmt,
+) -> StmtResult {
   todo!()
 }
