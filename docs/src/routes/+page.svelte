@@ -18,7 +18,6 @@
         tooling. It's focused on an incremental architecture, to be able to
         optimize and compile with the best performance possible.
       </p>
-      <Code />
       <article>
         <h2>Query-based architecture 🪄</h2>
         <p>
@@ -28,6 +27,16 @@
           the compiler to be fast and efficient, and will allow powerful and
           easy-to-use tooling in the common IDEs.
         </p>
+      </article>
+      <article>
+        <h2>Playground 🦦</h2>
+        <p>
+          You can play with the Lura's parse tree, that is written with
+          tree-sitter and rendered with the tree-sitter web package. In the near
+          future you will be able to play with the compiler and the language
+          itself.
+        </p>
+        <Code />
       </article>
     </section>
   </main>
