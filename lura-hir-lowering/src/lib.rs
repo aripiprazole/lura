@@ -1351,7 +1351,7 @@ mod util {
   }
 }
 
-mod pattern;
 mod literal;
+mod pattern;
 mod stmt;
 mod term;
