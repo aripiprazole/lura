@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount} from 'svelte';
-  import Parser, {Language, type Tree} from 'web-tree-sitter';
+  import Parser, {Language} from 'web-tree-sitter';
 
   let code: string;
   let tree: string = 'nothing';
@@ -12,9 +12,7 @@
   }
 
   onMount(async () => {
-    await Parser.init({
-      wasmPath: 'https://raw.githubusercontent.com/aripiprazole/tree-sitter-lura/main/tree-sitter-lura.wasm',
-    });
+    await Parser.init();
     language = await Parser.Language.load(
       'https://raw.githubusercontent.com/aripiprazole/tree-sitter-lura/main/tree-sitter-lura.wasm',
     );
@@ -32,24 +30,23 @@
 <style>
   article {
     display: flex;
-    gap: 1rem;
-    border-radius: 1rem;
+    gap: .2rem;
+    border-radius: .5rem;
   }
 
   textarea {
-    border-top-left-radius: 1rem;
-    border-bottom-left-radius: 1rem;
+    border-top-left-radius: .5rem;
+    border-bottom-left-radius: .5rem;
     outline: none;
-    border: 1px solid #fefefe;
+    border: none;
     background: #000;
     height: 15rem;
     padding: 1rem;
   }
 
   p {
-    border-top-right-radius: 1rem;
-    border-bottom-right-radius: 1rem;
-    border: 1px solid #fefefe;
+    border-top-right-radius: .5rem;
+    border-bottom-right-radius: .5rem;
     background: #000;
     color: #fefefe;
     padding: 1rem;
