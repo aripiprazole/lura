@@ -1,0 +1,33 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*, input, button, select, textarea, optgroup, option {
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #fefefe;
+  text-align: justify;
+}
+
+html, body, #root, #__next {
+  height: 100%;
+  width: 100%;
+  min-width: 390px;
+  font-size: 13px;
+  background: #0e0d0d;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+p {
+  font-size: 1.2rem;
+}
