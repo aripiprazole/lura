@@ -13,6 +13,7 @@ members = [
   "lura-cli",
   "lura-typer",
   "lura-ariadne",
+  "tree-sitter-lura",
 ]
 
 [workspace.dependencies]
