@@ -7,8 +7,8 @@
 //! let code = "";
 //! let mut parser = tree_sitter::Parser::new();
 //! parser
-//!   .set_language(tree_sitter_asena::language())
-//!   .expect("Error loading asena grammar");
+//!   .set_language(tree_sitter_lura::language())
+//!   .expect("Error loading lura grammar");
 //! let tree = parser.parse(code, None).unwrap();
 //! ```
 //!
@@ -49,6 +49,6 @@ mod tests {
     let mut parser = tree_sitter::Parser::new();
     parser
       .set_language(super::language())
-      .expect("Error loading asena language");
+      .expect("Error loading lura language");
   }
 }
