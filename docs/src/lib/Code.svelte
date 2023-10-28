@@ -14,7 +14,7 @@
   onMount(async () => {
     await Parser.init();
     language = await Parser.Language.load(
-      'https://raw.githubusercontent.com/aripiprazole/tree-sitter-lura/main/tree-sitter-lura.wasm',
+      'https://raw.githubusercontent.com/aripiprazole/lura/main/tree-sitter-lura/tree-sitter-lura.wasm'
     );
     parser = new Parser();
     parser.setLanguage(language);
