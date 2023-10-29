@@ -13,6 +13,7 @@ members = [
   "lura-cli",
   "lura-typer",
   "lura-ariadne",
+  "lura-docs-backend",
   "tree-sitter-lura",
 ]
 
