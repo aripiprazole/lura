@@ -1,11 +1,6 @@
-use std::{
-  hash::{Hash, Hasher},
-  ops::Range,
-};
-
-use ariadne::Fmt;
 use clap::*;
-use im::HashMap;
+use eyre::eyre;
+use itertools::Itertools;
 use lura_driver::RootDb;
 
 use crate::build::Manifest;
@@ -20,82 +15,41 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Command {
-  Run,
+  Js {
+    #[clap(short, long)]
+    watch: bool,
+
+    #[clap(short, long)]
+    package: String,
+  },
   TypeCheck,
 }
 
 pub mod build;
-
-#[derive(Debug, Clone)]
-struct FileDescriptor {
-  path: String,
-  content: String,
-}
-
-impl Eq for FileDescriptor {}
-
-impl PartialEq for FileDescriptor {
-  fn eq(&self, other: &Self) -> bool {
-    self.path == other.path
-  }
-}
-
-impl Hash for FileDescriptor {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-    self.path.hash(state);
-  }
-}
 
 fn main() -> eyre::Result<()> {
   let cli = Cli::parse();
   let db = RootDb::default();
 
   match cli.command {
-    Command::Run => {
+    Command::Js { package, .. } => {
       let mut manifest = Manifest::load_in_folder(&db, std::env::current_dir()?)?;
       manifest.register_packages()?;
-      manifest.resolve_all_files()?;
 
-      let mut diagnostics = HashMap::new();
-      for report in manifest.diagnostics.iter() {
-        diagnostics
-          .entry(FileDescriptor {
-            path: report.file_name().to_string(),
-            content: report.location().unwrap().source().to_string(),
-          })
-          .or_insert_with(im::HashSet::new)
-          .insert(report.clone());
+      let source_map = manifest.resolve_all_files()?;
+      if manifest.diagnostics.is_empty() {
+        let current_source = source_map
+          .get_in_db(&manifest.db, &package)
+          .ok_or_else(|| eyre!("could not locate the package"))?;
+
+        let source = lura_js::dump_into_string(manifest.db, current_source)?;
+
+        println!("{}", source)
       }
 
-      for (file, diagnostics) in diagnostics {
-        use ariadne::ReportKind::*;
-
-        type Span = (String, Range<usize>);
-        ariadne::Report::<Span>::build(Error, file.path.clone(), 0)
-          .with_code("E0001")
-          .with_message(format!("found {} errors", diagnostics.len()))
-          .with_config(
-            ariadne::Config::default()
-              .with_char_set(ariadne::CharSet::Ascii)
-              .with_label_attach(ariadne::LabelAttach::Start),
-          )
-          .with_labels(diagnostics.into_iter().map(|d| {
-            let kind = match d.error_kind() {
-              lura_diagnostic::ErrorKind::ParseError => "parse error",
-              lura_diagnostic::ErrorKind::TypeError => "type error",
-              lura_diagnostic::ErrorKind::ResolutionError => "resolution error",
-              lura_diagnostic::ErrorKind::RuntimeError => "runtime error",
-              lura_diagnostic::ErrorKind::InternalError(_) => "internal error",
-            };
-            let message = d.markdown_text();
-            ariadne::Label::new((d.file_name(), d.range().unwrap()))
-              .with_color(ariadne::Color::Red)
-              .with_message(format!("{kind}: {message}").fg(ariadne::Color::Red))
-          }))
-          .finish()
-          .eprint((file.path, ariadne::Source::from(&file.content)))
-          .unwrap();
-      }
+      lura_ariadne::AriadneReport::default()
+        .expand(manifest.diagnostics.into_iter().collect_vec())
+        .eprint()?;
     }
     Command::TypeCheck => todo!(),
   }

@@ -1094,10 +1094,12 @@ dependencies = [
  "im",
  "itertools",
  "log",
+ "lura-ariadne",
  "lura-diagnostic",
  "lura-driver",
  "lura-hir",
  "lura-hir-lowering",
+ "lura-js",
  "lura-syntax",
  "lura-vfs",
  "ropey",
@@ -1243,12 +1245,14 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "deno_core",
+ "eyre",
  "im",
  "lura-diagnostic",
  "lura-hir",
  "lura-syntax",
  "lura-vfs",
- "resast",
+ "resast 0.5.0",
+ "resw",
  "salsa-2022",
 ]
 
@@ -1660,9 +1664,36 @@ checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
 
 [[package]]
 name = "resast"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "273826a2b71cf97b320906fa4db27ae82e90309d9f3f605dc556b9a7a59eddb5"
+
+[[package]]
+name = "resast"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dce018f9b95f19dd2df5c883fd6d394001ec093a72e0f8ea57b43612cf1f0827"
+
+[[package]]
+name = "ress"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a0d2b029f0282482c7586e273d261df825ee1cf6c6608c3aef80c9d25534c71"
+dependencies = [
+ "log",
+ "unicode-xid",
+]
+
+[[package]]
+name = "resw"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06584bef78f8dcab480c4f1e8db24ff5efb087e02e10ecf986969afc4d3cd0b0"
+dependencies = [
+ "log",
+ "resast 0.4.1",
+ "ress",
+]
 
 [[package]]
 name = "ropey"
@@ -2368,6 +2399,12 @@ name = "unicode-width"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "url"

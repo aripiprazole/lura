@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, path::PathBuf};
 
 use eyre::Context;
 use fxhash::FxBuildHasher;
@@ -115,9 +115,7 @@ impl<'db> Manifest<'db> {
     Ok(())
   }
 
-  pub fn resolve_all_files(
-    &mut self,
-  ) -> eyre::Result<im::HashMap<Package, HirSource, FxBuildHasher>> {
+  pub fn resolve_all_files(&mut self) -> eyre::Result<SourceMap> {
     // Clear diagnostics for new revision
     self.diagnostics = Default::default();
 
@@ -145,7 +143,7 @@ impl<'db> Manifest<'db> {
       }
     }
 
-    Ok(files)
+    Ok(SourceMap(files))
   }
 }
 
@@ -164,4 +162,29 @@ fn parse_version(version: &str) -> eyre::Result<Version> {
   let minor = split.next().unwrap();
   let patch = split.next().unwrap();
   Ok(Version(major.parse()?, minor.parse()?, patch.parse()?))
+}
+
+/// A map of packages to their HIR sources
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceMap(im::HashMap<Package, HirSource, FxBuildHasher>);
+
+impl SourceMap {
+  /// Gets the HIR source for a given package
+  pub fn get_in_db(&self, db: &RootDb, name: impl Display) -> Option<HirSource> {
+    self.iter().find_map(|(package, hir_source)| {
+      if package.name(db) == &name.to_string() {
+        Some(hir_source.clone())
+      } else {
+        None
+      }
+    })
+  }
+}
+
+impl std::ops::Deref for SourceMap {
+  type Target = im::HashMap<Package, HirSource, FxBuildHasher>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
 }

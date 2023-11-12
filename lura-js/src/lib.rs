@@ -1,7 +1,11 @@
 use std::{path::Path, rc::Rc};
 
 use deno_core::{error::AnyError, FastString};
-use lura_hir::{source::expr::Expr, solver::Definition, HirDb};
+use lura_hir::{
+  solver::Definition,
+  source::{expr::Expr, HirSource},
+  HirDb,
+};
 use resast::prelude as js;
 
 pub async fn run_js(file_path: &str) -> Result<(), AnyError> {
@@ -37,7 +41,7 @@ pub fn walk_on_expr<'a>(db: &dyn HirDb, expr: Expr) -> js::Expr<'a> {
       let definition = reference.definition(db);
       let mangled_name = definition_mangle_name(db, definition);
       js::Expr::Ident(js::Ident::new(mangled_name))
-    },
+    }
     Expr::Meta(_) => todo!(),
     Expr::Literal(_) => todo!(),
     Expr::Call(_) => todo!(),
@@ -46,4 +50,9 @@ pub fn walk_on_expr<'a>(db: &dyn HirDb, expr: Expr) -> js::Expr<'a> {
     Expr::Match(_) => todo!(),
     Expr::Upgrade(_) => todo!(),
   }
+}
+
+pub fn dump_into_string(db: &dyn HirDb, source: HirSource) -> eyre::Result<String> {
+  let _ = (db, source);
+  todo!()
 }

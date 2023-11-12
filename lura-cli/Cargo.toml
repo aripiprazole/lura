@@ -15,6 +15,8 @@ lura-hir = { version = "0.0.1", path = "../lura-hir" }
 lura-hir-lowering = { version = "0.0.1", path = "../lura-hir-lowering" }
 lura-syntax = { version = "0.0.1", path = "../lura-syntax" }
 lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
+lura-js = { version = "0.0.1", path = "../lura-js" }
+lura-ariadne = { version = "0.0.1", path = "../lura-ariadne" }
 lura-driver = { version = "0.0.1", path = "../lura-driver" }
 
 salsa-2022.workspace = true
@@ -22,7 +24,7 @@ salsa-2022.workspace = true
 tree-sitter.workspace = true
 type-sitter-lib.workspace = true
 
-tree-sitter-lura = {version = "0.1.20", path = "../tree-sitter-lura"}
+tree-sitter-lura = { version = "0.1.20", path = "../tree-sitter-lura" }
 
 dashmap.workspace = true
 eyre.workspace = true
