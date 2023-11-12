@@ -1248,6 +1248,7 @@ dependencies = [
  "lura-hir",
  "lura-syntax",
  "lura-vfs",
+ "resast",
  "salsa-2022",
 ]
 
@@ -1656,6 +1657,12 @@ name = "regex-syntax"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
+
+[[package]]
+name = "resast"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce018f9b95f19dd2df5c883fd6d394001ec093a72e0f8ea57b43612cf1f0827"
 
 [[package]]
 name = "ropey"
