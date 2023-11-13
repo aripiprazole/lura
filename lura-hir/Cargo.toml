@@ -19,3 +19,4 @@ dashmap.workspace = true
 if_chain = "1.0.2"
 petgraph = "0.6.3"
 once_cell = "1.18.0"
+thiserror.workspace = true

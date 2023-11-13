@@ -1187,6 +1187,7 @@ dependencies = [
  "once_cell",
  "petgraph",
  "salsa-2022",
+ "thiserror",
 ]
 
 [[package]]

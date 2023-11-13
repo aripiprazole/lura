@@ -119,7 +119,10 @@ impl Scope {
   /// Adds a reference to the given `definition` in the current scope.
   pub fn using(&mut self, db: &dyn crate::HirDb, it: Definition, loc: Location) -> Reference {
     // Create a new reference to [it] and insert it in the current scope
-    let idx = self.lvl.as_idx(it.defined_at(db));
+    // let idx = self.lvl.as_idx(it.defined_at(db)).unwrap_or_else(|error| {
+    //   panic!("failed to create a reference to {:?}: {}", it.to_string(db), error)
+    // });
+    let idx = it.defined_at(db).as_idx(self.lvl).unwrap_or_default();
     let reference = Reference::new(db, it, loc, idx);
     self.references.entry(it).or_default().insert(reference);
 

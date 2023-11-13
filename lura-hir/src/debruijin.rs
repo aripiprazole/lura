@@ -9,14 +9,27 @@ use crate::source::expr::Expr;
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Level(pub usize);
 
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum Level2IdxError {
+  /// The level is greater than the index.
+  #[error("expected l > x")]
+  LevelGreaterThanIndex,
+  /// The level is equal to zero.
+  #[error("expected l > 0")]
+  LevelEqualToZero,
+}
+
 impl Level {
   /// Transforms a level into a debruijin index.
-  pub fn as_idx(&self, Level(_): Level) -> Index {
-    let Level(_) = *self;
-    // assert!(l > x, "expected l > x, but {l} < {x}");
-    // assert!(l > 0, "l should be greater than 0");
-    // TODO
-    Index(0)
+  pub fn as_idx(&self, Level(l): Level) -> Result<Index, Level2IdxError> {
+    let Level(x) = *self;
+    if l > x {
+      return Err(Level2IdxError::LevelGreaterThanIndex);
+    }
+    if l == 0 {
+      return Err(Level2IdxError::LevelEqualToZero);
+    }
+    Ok(Index(0))
   }
 }
 
