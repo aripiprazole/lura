@@ -82,7 +82,9 @@ pub fn dump_into_string<W: std::io::Write>(
 ) -> eyre::Result<()> {
   let mut writer = resw::Writer::new(w);
   for top_level in source.contents(db) {
-    let program_part = transform_top_level(db, *top_level)?;
+    let Ok(program_part) = transform_top_level(db, *top_level) else {
+      continue;
+    };
 
     writer.write_part(&program_part)?;
   }
