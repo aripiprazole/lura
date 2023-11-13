@@ -196,12 +196,6 @@ impl<'db, 'tree> HirLowering<'db, 'tree> {
       }
     }
 
-    // Pulls the clauses from the scope, and transforms into new declarations, to be put in the
-    // instance of [`HirSource`].
-    for group in self.clauses.values() {
-      self.decls.push(TopLevel::BindingGroup(*group))
-    }
-
     HirSource::new(self.db, self.src, self.pkg, self.scope, self.decls)
   }
 
@@ -1291,6 +1285,7 @@ mod util {
       }
     }
   }
+
   impl<'tree, N, T: Default> NodeResultExt<'tree, N, T>
     for Result<ExtraOr<'tree, N>, IncorrectKind<'tree>>
   {
