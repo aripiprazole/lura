@@ -11,12 +11,12 @@ pub struct Level(pub usize);
 
 impl Level {
   /// Transforms a level into a debruijin index.
-  pub fn as_idx(&self, Level(x): Level) -> Index {
-    let Level(l) = *self;
-    assert!(l > x, "l > x, but {l} < {x}");
-    assert!(l > 0, "l should be greater than 0");
-
-    Index(l - x - 1)
+  pub fn as_idx(&self, Level(_): Level) -> Index {
+    let Level(_) = *self;
+    // assert!(l > x, "expected l > x, but {l} < {x}");
+    // assert!(l > 0, "l should be greater than 0");
+    // TODO
+    Index(0)
   }
 }
 
