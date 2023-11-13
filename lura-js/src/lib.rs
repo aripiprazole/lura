@@ -31,7 +31,7 @@ pub fn definition_mangle_name(db: &dyn HirDb, definition: Definition) -> String 
   let mut name = String::new();
   for segment in definition.name(db).segments(db) {
     name.push_str(&segment.contents(db));
-    name.push_str("_");
+    name.push_str("__");
   }
   name
 }
