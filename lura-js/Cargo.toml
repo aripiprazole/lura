@@ -16,6 +16,6 @@ im.workspace = true
 
 axum = "0.6.20"
 deno_core = "0.229.0"
-resast = "0.5.0"
-resw = "0.5.1"
+resast = "0.4.1"
+resw = "0.5.0"
 eyre.workspace = true

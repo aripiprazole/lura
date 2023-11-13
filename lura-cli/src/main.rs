@@ -42,9 +42,12 @@ fn main() -> eyre::Result<()> {
           .get_in_db(&manifest.db, &package)
           .ok_or_else(|| eyre!("could not locate the package"))?;
 
-        let source = lura_js::dump_into_string(manifest.db, current_source)?;
+        let mut source = Vec::new();
+        if let Err(err) = lura_js::dump_into_string(manifest.db, current_source, &mut source) {
+          eprintln!("{err}");
+        }
 
-        println!("{}", source)
+        println!("{}", String::from_utf8(source)?);
       }
 
       lura_ariadne::AriadneReport::default()

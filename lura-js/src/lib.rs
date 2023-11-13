@@ -1,6 +1,8 @@
 use std::{path::Path, rc::Rc};
 
 use deno_core::{error::AnyError, FastString};
+use eyre::{bail, eyre};
+use lura_hir::source::top_level::TopLevel;
 use lura_hir::{
   solver::Definition,
   source::{expr::Expr, HirSource},
@@ -52,7 +54,31 @@ pub fn walk_on_expr<'a>(db: &dyn HirDb, expr: Expr) -> js::Expr<'a> {
   }
 }
 
-pub fn dump_into_string(db: &dyn HirDb, source: HirSource) -> eyre::Result<String> {
-  let _ = (db, source);
-  todo!()
+pub fn transform_top_level(db: &dyn HirDb, top_level: TopLevel) -> eyre::Result<js::ProgramPart> {
+  let _ = db;
+  match top_level {
+    TopLevel::Error(_) => bail!("errors are not supported"),
+    TopLevel::Using(_) => bail!("using are not supported"),
+    TopLevel::Command(_) => bail!("commands are not supported"),
+    TopLevel::BindingGroup(_) => bail!("binding declarations are not supported"),
+    TopLevel::ClassDecl(_) => bail!("class declarations are not supported"),
+    TopLevel::InstanceDecl(_) => bail!("instance declarations are not supported"),
+    TopLevel::TraitDecl(_) => bail!("trait declarations are not supported"),
+    TopLevel::DataDecl(_) => bail!("data declarations are not supported"),
+    TopLevel::TypeDecl(_) => bail!("type declarations are not supported"),
+  }
+}
+
+pub fn dump_into_string<W: std::io::Write>(
+  db: &dyn HirDb,
+  source: HirSource,
+  w: W,
+) -> eyre::Result<()> {
+  let mut writer = resw::Writer::new(w);
+  for top_level in source.contents(db) {
+    let program_part = transform_top_level(db, *top_level)?;
+
+    writer.write_part(&program_part)?;
+  }
+  Ok(())
 }

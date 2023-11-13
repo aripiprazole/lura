@@ -1252,7 +1252,7 @@ dependencies = [
  "lura-hir",
  "lura-syntax",
  "lura-vfs",
- "resast 0.5.0",
+ "resast",
  "resw",
  "salsa-2022",
 ]
@@ -1670,12 +1670,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "273826a2b71cf97b320906fa4db27ae82e90309d9f3f605dc556b9a7a59eddb5"
 
 [[package]]
-name = "resast"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce018f9b95f19dd2df5c883fd6d394001ec093a72e0f8ea57b43612cf1f0827"
-
-[[package]]
 name = "ress"
 version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1692,7 +1686,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06584bef78f8dcab480c4f1e8db24ff5efb087e02e10ecf986969afc4d3cd0b0"
 dependencies = [
  "log",
- "resast 0.4.1",
+ "resast",
  "ress",
 ]
 
