@@ -83,7 +83,7 @@ impl<'db> Manifest<'db> {
     Ok(cst)
   }
 
-  pub fn as_package(&mut self) -> eyre::Result<Package> {
+  pub fn as_package(&mut self) -> lura_eyre::Result<Package> {
     let version = parse_version(&self.config.version)?;
     let source = self.root_folder.join(&self.config.source);
 
@@ -156,7 +156,7 @@ fn source_folder_default() -> String {
   "src".to_string()
 }
 
-fn parse_version(version: &str) -> eyre::Result<Version> {
+fn parse_version(version: &str) -> lura_eyre::Result<Version> {
   let mut split = version.split('.');
   let major = split.next().unwrap();
   let minor = split.next().unwrap();
