@@ -13,6 +13,8 @@ lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
 
 salsa-2022.workspace = true
 
+thiserror.workspace = true
+
 eyre.workspace = true
 miette.workspace = true
 
