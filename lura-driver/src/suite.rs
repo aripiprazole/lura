@@ -84,7 +84,7 @@ pub fn run_test_suite(
 }
 
 /// Groups the errors by file.
-pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> eyre::Result<()> {
+pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> lura_eyre::Result<()> {
   let mut ariadne = AriadneReport::default();
   for output in outputs {
     ariadne = ariadne.expand(output.clone());
