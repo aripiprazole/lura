@@ -1,9 +1,12 @@
 //! Wrapper to eyre and miette, it will be used to provide a common error type for those two crates
 //! and to provide a common error handling API.
 
+use std::fmt::Display;
+
 #[doc(hidden)]
 pub use eyre as private;
-pub use eyre::*;
+
+pub use eyre::Context;
 
 #[derive(Debug)]
 pub enum Report {
@@ -227,3 +230,386 @@ macro_rules! eyre {
 /// }
 /// ```
 pub type Result<T, E = Report> = core::result::Result<T, E>;
+
+/// Provides the `wrap_err` method for `Result`.
+///
+/// This trait is sealed and cannot be implemented for types outside of
+/// `eyre`.
+///
+/// # Example
+///
+/// ```
+/// use lura_eyre::{WrapErr, Result};
+/// use std::fs;
+/// use std::path::PathBuf;
+///
+/// pub struct ImportantThing {
+///     path: PathBuf,
+/// }
+///
+/// impl ImportantThing {
+///     # const IGNORE: &'static str = stringify! {
+///     pub fn detach(&mut self) -> Result<()> {...}
+///     # };
+///     # fn detach(&mut self) -> Result<()> {
+///     #     unimplemented!()
+///     # }
+/// }
+///
+/// pub fn do_it(mut it: ImportantThing) -> Result<Vec<u8>> {
+///     it.detach().wrap_err("Failed to detach the important thing")?;
+///
+///     let path = &it.path;
+///     let content = fs::read(path)
+///         .wrap_err_with(|| format!("Failed to read instrs from {}", path.display()))?;
+///
+///     Ok(content)
+/// }
+/// ```
+///
+/// When printed, the outermost error would be printed first and the lower
+/// level underlying causes would be enumerated below.
+///
+/// ```console
+/// Error: Failed to read instrs from ./path/to/instrs.json
+///
+/// Caused by:
+///     No such file or directory (os error 2)
+/// ```
+///
+/// # Wrapping Types That Don't impl `Error` (e.g. `&str` and `Box<dyn Error>`)
+///
+/// Due to restrictions for coherence `Report` cannot impl `From` for types that don't impl
+/// `Error`. Attempts to do so will give "this type might implement Error in the future" as an
+/// error. As such, `wrap_err`, which uses `From` under the hood, cannot be used to wrap these
+/// types. Instead we encourage you to use the combinators provided for `Result` in `std`/`core`.
+///
+/// For example, instead of this:
+///
+/// ```rust,compile_fail
+/// use std::error::Error;
+/// use lura_eyre::{WrapErr, Report};
+///
+/// fn wrap_example(err: Result<(), Box<dyn Error + Send + Sync + 'static>>) -> Result<(), Report> {
+///     err.wrap_err("saw a downstream error")
+/// }
+/// ```
+///
+/// We encourage you to write this:
+///
+/// ```rust
+/// use std::error::Error;
+///
+/// use lura_eyre::{eyre, Report, WrapErr};
+///
+/// fn wrap_example(err: Result<(), Box<dyn Error + Send + Sync + 'static>>) -> Result<(), Report> {
+///   err.map_err(|e| eyre!(e)).wrap_err("saw a downstream error")
+/// }
+/// ```
+///
+/// # Effect on downcasting
+///
+/// After attaching a message of type `D` onto an error of type `E`, the resulting
+/// `eyre::Report` may be downcast to `D` **or** to `E`.
+///
+/// That is, in codebases that rely on downcasting, Eyre's wrap_err supports
+/// both of the following use cases:
+///
+///   - **Attaching messages whose type is insignificant onto errors whose type
+///     is used in downcasts.**
+///
+///     In other error libraries whose wrap_err is not designed this way, it can
+///     be risky to introduce messages to existing code because new message might
+///     break existing working downcasts. In Eyre, any downcast that worked
+///     before adding the message will continue to work after you add a message, so
+///     you should freely wrap errors wherever it would be helpful.
+///
+///     ```
+///     # use lura_eyre::bail;
+///     # use thiserror::Error;
+///     #
+///     # #[derive(Error, Debug)]
+///     # #[error("???")]
+///     # struct SuspiciousError;
+///     #
+///     # fn helper() -> Result<()> {
+///     #     bail!(SuspiciousError);
+///     # }
+///     #
+///     use lura_eyre::{WrapErr, Result};
+///
+///     fn do_it() -> Result<()> {
+///         helper().wrap_err("Failed to complete the work")?;
+///         # const IGNORE: &str = stringify! {
+///         ...
+///         # };
+///         # unreachable!()
+///     }
+///
+///     fn main() {
+///         # #[cfg(not(feature = "auto-install"))]
+///         # lura_eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
+///         let err = do_it().unwrap_err();
+///         if let Some(e) = err.downcast_ref::<SuspiciousError>() {
+///             // If helper() returned SuspiciousError, this downcast will
+///             // correctly succeed even with the message in between.
+///             # return;
+///         }
+///         # panic!("expected downcast to succeed");
+///     }
+///     ```
+///
+///   - **Attaching message whose type is used in downcasts onto errors whose
+///     type is insignificant.**
+///
+///     Some codebases prefer to use machine-readable messages to categorize
+///     lower level errors in a way that will be actionable to higher levels of
+///     the application.
+///
+///     ```
+///     # use lura_eyre::bail;
+///     # use thiserror::Error;
+///     #
+///     # #[derive(Error, Debug)]
+///     # #[error("???")]
+///     # struct HelperFailed;
+///     #
+///     # fn helper() -> Result<()> {
+///     #     bail!("no such file or directory");
+///     # }
+///     #
+///     use lura_eyre::{WrapErr, Result};
+///
+///     fn do_it() -> Result<()> {
+///         helper().wrap_err(HelperFailed)?;
+///         # const IGNORE: &str = stringify! {
+///         ...
+///         # };
+///         # unreachable!()
+///     }
+///
+///     fn main() {
+///         # #[cfg(not(feature = "auto-install"))]
+///         # eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
+///         let err = do_it().unwrap_err();
+///         if let Some(e) = err.downcast_ref::<HelperFailed>() {
+///             // If helper failed, this downcast will succeed because
+///             // HelperFailed is the message that has been attached to
+///             // that error.
+///             # return;
+///         }
+///         # panic!("expected downcast to succeed");
+///     }
+///     ```
+pub trait WrapErr<T, E>: sealed::Sealed {
+  /// Wrap the error value with a new adhoc error
+  #[cfg_attr(track_caller, track_caller)]
+  fn wrap_err<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static;
+
+  /// Wrap the error value with a new adhoc error that is evaluated lazily
+  /// only once an error does occur.
+  #[cfg_attr(track_caller, track_caller)]
+  fn wrap_err_with<D, F>(self, f: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D;
+
+  /// Compatibility re-export of wrap_err for interopt with `anyhow`
+  #[cfg_attr(track_caller, track_caller)]
+  fn context<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static;
+
+  /// Compatibility re-export of wrap_err_with for interopt with `anyhow`
+  #[cfg_attr(track_caller, track_caller)]
+  fn with_context<D, F>(self, f: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D;
+}
+
+/// Provides the `context` method for `Option` when porting from `anyhow`
+///
+/// This trait is sealed and cannot be implemented for types outside of
+/// `eyre`.
+///
+/// ## Why Doesn't `Eyre` impl `WrapErr` for `Option`?
+///
+/// `eyre` doesn't impl `WrapErr` for `Option` because `wrap_err` implies that you're creating a
+/// new error that saves the previous error as its `source`. Calling `wrap_err` on an `Option` is
+/// meaningless because there is no source error. `anyhow` avoids this issue by using a different
+/// mental model where you're adding "context" to an error, though this not a mental model for
+/// error handling that `eyre` agrees with.
+///
+/// Instead, `eyre` encourages users to think of each error as distinct, where the previous error
+/// is the context being saved by the new error, which is backwards compared to anyhow's model. In
+/// this model you're encouraged to use combinators provided by `std` for `Option` to convert an
+/// option to a `Result`
+///
+/// # Example
+///
+/// Instead of:
+///
+/// ```rust
+/// use lura_eyre::ContextCompat;
+///
+/// fn get_thing(mut things: impl Iterator<Item = u32>) -> lura_eyre::Result<u32> {
+///   things
+///     .find(|&thing| thing == 42)
+///     .context("the thing wasnt in the list")
+/// }
+/// ```
+///
+/// We encourage you to use this:
+///
+/// ```rust
+/// use lura_eyre::eyre;
+///
+/// fn get_thing(mut things: impl Iterator<Item = u32>) -> eyre::Result<u32> {
+///   things
+///     .find(|&thing| thing == 42)
+///     .ok_or_else(|| eyre!("the thing wasnt in the list"))
+/// }
+/// ```
+pub trait ContextCompat<T>: sealed::Sealed {
+  /// Compatibility version of `wrap_err` for creating new errors with new source on `Option`
+  /// when porting from `anyhow`
+  #[cfg_attr(track_caller, track_caller)]
+  fn context<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static;
+
+  /// Compatibility version of `wrap_err_with` for creating new errors with new source on `Option`
+  /// when porting from `anyhow`
+  #[cfg_attr(track_caller, track_caller)]
+  fn with_context<D, F>(self, f: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D;
+
+  /// Compatibility re-export of `context` for porting from `anyhow` to `eyre`
+  #[cfg_attr(track_caller, track_caller)]
+  fn wrap_err<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static;
+
+  /// Compatibility re-export of `with_context` for porting from `anyhow` to `eyre`
+  #[cfg_attr(track_caller, track_caller)]
+  fn wrap_err_with<D, F>(self, f: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D;
+}
+
+mod sealed {
+  use super::*;
+  pub trait Sealed {}
+
+  pub trait StdError {
+    #[cfg_attr(track_caller, track_caller)]
+    fn ext_report<D>(self, msg: D) -> crate::Report
+    where
+      D: Display + Send + Sync + 'static;
+  }
+  impl<E> StdError for E
+  where
+    E: std::error::Error + Send + Sync + 'static,
+  {
+    fn ext_report<D>(self, msg: D) -> crate::Report
+    where
+      D: Display + Send + Sync + 'static,
+    {
+      Report::Eyre(self.into())
+    }
+  }
+
+  impl StdError for crate::Report {
+    fn ext_report<D>(self, msg: D) -> crate::Report
+    where
+      D: Display + Send + Sync + 'static,
+    {
+      match self {
+        crate::Report::Eyre(eyre) => crate::Report::Eyre(eyre.wrap_err(msg)),
+        crate::Report::Miette(miette) => crate::Report::Miette(miette),
+      }
+    }
+  }
+
+  impl<T, E> Sealed for Result<T, E> where E: StdError {}
+  impl<T> Sealed for Option<T> {}
+}
+
+impl<T, E> WrapErr<T, E> for Result<T, E>
+where
+  E: sealed::StdError + Send + Sync + 'static,
+{
+  fn wrap_err<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+  {
+    match self {
+      Ok(t) => Ok(t),
+      Err(e) => Err(e.ext_report(msg)),
+    }
+  }
+
+  fn wrap_err_with<D, F>(self, msg: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D,
+  {
+    match self {
+      Ok(t) => Ok(t),
+      Err(e) => Err(e.ext_report(msg())),
+    }
+  }
+
+  fn context<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+  {
+    self.wrap_err(msg)
+  }
+
+  fn with_context<D, F>(self, msg: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D,
+  {
+    self.wrap_err_with(msg)
+  }
+}
+
+impl<T> ContextCompat<T> for Option<T> {
+  fn wrap_err<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+  {
+    self.context(msg)
+  }
+
+  fn wrap_err_with<D, F>(self, msg: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D,
+  {
+    self.with_context(msg)
+  }
+
+  fn context<D>(self, msg: D) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+  {
+    eyre::ContextCompat::context(self, msg).map_err(Report::Eyre)
+  }
+
+  fn with_context<D, F>(self, msg: F) -> Result<T, Report>
+  where
+    D: Display + Send + Sync + 'static,
+    F: FnOnce() -> D,
+  {
+    eyre::ContextCompat::with_context(self, msg).map_err(Report::Eyre)
+  }
+}
