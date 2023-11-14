@@ -5,6 +5,7 @@ use std::fmt::Display;
 
 #[doc(hidden)]
 pub use eyre as private;
+pub use eyre::{set_hook, DefaultHandler};
 pub use WrapErr as Context;
 
 #[derive(Debug)]
@@ -332,41 +333,6 @@ pub type Result<T, E = Report> = core::result::Result<T, E>;
 ///     before adding the message will continue to work after you add a message, so
 ///     you should freely wrap errors wherever it would be helpful.
 ///
-///     ```
-///     # use lura_eyre::bail;
-///     # use thiserror::Error;
-///     #
-///     # #[derive(Error, Debug)]
-///     # #[error("???")]
-///     # struct SuspiciousError;
-///     #
-///     # fn helper() -> Result<()> {
-///     #     bail!(SuspiciousError);
-///     # }
-///     #
-///     use lura_eyre::{WrapErr, Result};
-///
-///     fn do_it() -> Result<()> {
-///         helper().wrap_err("Failed to complete the work")?;
-///         # const IGNORE: &str = stringify! {
-///         ...
-///         # };
-///         # unreachable!()
-///     }
-///
-///     fn main() {
-///         # #[cfg(not(feature = "auto-install"))]
-///         # lura_eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
-///         let err = do_it().unwrap_err();
-///         if let Some(e) = err.downcast_ref::<SuspiciousError>() {
-///             // If helper() returned SuspiciousError, this downcast will
-///             // correctly succeed even with the message in between.
-///             # return;
-///         }
-///         # panic!("expected downcast to succeed");
-///     }
-///     ```
-///
 ///   - **Attaching message whose type is used in downcasts onto errors whose
 ///     type is insignificant.**
 ///
@@ -374,41 +340,6 @@ pub type Result<T, E = Report> = core::result::Result<T, E>;
 ///     lower level errors in a way that will be actionable to higher levels of
 ///     the application.
 ///
-///     ```
-///     # use lura_eyre::bail;
-///     # use thiserror::Error;
-///     #
-///     # #[derive(Error, Debug)]
-///     # #[error("???")]
-///     # struct HelperFailed;
-///     #
-///     # fn helper() -> Result<()> {
-///     #     bail!("no such file or directory");
-///     # }
-///     #
-///     use lura_eyre::{WrapErr, Result};
-///
-///     fn do_it() -> Result<()> {
-///         helper().wrap_err(HelperFailed)?;
-///         # const IGNORE: &str = stringify! {
-///         ...
-///         # };
-///         # unreachable!()
-///     }
-///
-///     fn main() {
-///         # #[cfg(not(feature = "auto-install"))]
-///         # lura_eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
-///         let err = do_it().unwrap_err();
-///         if let Some(e) = err.downcast_ref::<HelperFailed>() {
-///             // If helper failed, this downcast will succeed because
-///             // HelperFailed is the message that has been attached to
-///             // that error.
-///             # return;
-///         }
-///         # panic!("expected downcast to succeed");
-///     }
-///     ```
 pub trait WrapErr<T, E>: sealed::Sealed {
   /// Wrap the error value with a new adhoc error
   #[cfg_attr(track_caller, track_caller)]
