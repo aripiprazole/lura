@@ -1185,6 +1185,7 @@ dependencies = [
  "lura-vfs",
  "miette",
  "salsa-2022",
+ "thiserror",
 ]
 
 [[package]]

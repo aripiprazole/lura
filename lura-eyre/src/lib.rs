@@ -53,7 +53,7 @@ impl<E: std::error::Error + Send + Sync + 'static> From<E> for Report {
 /// ```
 ///
 /// ```
-/// # use eyre::{bail, Result};
+/// # use lura_eyre::{bail, Result};
 /// # use thiserror::Error;
 /// #
 /// # const MAX_DEPTH: usize = 1;
@@ -87,7 +87,7 @@ macro_rules! bail {
       return Err($crate::Report::Eyre($crate::private::eyre!($err)));
   };
   ($fmt:expr, $($arg:tt)*) => {
-      return :Err($crate::Report::Eyre($crate::private::eyre!($fmt, $($arg)*)));
+      return Err($crate::Report::Eyre($crate::private::eyre!($fmt, $($arg)*)));
   };
 }
 
@@ -102,7 +102,7 @@ macro_rules! bail {
 /// # Example
 ///
 /// ```
-/// # use eyre::{ensure, Result};
+/// # use lura_eyre::{ensure, Result};
 /// #
 /// # fn main() -> Result<()> {
 /// #     let user = 0;
@@ -318,7 +318,7 @@ pub type Result<T, E = Report> = core::result::Result<T, E>;
 /// # Effect on downcasting
 ///
 /// After attaching a message of type `D` onto an error of type `E`, the resulting
-/// `eyre::Report` may be downcast to `D` **or** to `E`.
+/// `lura_eyre::Report` may be downcast to `D` **or** to `E`.
 ///
 /// That is, in codebases that rely on downcasting, Eyre's wrap_err supports
 /// both of the following use cases:
@@ -398,7 +398,7 @@ pub type Result<T, E = Report> = core::result::Result<T, E>;
 ///
 ///     fn main() {
 ///         # #[cfg(not(feature = "auto-install"))]
-///         # eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
+///         # lura_eyre::set_hook(Box::new(lura_eyre::DefaultHandler::default_with)).unwrap();
 ///         let err = do_it().unwrap_err();
 ///         if let Some(e) = err.downcast_ref::<HelperFailed>() {
 ///             // If helper failed, this downcast will succeed because
@@ -475,7 +475,7 @@ pub trait WrapErr<T, E>: sealed::Sealed {
 /// ```rust
 /// use lura_eyre::eyre;
 ///
-/// fn get_thing(mut things: impl Iterator<Item = u32>) -> eyre::Result<u32> {
+/// fn get_thing(mut things: impl Iterator<Item = u32>) -> lura_eyre::Result<u32> {
 ///   things
 ///     .find(|&thing| thing == 42)
 ///     .ok_or_else(|| eyre!("the thing wasnt in the list"))
