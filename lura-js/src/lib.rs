@@ -79,13 +79,19 @@ pub fn compile_expr<'a>(db: &dyn HirDb, expr: Expr) -> js::Expr<'a> {
   }
 }
 
-pub struct PatternMatching {
+pub struct CaseTree<'a> {
   pub scrutinee: Vec<Expr>,
-  pub patterns: im::HashMap<Vec<Pattern>, Expr>,
+  pub switch: Vec<(js::Expr<'a>, Expr)>,
 }
 
-pub fn compile_pattern_matching<'a>(db: &dyn HirDb, matching: PatternMatching) -> js::Expr<'a> {
-  todo!()
+impl CaseTree<'_> {
+  pub fn new() -> Self {
+    todo!()
+  }
+
+  pub fn compile_case_tree<'a>(self, db: &dyn HirDb) -> js::Expr<'a> {
+    todo!()
+  }
 }
 
 pub fn compile_top_level(db: &dyn HirDb, top_level: TopLevel) -> eyre::Result<js::ProgramPart> {
@@ -96,20 +102,11 @@ pub fn compile_top_level(db: &dyn HirDb, top_level: TopLevel) -> eyre::Result<js
     TopLevel::BindingGroup(group) => Ok(js::ProgramPart::Decl(js::Decl::Func(js::Func {
       id: Some(js::Ident::new(group.name(db).to_string(db))),
       params: vec![],
-      body: js::FuncBody(vec![js::ProgramPart::Stmt(js::Stmt::Return(Some(
-        compile_pattern_matching(db, PatternMatching {
-          scrutinee: group
-            .clauses(db)
-            .into_iter()
-            .map(|clause| clause.arguments(db))
-            .collect(),
-          patterns: group
-            .clauses(db)
-            .into_iter()
-            .map(|clause| (clause.arguments(db), clause.value(db)))
-            .collect(),
-        }),
-      )))]),
+      body: js::FuncBody({
+        let case_tree = CaseTree::new();
+        let js_expr = case_tree.compile_case_tree(db);
+        vec![js::ProgramPart::Stmt(js::Stmt::Return(Some(js_expr)))]
+      }),
       generator: false,
       is_async: false,
     }))),
