@@ -1,7 +1,7 @@
 use clap::*;
-use eyre::eyre;
 use itertools::Itertools;
 use lura_driver::RootDb;
+use lura_eyre::eyre;
 
 use crate::build::Manifest;
 
@@ -27,7 +27,7 @@ pub enum Command {
 
 pub mod build;
 
-fn main() -> eyre::Result<()> {
+fn main() -> lura_eyre::Result<()> {
   let cli = Cli::parse();
   let db = RootDb::default();
 
