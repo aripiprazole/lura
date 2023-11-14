@@ -18,6 +18,7 @@ lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
 lura-js = { version = "0.0.1", path = "../lura-js" }
 lura-ariadne = { version = "0.0.1", path = "../lura-ariadne" }
 lura-driver = { version = "0.0.1", path = "../lura-driver" }
+lura-eyre = { version = "0.0.1", path = "../lura-eyre" }
 
 salsa-2022.workspace = true
 
@@ -27,7 +28,6 @@ type-sitter-lib.workspace = true
 tree-sitter-lura = { version = "0.1.20", path = "../tree-sitter-lura" }
 
 dashmap.workspace = true
-eyre.workspace = true
 im.workspace = true
 fxhash.workspace = true
 itertools.workspace = true

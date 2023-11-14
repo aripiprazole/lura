@@ -1,6 +1,9 @@
 //! Wrapper to eyre and miette, it will be used to provide a common error type for those two crates
 //! and to provide a common error handling API.
 
+pub use eyre::*;
+
+#[derive(Debug)]
 pub enum Report {
   Eyre(eyre::Report),
   Miette(miette::Report),
@@ -26,7 +29,7 @@ impl From<miette::Report> for Report {
 /// `lura_eyre::Result` may be used with one *or* two type parameters.
 ///
 /// ```rust
-/// use eyre::Result;
+/// use lura_eyre::Result;
 ///
 /// # const IGNORE: &str = stringify! {
 /// fn demo1() -> Result<T> {...}

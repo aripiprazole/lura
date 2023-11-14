@@ -1,10 +1,10 @@
 use std::{collections::HashMap, fmt::Display, path::PathBuf};
 
-use eyre::Context;
 use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use lura_diagnostic::{Diagnostics, Report};
 use lura_driver::RootDb;
+use lura_eyre::Context;
 use lura_hir::{
   package::{HasManifest, Package, Version},
   source::HirSource,
@@ -35,7 +35,7 @@ pub struct Manifest<'db> {
 impl<'db> Manifest<'db> {
   pub const FILE_NAME: &'static str = "lura.toml";
 
-  pub fn load_in_folder(db: &'db RootDb, folder: PathBuf) -> eyre::Result<Self> {
+  pub fn load_in_folder(db: &'db RootDb, folder: PathBuf) -> lura_eyre::Result<Self> {
     let manifest_path = folder.join(Self::FILE_NAME);
     let manifest_content = std::fs::read_to_string(manifest_path.clone())
       .wrap_err_with(|| format!("Unable to find manifest file for folder {folder:?}"))?;
@@ -51,7 +51,7 @@ impl<'db> Manifest<'db> {
     })
   }
 
-  pub fn read_file(&mut self, folder: PathBuf, path: PathBuf) -> eyre::Result<Source> {
+  pub fn read_file(&mut self, folder: PathBuf, path: PathBuf) -> lura_eyre::Result<Source> {
     let path = folder.join(path);
     let contents = std::fs::read_to_string(&path)
       .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
@@ -99,7 +99,7 @@ impl<'db> Manifest<'db> {
     ))
   }
 
-  pub fn register_packages(&mut self) -> eyre::Result<()> {
+  pub fn register_packages(&mut self) -> lura_eyre::Result<()> {
     for dependency in self.config.dependencies.values() {
       let folder = self.root_folder.join(&dependency.path).canonicalize()?;
       let mut manifest = Manifest::load_in_folder(self.db, folder)?;
@@ -115,7 +115,7 @@ impl<'db> Manifest<'db> {
     Ok(())
   }
 
-  pub fn resolve_all_files(&mut self) -> eyre::Result<SourceMap> {
+  pub fn resolve_all_files(&mut self) -> lura_eyre::Result<SourceMap> {
     // Clear diagnostics for new revision
     self.diagnostics = Default::default();
 
