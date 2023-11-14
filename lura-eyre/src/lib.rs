@@ -513,6 +513,7 @@ mod sealed {
     where
       D: Display + Send + Sync + 'static;
   }
+
   impl<E> StdError for E
   where
     E: std::error::Error + Send + Sync + 'static,
