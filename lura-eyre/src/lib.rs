@@ -5,13 +5,21 @@ use std::fmt::Display;
 
 #[doc(hidden)]
 pub use eyre as private;
-
 pub use WrapErr as Context;
 
 #[derive(Debug)]
 pub enum Report {
   Eyre(eyre::Report),
   Miette(miette::Report),
+}
+
+impl Display for Report {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Report::Eyre(eyre) => Display::fmt(eyre, f),
+      Report::Miette(miette) => Display::fmt(miette, f),
+    }
+  }
 }
 
 impl<E: std::error::Error + Send + Sync + 'static> From<E> for Report {
