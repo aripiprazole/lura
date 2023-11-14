@@ -1,7 +1,7 @@
 use std::{path::Path, rc::Rc};
 
 use deno_core::{error::AnyError, FastString};
-use eyre::bail;
+use lura_eyre::bail;
 use lura_hir::source::declaration::Declaration;
 use lura_hir::source::top_level::TopLevel;
 use lura_hir::{
@@ -55,7 +55,10 @@ pub fn walk_on_expr<'a>(db: &dyn HirDb, expr: Expr) -> js::Expr<'a> {
   }
 }
 
-pub fn transform_top_level(db: &dyn HirDb, top_level: TopLevel) -> eyre::Result<js::ProgramPart> {
+pub fn transform_top_level(
+  db: &dyn HirDb,
+  top_level: TopLevel,
+) -> lura_eyre::Result<js::ProgramPart> {
   match top_level {
     TopLevel::Error(_) => bail!("errors are not supported"),
     TopLevel::Using(_) => bail!("using are not supported"),
@@ -79,7 +82,7 @@ pub fn dump_into_string<W: std::io::Write>(
   db: &dyn HirDb,
   source: HirSource,
   w: W,
-) -> eyre::Result<()> {
+) -> lura_eyre::Result<()> {
   let mut writer = resw::Writer::new(w);
   for top_level in source.contents(db) {
     let Ok(program_part) = transform_top_level(db, *top_level) else {

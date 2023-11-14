@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use ariadne::Fmt;
-use eyre::Context;
 use fxhash::{FxBuildHasher, FxHashSet};
 use lura_diagnostic::Report;
+use lura_eyre::Context;
 
 type Span = (String, std::ops::Range<usize>);
 
@@ -44,12 +44,12 @@ impl AriadneReport {
     self
   }
 
-  pub fn write(self, output: &mut dyn std::io::Write) -> eyre::Result<()> {
+  pub fn write(self, output: &mut dyn std::io::Write) -> lura_eyre::Result<()> {
     write!(output, "{}", self.dump()?)?;
     Ok(())
   }
 
-  pub fn dump(self) -> eyre::Result<String> {
+  pub fn dump(self) -> lura_eyre::Result<String> {
     let mut output = Vec::new();
     let errors = self.group_errors_by_file();
 
@@ -111,7 +111,7 @@ impl AriadneReport {
   }
 
   /// Prints the report to stderr.
-  pub fn eprint(self) -> eyre::Result<()> {
+  pub fn eprint(self) -> lura_eyre::Result<()> {
     println!("{}", self.dump()?);
     Ok(())
   }
