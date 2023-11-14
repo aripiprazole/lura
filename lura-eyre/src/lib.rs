@@ -339,7 +339,6 @@ pub type Result<T, E = Report> = core::result::Result<T, E>;
 ///     Some codebases prefer to use machine-readable messages to categorize
 ///     lower level errors in a way that will be actionable to higher levels of
 ///     the application.
-///
 pub trait WrapErr<T, E>: sealed::Sealed {
   /// Wrap the error value with a new adhoc error
   #[cfg_attr(track_caller, track_caller)]
