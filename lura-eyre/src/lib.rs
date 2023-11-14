@@ -6,7 +6,7 @@ use std::fmt::Display;
 #[doc(hidden)]
 pub use eyre as private;
 
-pub use eyre::Context;
+pub use WrapErr as Context;
 
 #[derive(Debug)]
 pub enum Report {
