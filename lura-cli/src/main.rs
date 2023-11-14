@@ -39,7 +39,7 @@ fn main() -> eyre::Result<()> {
       let source_map = manifest.resolve_all_files()?;
       if manifest.diagnostics.is_empty() {
         let current_source = source_map
-          .get_in_db(&manifest.db, &package)
+          .get_in_db(manifest.db, package)
           .ok_or_else(|| eyre!("could not locate the package"))?;
 
         let mut source = Vec::new();

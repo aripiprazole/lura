@@ -173,7 +173,7 @@ impl SourceMap {
   pub fn get_in_db(&self, db: &RootDb, name: impl Display) -> Option<HirSource> {
     self.iter().find_map(|(package, hir_source)| {
       if package.name(db) == &name.to_string() {
-        Some(hir_source.clone())
+        Some(*hir_source)
       } else {
         None
       }
