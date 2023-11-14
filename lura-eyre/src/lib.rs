@@ -521,7 +521,7 @@ mod sealed {
     where
       D: Display + Send + Sync + 'static,
     {
-      Report::Eyre(self.into())
+      crate::Report::Eyre(eyre::Report::from(self).wrap_err(msg))
     }
   }
 
