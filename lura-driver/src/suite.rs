@@ -49,7 +49,7 @@ pub fn run_test_suite(
   file: &str,
   source_code: &str,
   expect: &str,
-  f: impl FnOnce(RootDb, SourceCode, Expect) -> eyre::Result<()>,
+  f: impl FnOnce(RootDb, SourceCode, Expect) -> lura_eyre::Result<()>,
 ) {
   let _ = env_logger::builder()
     .is_test(true)
@@ -84,7 +84,7 @@ pub fn run_test_suite(
 }
 
 /// Groups the errors by file.
-pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> eyre::Result<()> {
+pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> lura_eyre::Result<()> {
   let mut ariadne = AriadneReport::default();
   for output in outputs {
     ariadne = ariadne.expand(output.clone());
@@ -94,7 +94,11 @@ pub fn push_ariadne_errors(output: Expect, outputs: &[Vec<Report>]) -> eyre::Res
 }
 
 /// Prints a debug report of the given `type_table`.
-pub fn debug_type_table(expect: Expect, db: &RootDb, type_table: TypeTable) -> eyre::Result<()> {
+pub fn debug_type_table(
+  expect: Expect,
+  db: &RootDb,
+  type_table: TypeTable,
+) -> lura_eyre::Result<()> {
   let mut output = Vec::new();
   let expressions = type_table.expressions(db);
 

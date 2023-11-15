@@ -15,11 +15,11 @@ lura-typer = { version = "0.0.1", path = "../lura-typer" }
 lura-ariadne = { version = "0.0.1", path = "../lura-ariadne" }
 lura-eval = { version = "0.0.1", path = "../lura-eval" }
 lura-tt = { version = "0.0.1", path = "../lura-tt" }
+lura-eyre = { version = "0.0.1", path = "../lura-eyre" }
 
 salsa-2022 = { workspace = true }
 
 dashmap.workspace = true
-eyre.workspace = true
 itertools.workspace = true
 fxhash.workspace = true
 

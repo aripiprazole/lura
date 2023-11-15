@@ -1,7 +1,8 @@
 use std::{path::Path, rc::Rc};
 
 use deno_core::{error::AnyError, FastString};
-use eyre::bail;
+
+use lura_eyre::bail;
 use lura_hir::solver::Reference;
 use lura_hir::source::declaration::Declaration;
 use lura_hir::source::expr::Callee;
@@ -34,7 +35,7 @@ pub fn definition_mangle_name(db: &dyn HirDb, definition: Definition) -> String 
   let mut name = String::new();
   for segment in definition.name(db).segments(db) {
     name.push_str(&segment.contents(db));
-    name.push_str("_");
+    name.push_str("__");
   }
   name
 }
@@ -94,7 +95,7 @@ impl CaseTree<'_> {
   }
 }
 
-pub fn compile_top_level(db: &dyn HirDb, top_level: TopLevel) -> eyre::Result<js::ProgramPart> {
+pub fn compile_top_level(db: &dyn HirDb, top_level: TopLevel) -> lura_eyre::Result<js::ProgramPart> {
   match top_level {
     TopLevel::Error(_) => bail!("errors are not supported"),
     TopLevel::Using(_) => bail!("using are not supported"),
@@ -122,7 +123,7 @@ pub fn dump_into_string<W: std::io::Write>(
   db: &dyn HirDb,
   source: HirSource,
   w: W,
-) -> eyre::Result<()> {
+) -> lura_eyre::Result<()> {
   let mut writer = resw::Writer::new(w);
   for top_level in source.contents(db) {
     let Ok(program_part) = compile_top_level(db, *top_level) else {

@@ -1,5 +1,5 @@
 [package]
-name = "lura-js"
+name = "lura-eyre"
 edition.workspace = true
 authors.workspace = true
 documentation.workspace = true
@@ -10,13 +10,12 @@ lura-diagnostic = { version = "0.0.1", path = "../lura-diagnostic" }
 lura-hir = { version = "0.0.1", path = "../lura-hir" }
 lura-syntax = { version = "0.0.1", path = "../lura-syntax" }
 lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
-lura-eyre = { version = "0.0.1", path = "../lura-eyre" }
 
 salsa-2022.workspace = true
-im.workspace = true
 
-axum = "0.6.20"
-deno_core = "0.229.0"
-resast = "0.4.1"
-resw = "0.5.0"
+thiserror.workspace = true
+
 eyre.workspace = true
+miette.workspace = true
+
+im.workspace = true

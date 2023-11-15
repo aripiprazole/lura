@@ -1,7 +1,7 @@
 use clap::*;
-use eyre::eyre;
 use itertools::Itertools;
 use lura_driver::RootDb;
+use lura_eyre::eyre;
 
 use crate::build::Manifest;
 
@@ -27,7 +27,7 @@ pub enum Command {
 
 pub mod build;
 
-fn main() -> eyre::Result<()> {
+fn main() -> lura_eyre::Result<()> {
   let cli = Cli::parse();
   let db = RootDb::default();
 
@@ -39,7 +39,7 @@ fn main() -> eyre::Result<()> {
       let source_map = manifest.resolve_all_files()?;
       if manifest.diagnostics.is_empty() {
         let current_source = source_map
-          .get_in_db(&manifest.db, &package)
+          .get_in_db(manifest.db, package)
           .ok_or_else(|| eyre!("could not locate the package"))?;
 
         let mut source = Vec::new();

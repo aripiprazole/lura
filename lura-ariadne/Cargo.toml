@@ -9,6 +9,7 @@ version.workspace = true
 lura-diagnostic = { version = "0.0.1", path = "../lura-diagnostic" }
 lura-syntax = { version = "0.0.1", path = "../lura-syntax" }
 lura-vfs = { version = "0.0.1", path = "../lura-vfs" }
+lura-eyre = { version = "0.0.1", path = "../lura-eyre" }
 
 salsa-2022 = { workspace = true }
 
@@ -16,7 +17,6 @@ tree-sitter = { workspace = true }
 type-sitter-lib = { workspace = true }
 
 dashmap = { workspace = true }
-eyre = { workspace = true }
 itertools.workspace = true
 fxhash.workspace = true
 
